@@ -6,7 +6,7 @@
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件。它把一个前端任务交给两个独立的 Agent，各在一份只属于自己的项目副本里实现；然后**按锁文件安装依赖、构建、把构建产物真的跑起来**，对两边执行**绑定到内容的同一套验收**。你先亲手操作两份真实页面并做出选择，选完立即揭晓各自用的策略或模型。采用前，它会先在你**当前项目的副本里预演**所选版本，验收通过才写回项目，并能撤销或从中断中恢复。
 
-> 状态：**0.2.0-alpha.5，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
+> 状态：**0.2.0-alpha.6，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
 
 ## 适合什么任务
 
@@ -79,7 +79,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.5.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.6.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：
@@ -146,12 +146,12 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.5.tgz
 | 项目 | 状态 |
 |---|---|
 | DSH 0.2.1-rc.3 桌面版，Windows 11 | 真实模型完整一轮已跑通（生成、验收、盲选、采用）；候选会话只能写自己的副本，能正常运行 shell 命令 |
-| DSH 0.2.1-rc.4 及以上、Web UI | 未测试 |
+| DSH 0.2.1-rc.5，Windows 11 Web UI | 生产版指令、真实子会话、预览、采用、历史恢复及采用说明进入主对话下一次请求已通过；使用本地脚本化适配器 |
 | macOS / Linux | 核心测试在 CI 中运行；未在 DSH 中实测 |
-| Node | ≥ 22.19（本地测试用 24） |
+| Node | 26.13.0 为主开发基线；22／24 维护线的最新补丁版也纳入 CI 兼容检查 |
 | 项目类型 | Vite 项目；npm / pnpm / yarn；至少有一次提交的 Git 仓库 |
 
-## 已验证（2026-11-02，Windows 11，Node 24.22，Git 2.53）
+## 已验证（2026-11-02，Windows 11，Node 26.13，Git 2.53）
 
 - 84 个自动化测试，包含真实 git、冻结 npm 安装、构建与预览进程的集成测试（临时路径带空格），以及单元测试和宿主接口契约测试。已建立的回归包括：
   - 候选改写测试脚本：检查「通过」，但结论为不可采用，写入工作区被拒绝，只能另存为分支；
@@ -166,7 +166,9 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.5.tgz
   - 基于过期记录的保存被拒绝；旧版记录只读，不会据此结束进程；
   - 只有命令行能证明归属的进程才会被结束；
   - 候选会话的创建参数（会话目录 = 副本、沙箱 workspace-write、审批 never）、开始前就收到的停止、真实 token 用量的汇总。
-- `node scripts/smoke.mjs`：脚本代替模型，用内置案例真实运行 Vite 6 与系统 Edge。完整实现的一版通过 12/12 步验收；漏做「清空」按钮的一版只通过 9/12 步，被判为不可采用。基线建立后再次编辑笔记文件，采用必须先预演组合结果，并保留更新后的笔记。`--escape B` 时，候选写到副本外的文件被检测出来。
+- `node scripts/smoke.mjs`：脚本代替模型，用内置案例真实运行 React 19.3.1、Vite 8.3.5 与 Playwright Chromium 156.0.8078.4。完整实现的一版通过 12/12 步验收；漏做「清空」按钮的一版只通过 9/12 步，被判为不可采用。基线建立后再次编辑笔记文件，采用必须先预演组合结果，并保留更新后的笔记。`--escape B` 时，候选写到副本外的文件被检测出来。
+- DSH 0.2.1-rc.5 隔离环境：生产版指令读取界面选择的五分钟上限，创建两个真实候选会话，运行应用并完成审查及采用。刷新并返回普通对话后，本地脚本化适配器在真实主会话请求中读到了采用说明。新建／已有对话的入口均正常，没有页面异常。本项没有请求外部模型。
+- 开发与示例依赖审计均为零已知漏洞。`npm run test:coverage` 单独报告后端覆盖率；浏览器和原生宿主集成检查属于其他验证层，不计入这个百分比。
 - 86 项浏览器断言覆盖输入框设置、设置持久化、多条记录的独立操作、两个可交互预览、空白会话导航与重新打开、代码审查、采用确认、返回输入框的焦点、响应式状态及弹窗键盘操作。八组浅色／深色界面状态通过 WCAG 2 A/AA 和 2.1 AA 自动规则检查。此项使用明确标记的示例记录。
 
 - 真实模型（DSH 0.2.1-rc.3 桌面版，deepseek-flash，内置案例）：两个候选会话的头部记录 `cwd` 分别是各自的副本，`sandbox/mode` 为 `workspace-write`、`approval/policy` 为 `never`；候选里的 `pwsh` 正常执行（0.1 的 `SetNamedSecurityInfoW` 错误不再出现）；token 用量来自会话日志。两个候选都在 30 分钟上限内没有说完成——其中一个已写完全部改动，事后对它的副本跑共同验收：冻结安装、类型检查、构建和 12/12 步页面验收全部通过。0.2.0-alpha.2 因此改为到时照样验收已写的改动。
@@ -177,7 +179,7 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.5.tgz
 
 ## 尚未验证（不要当成已支持）
 
-- 对话里 A|B 卡片在桌面版中的实际显示效果，以及「采用后接着提下一项需求」由模型读取记录并继续的完整体验。
+- 更新后桌面壳的最终显示效果，以及最新版宿主中由外部模型完成「采用后接着提下一项需求」的完整体验。采用说明进入请求上下文已通过本地脚本化适配器检查。
 - 在这台 Windows 机器上，DSH 沙箱里每次工具调用要十几秒到几分钟，模型每两轮之间也常等两三分钟，一轮比较可能超过 30 分钟；原因在 DSH 和模型服务一侧，还没有定位。
 - 面板 iframe 中的存储是否与你自己的浏览器隔离；需要时请用「在浏览器中打开」。
 - 两个模型模式下各家 provider 的实际表现。
@@ -190,11 +192,16 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.5.tgz
 
 ## 开发
 
+使用 Node 26.13.0（`.nvmrc`）与 npm 12.2.1。编译和测试基线为 TypeScript 7、React 19.3、Vitest 5；分发的客户端复用 DSH 提供的 React 运行时。
+
 ```bash
 npm ci && npm run typecheck && npm test
 ```
 
 ```bash
+npx playwright-core install --only-shell chromium
+npm run test:ui
+npm run test:coverage
 npm run smoke
 ```
 

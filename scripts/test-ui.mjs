@@ -13,7 +13,7 @@ let browser
 let assertions = 0
 const check = (value, message) => { assert.ok(value, message); assertions++ }
 try {
-  browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true })
+  browser = await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -226,7 +226,7 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'Escape must close the workspace')
   check(await page.evaluate(() => document.activeElement.classList.contains('ac-header-btn')), 'closing must restore entry-button focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
-  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version() }))
+  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), react: await page.evaluate(() => React.version), node: process.version }))
 } finally {
   await browser?.close()
   await harness.close()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 
 // Guards the failure that bricked a real DSH desktop boot: the client file must
@@ -7,7 +7,7 @@ import vm from 'node:vm'
 // must never throw even when slots are missing.
 const file = 'lib/client.js'
 
-describe.skipIf(!existsSync(file))('client bundle', () => {
+describe('client bundle', () => {
   const src = readFileSync(file, 'utf8')
 
   it('parses as a classic script (no import/export statements)', () => {

@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each confined to its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.5, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.6, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -73,7 +73,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.5.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.6.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
@@ -140,17 +140,19 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 | Item | Status |
 |---|---|
 | DSH 0.2.1-rc.3 desktop, Windows 11 | A full real-model round (generate, verify, pick, adopt) completed; candidate sessions write only their own copy, and shell commands work |
-| DSH 0.2.1-rc.4+, Web UI | Not tested |
+| DSH 0.2.1-rc.5, Web UI, Windows 11 | Production command, real child sessions, live previews, adoption, refreshed history, and adopted-result context in the next main-session request; local scripted adapter |
 | macOS / Linux | Core tests run in CI; not tested inside DSH |
-| Node | ≥ 22.19 (tested on 24) |
+| Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
 | Projects | Vite; npm / pnpm / yarn; a Git repository with at least one commit |
 
-## Verified (2026-11-02, Windows 11, Node 24.22, Git 2.53)
+## Verified (2026-11-02, Windows 11, Node 26.13, Git 2.53)
 
 - 84 automated tests, including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
 - Adoption regressions preserve edits made during rehearsal or journal persistence, stop on concurrent HEAD/index changes, guard replacements and deletions, preserve ignored files at addition paths, and roll back only attempted paths. Retrying after resolving an overlap still supports adoption and undo.
 - 86 browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation navigation and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. Eight light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
-- `node scripts/smoke.mjs`: the built-in case with scripted agents on real Vite 6 and system Edge. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
+- `node scripts/smoke.mjs`: the built-in case with scripted agents on React 19.3.1, Vite 8.3.5, and Playwright Chromium 156.0.8078.4. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
+- DSH 0.2.1-rc.5, isolated profile: the production command consumes a five-minute generation setting, creates two actual candidate sessions, serves both apps, and completes review and adoption. After reload and returning to normal conversation, a local scripted adapter observes the adopted result in the real main-session request. New and existing header controls remain available, with no page errors. No external model request is made in this check.
+- Development and example dependency audits report zero known advisories. Backend coverage is reported separately by `npm run test:coverage`; browser and native-host integration checks are separate layers and are not included in that percentage.
 
 - Real model (DSH 0.2.1-rc.3 desktop, deepseek-flash, built-in case): both candidate session headers record their own copy as `cwd`, with `sandbox/mode` `workspace-write` and `approval/policy` `never`; `pwsh` runs inside the candidates (the 0.1 `SetNamedSecurityInfoW` error is gone); token usage comes from the session logs. Neither candidate declared completion within 30 minutes. One had written its whole change, and the shared acceptance run on its copy afterwards passed the frozen install, typecheck, build and 12/12 page steps — which is why 0.2.0-alpha.2 verifies written work when the time limit is reached.
 
@@ -160,7 +162,7 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 ## Not verified yet
 
-- How the in-chat A|B card looks in the desktop app, and the full "adopt, then ask for the next change" flow with the model reading the record.
+- The desktop shell's final appearance after updating, and the latest host's "adopt, then ask for the next change" flow with an external model provider. Request-context delivery has been checked with the local scripted adapter.
 - On this Windows machine each tool call inside DSH's sandbox took from about ten seconds to several minutes, and the model often waited two to three minutes between steps, so one comparison can exceed 30 minutes. The cause lies on the DSH and model-service side and has not been pinned down.
 - Whether storage inside the panel's iframes is isolated from your own browser; use "open in browser" when it matters.
 - Provider behaviour in two-model mode.
@@ -173,11 +175,16 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 ## Development
 
+Use Node 26.13.0 (`.nvmrc`) and npm 12.2.1. The compiler and test baseline is TypeScript 7, React 19.3, and Vitest 5. The distributed client reuses the React runtime supplied by DSH.
+
 ```bash
 npm ci && npm run typecheck && npm test
 ```
 
 ```bash
+npx playwright-core install --only-shell chromium
+npm run test:ui
+npm run test:coverage
 npm run smoke
 ```
 
