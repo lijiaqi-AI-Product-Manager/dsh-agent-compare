@@ -41,6 +41,12 @@ async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; ed
   const comparer = new Comparer({ store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
   const started = await comparer.start({ repo, task: 'make the shop nicer', assignment: 'fixed' })
   const done = (await comparer.wait(started.runId))!
+  const failedPreparation = done.candidates.filter(c => c.error?.stage === 'preparing')
+  if (failedPreparation.length) {
+    const details = failedPreparation.map(c => `${c.label}: ${c.error?.message ?? 'unknown preparation failure'}`).join('\n')
+    try { await comparer.cleanup(started.runId) } catch { /* preserve the original preparation error below */ }
+    throw new Error(`Comparison fixture preparation failed before the tested behavior:\n${details}`)
+  }
   return { repo, store, comparer, runId: started.runId, done }
 }
 
