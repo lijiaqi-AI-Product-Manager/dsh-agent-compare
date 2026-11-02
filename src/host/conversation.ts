@@ -74,7 +74,7 @@ const files = (paths: readonly string[] | undefined): string => (paths && paths.
 export function memoryNote(r: RunRecord): string | undefined {
   const m = milestoneOf(r)
   if (m === undefined) return undefined
-  const head = `[AgentCompare run ${r.runId}] Task: ${r.task.slice(0, 400)}`
+  const head = `[AgentCompare run ${r.runId}] Task: ${r.task.slice(0, 400)}\nTarget repository: ${r.baseline.repoRoot}`
   if (m === 'judging') {
     const lines = r.candidates.map((c) => {
       if (c.stage !== 'ready') return `- ${c.label}: did not produce a result (${c.error?.message.split('\n')[0] ?? c.stage})`
@@ -98,7 +98,7 @@ export function memoryNote(r: RunRecord): string | undefined {
     case 'adopted':
     case 'needs-attention':
       if (a.mode === 'branch') return `${head}\nCandidate ${a.label} was saved as branch ${a.branch ?? '(unknown)'}; the working tree and current branch are unchanged.`
-      return `${head}\nCandidate ${a.label} (${c?.strategy.title ?? ''}) is now in the user's working tree, uncommitted. Files written: ${files(touched)}. Treat these changes as the current state of the project for follow-up requests.${a.state === 'needs-attention' ? ` Other files changed during the write: ${files(a.attention)}.` : ''}`
+      return `${head}\nCandidate ${a.label} (${c?.strategy.title ?? ''}) is now in the target repository's working tree, uncommitted. Files written: ${files(touched)}. These changes apply only to the target repository above. Before following up, confirm your working directory matches it; an example repository can differ from this conversation's original project.${a.state === 'needs-attention' ? ` Other files changed during the write: ${files(a.attention)}.` : ''}`
     case 'reverted':
     case 'rolled-back':
       return `${head}\nThe adoption of ${a.label} was undone; these files are back to their previous content: ${files(touched)}.`

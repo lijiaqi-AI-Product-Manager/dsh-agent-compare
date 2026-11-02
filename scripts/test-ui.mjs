@@ -1,0 +1,200 @@
+import assert from 'node:assert/strict'
+import { mkdtemp, mkdir } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { chromium } from 'playwright-core'
+import { createUiHarness } from './preview-ui.mjs'
+
+// Real client components and browser interaction, using labelled sample runs.
+const harness = await createUiHarness({ port: 0, demoPort: 0 })
+const output = process.env.AGENT_COMPARE_UI_ARTIFACTS ?? await mkdtemp(path.join(os.tmpdir(), 'agent-compare-ui-'))
+await mkdir(output, { recursive: true })
+let browser
+let assertions = 0
+const check = (value, message) => { assert.ok(value, message); assertions++ }
+try {
+  browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true })
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  const open = async (state, extra = '') => {
+    await page.emulateMedia({ colorScheme: extra.includes('theme=dark') ? 'dark' : 'light' })
+    await page.goto(`${harness.url}/?state=${state}${extra}`)
+    if (['start', 'compose', 'closed', 'blank', 'blank-history'].includes(state)) {
+      const toggle = page.getByRole('button', { name: 'A|B 对比模式' })
+      await toggle.waitFor()
+      await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
+      if (state === 'compose') {
+        if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click()
+        await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
+      }
+      return
+    }
+    await page.getByRole('dialog', { name: 'AgentCompare' }).waitFor()
+    if (!['history', 'guide'].includes(state)) await page.getByRole('region', { name: '候选 A', exact: true }).waitFor()
+  }
+  const requests = (method) => page.evaluate(m => window.__requests.filter(r => r.method === m), method)
+
+  await open('start')
+  const mode = page.getByRole('button', { name: 'A|B 对比模式', exact: true })
+  const editor = page.getByRole('textbox', { name: '需求', exact: true })
+  await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
+  await editor.fill('Improve search and category navigation --minutes stays literal')
+  const references = await page.evaluate(() => JSON.stringify(window.__input().occurrences))
+  await mode.click()
+  await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
+  check(await mode.getAttribute('aria-pressed') === 'true', 'comparison mode must be visible in the composer')
+  check(await editor.inputValue() === 'Improve search and category navigation --minutes stays literal', 'entering mode must preserve the task')
+  check(await page.evaluate(() => JSON.stringify(window.__input().occurrences)) === references, 'entering mode must preserve structured references')
+  check(await page.evaluate(() => window.__edits.at(-1).span.end) === 0, 'mode entry must insert a token rather than replace the draft')
+  await page.getByLabel('每版生成上限').selectOption('60')
+  await page.screenshot({ path: path.join(output, 'composer-desktop.png') })
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await page.locator('.ac-inline iframe').nth(1).waitFor()
+  check(await page.getByRole('dialog').count() === 0, 'sending must run inside the conversation, without opening a separate page')
+  const normal = await page.evaluate(() => JSON.parse(window.__commands.at(-1).line.slice('/ab @ui '.length)))
+  check(normal.preferences.generationMinutes === 60 && normal.preferences.mode === 'same-model' && normal.example === false, 'composer controls must reach the actual command submission')
+  check(normal.task.endsWith('--minutes stays literal'), 'flag-shaped task text must stay verbatim')
+  check((await requests('start')).length === 0 && (await requests('models')).length === 0, 'default submission must use the conversation executor without model discovery')
+  check(await page.locator('.ac-inline').count() === 1, 'the command result must render a persistent inline card')
+  check(await page.evaluate(() => window.__commandAcks.length === 1 && window.__commandAcks[0].sessionId === 's1' && window.__commandAcks[0].name === 'ab'), 'admitted commands must publish the host conversation acknowledgment')
+  await page.screenshot({ path: path.join(output, 'conversation-live.png') })
+
+  await page.getByRole('button', { name: '退出 A|B 模式' }).click()
+  await editor.fill('preserved after leaving mode')
+  await mode.click()
+  await page.getByRole('button', { name: '两个模型 · 同一要求', exact: true }).click()
+  const selectors = page.locator('.ac-models select')
+  await selectors.nth(0).selectOption('deepseek/deepseek-chat')
+  await page.waitForFunction(() => document.querySelectorAll('.ac-models select')[1]?.querySelector('option[value="deepseek/deepseek-chat"]')?.disabled)
+  check(await selectors.nth(1).locator('option[value="deepseek/deepseek-chat"]').evaluate(option => option.disabled), 'the same model cannot be selected twice')
+  await selectors.nth(1).selectOption('deepseek/deepseek-reasoner')
+  await page.getByRole('button', { name: '试跑内置示例', exact: true }).click()
+  await page.waitForFunction(() => window.__commands.length === 2)
+  const example = await page.evaluate(() => JSON.parse(window.__commands.at(-1).line.slice('/ab @ui '.length)))
+  check(example.example && example.preferences.models[1].model === 'deepseek-reasoner' && example.task === '', 'the example must run directly through the same session executor with the selected models')
+  check(await editor.inputValue() === 'preserved after leaving mode', 'trying the example must preserve an unrelated draft')
+  await page.waitForFunction(() => document.querySelectorAll('#chat .ac-inline').length === 2)
+  await page.locator('#chat .ac-inline').first().getByRole('button', { name: '选 A', exact: true }).click()
+  await page.locator('#chat .ac-inline').first().getByRole('button', { name: '审查并采用 A', exact: true }).waitFor()
+  check((await requests('choose')).at(-1).body.runId === '10000001', 'choosing an older conversation card must target its own run')
+  check(await page.locator('#chat .ac-inline').nth(1).getByRole('button', { name: '选 A', exact: true }).isVisible(), 'choosing one card must not change a later comparison')
+  await page.reload()
+  await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
+  check(await page.getByLabel('每版生成上限').inputValue() === '60', 'the time limit must survive reload')
+  check(await page.locator('.ac-models select').nth(1).inputValue() === 'deepseek/deepseek-reasoner', 'model choices must survive reload')
+  await page.getByRole('button', { name: '退出 A|B 模式' }).click()
+  await page.waitForFunction(() => document.querySelector('.ac-mode-btn').getAttribute('aria-pressed') === 'false')
+  check(await page.evaluate(() => window.__edits.at(-1).span.end) === 1, 'mode exit must remove only its command chip')
+
+  await open('start', '&error=command')
+  await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
+  await mode.click()
+  await editor.fill('keep this request after a failure')
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await page.locator('#notice').filter({ hasText: '请求失败' }).waitFor()
+  check(await editor.inputValue() === 'keep this request after a failure', 'failed dispatch must preserve the composer draft')
+  check(await mode.getAttribute('aria-pressed') === 'true', 'failed dispatch must retain comparison mode for retry')
+
+  await open('start', '&error=models')
+  await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
+  await page.getByRole('button', { name: '重试模型列表' }).waitFor()
+  await page.getByRole('button', { name: '同一模型 · 两种策略', exact: true }).click()
+  check(await page.getByRole('button', { name: '试跑内置示例', exact: true }).isEnabled(), 'failed model discovery must allow returning to the current model')
+
+  await open('blank')
+  await page.waitForFunction(() => window.__requests.some(r => r.method === 'list'))
+  check(await page.locator('.ac-conversation-run').count() === 0, 'a new conversation must not display an unrelated history record')
+  if (await mode.getAttribute('aria-pressed') !== 'true') await mode.click()
+  await page.getByRole('button', { name: '试跑内置示例', exact: true }).click()
+  await page.locator('.ac-conversation-run iframe').nth(1).waitFor()
+  check(await page.locator('#chat .ac-inline').count() === 0 && await page.locator('.ac-conversation-run iframe').count() === 2, 'a first comparison must appear even before a blank conversation has a Chat timeline')
+
+  await open('blank-history')
+  await page.getByRole('region', { name: '本对话的 A|B 结果' }).waitFor()
+  await page.locator('.ac-conversation-run iframe').nth(1).waitFor()
+  check(await page.locator('#chat .ac-inline').count() === 0, 'the fixture must exercise a blank session without a Chat timeline')
+  check(await page.getByRole('dialog').count() === 0 && await page.locator('.ac-conversation-run iframe').count() === 2, 'a blank conversation must show both applications directly')
+  check(await page.locator('.ac-conversation-run').evaluate(el => {
+    const host = document.getElementById('settings')
+    host.style.cssText = 'display:flex;flex-direction:column;height:300px'
+    const fits = el.scrollHeight <= el.clientHeight + 2
+    host.style.cssText = ''
+    return fits
+  }), 'the host flex composer must not shrink and clip comparison controls')
+  await page.getByRole('button', { name: '收起结果', exact: true }).click()
+  check(await page.locator('.ac-conversation-run iframe').count() === 2, 'collapsing the result must retain the applications')
+  await page.getByRole('button', { name: '展开结果', exact: true }).click()
+  await page.reload()
+  await page.locator('.ac-conversation-run iframe').nth(1).waitFor()
+  check(await page.locator('.ac-conversation-run iframe').count() === 2, 'blank-session results must reopen from persisted run records')
+  await page.screenshot({ path: path.join(output, 'blank-conversation.png') })
+
+  await open('judging')
+  await page.locator('iframe').nth(1).waitFor()
+  const frames = page.frames().filter(f => f !== page.mainFrame())
+  await Promise.all(frames.map(f => f.waitForLoadState('domcontentloaded')))
+  check(frames.length === 2, 'both applications must actually load')
+  for (const f of frames) check(await f.evaluate(() => innerWidth) === 1280, 'desktop viewports must match')
+  await page.getByRole('button', { name: '手机 390', exact: true }).click()
+  await page.waitForFunction(() => [...document.querySelectorAll('iframe')].every(f => f.style.width === '390px'))
+  for (const f of frames) check(await f.evaluate(() => innerWidth) === 390, 'phone viewports must match')
+  await frames[0].getByPlaceholder('搜索商品').fill('preserved interaction')
+  await page.getByRole('button', { name: '专注 A', exact: true }).click()
+  check(await page.getByRole('region', { name: '候选 B', exact: true }).count() === 0, 'focused mode must hide the other candidate')
+  await page.getByRole('button', { name: '并排比较', exact: true }).click()
+  await page.waitForFunction(() => [...document.querySelectorAll('.ac-preview-surface')].every(el => el.clientWidth >= 389))
+  check(await frames[0].getByPlaceholder('搜索商品').inputValue() === 'preserved interaction', 'view switches must retain application state')
+  await page.screenshot({ path: path.join(output, 'compare-phone.png') })
+  await page.getByRole('button', { name: '选 A', exact: true }).click()
+  await page.getByRole('button', { name: '审查并采用 A' }).waitFor()
+  check((await requests('adopt')).length === 0, 'choosing a candidate must not adopt it')
+  await page.getByText('查看 A 的代码改动', { exact: true }).click()
+  await page.getByRole('region', { name: '候选 A', exact: true }).locator('pre').waitFor()
+  check((await requests('patch')).length === 1, 'source changes must be reviewable')
+  await page.getByRole('button', { name: '审查并采用 A' }).click()
+  await page.getByRole('region', { name: '采用前审查' }).waitFor()
+  check((await requests('preflight')).length === 1 && (await requests('adopt')).length === 0, 'preflight must precede a separate confirmation')
+  await page.getByRole('button', { name: '确认采用 A' }).click()
+  await page.getByRole('button', { name: '撤销采用', exact: true }).waitFor()
+  check((await requests('adopt')).at(-1).body.mode === 'worktree', 'confirmation must perform the requested adoption')
+  await page.getByRole('button', { name: '继续主对话', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('.ac-mode-btn').getAttribute('aria-pressed') === 'false')
+  check(await page.getByRole('dialog').count() === 0, 'continuing the conversation must close expanded inspection')
+  check(await page.locator('#draft').evaluate(el => document.activeElement === el), 'continuing must focus the original composer')
+
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    for (const state of ['start', 'running', 'judging', 'failed', 'blocked', 'recovery']) {
+      await open(state)
+      check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${state}: no page overflow at ${viewport.width}`)
+      if (state === 'recovery') {
+        const rect = await page.getByRole('button', { name: '恢复到采用前', exact: true }).boundingBox()
+        check(rect && rect.y > 0 && rect.y + rect.height < viewport.height, 'recovery must be visible without scrolling')
+      }
+      if (viewport.width === 390) await page.screenshot({ path: path.join(output, `${state}-phone.png`) })
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'revealed', 'recovery']) {
+    await open(state, `&theme=${theme}`)
+    await page.addScriptTag({ path: 'node_modules/axe-core/axe.min.js' })
+    const result = await page.evaluate(async () => window.axe.run(document.querySelector('[role="dialog"]') ?? document.querySelector('.ac-composer-settings'), { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] } }))
+    check(result.violations.length === 0, `${state} ${theme}: ${JSON.stringify(result.violations.map(v => ({ id: v.id, elements: v.nodes.map(n => n.target) })))}`)
+  }
+  await open('history', '&theme=dark')
+  await page.screenshot({ path: path.join(output, 'setup-dark.png') })
+  await page.getByRole('button', { name: '关闭（Esc）' }).focus()
+  await page.keyboard.press('Tab')
+  check(await page.evaluate(() => document.querySelector('[role="dialog"]').contains(document.activeElement)), 'Tab must remain inside the modal')
+  await page.keyboard.press('Shift+Tab')
+  check(await page.evaluate(() => document.querySelector('[role="dialog"]').contains(document.activeElement)), 'reverse Tab must remain inside the modal')
+  await page.keyboard.press('Escape')
+  check(await page.getByRole('dialog').count() === 0, 'Escape must close the workspace')
+  check(await page.evaluate(() => document.activeElement.classList.contains('ac-header-btn')), 'closing must restore entry-button focus')
+  check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
+  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version() }))
+} finally {
+  await browser?.close()
+  await harness.close()
+}

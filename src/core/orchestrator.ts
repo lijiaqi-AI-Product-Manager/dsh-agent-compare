@@ -971,7 +971,7 @@ export interface PublicCandidate {
 
 export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance' | 'adoption'> & {
   candidates: PublicCandidate[]
-  baseline: { dirty: boolean; headCommit?: string }
+  baseline: { dirty: boolean; headCommit?: string; repoRoot: string }
   acceptance: { source: Acceptance['source']; checks: string[]; steps: number; sha256: string; frozenInstall: boolean }
   adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore'> & { rehearsed?: boolean; rehearsalChecks?: CheckResult[] }
 }
@@ -987,7 +987,7 @@ export function publicView(r: RunRecord): PublicRun {
   const a = adoption
   return {
     ...rest,
-    baseline: { dirty: baseline.dirty, ...(baseline.headCommit === undefined ? {} : { headCommit: baseline.headCommit.slice(0, 12) }) },
+    baseline: { dirty: baseline.dirty, repoRoot: baseline.repoRoot, ...(baseline.headCommit === undefined ? {} : { headCommit: baseline.headCommit.slice(0, 12) }) },
     acceptance: {
       source: acceptance.source,
       checks: [...acceptance.checks.commands.map((c) => c.name), ...(acceptance.checks.browser ? ['browser'] : [])],

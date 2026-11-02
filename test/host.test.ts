@@ -17,6 +17,7 @@ function fakeAgents(script: (child: FakeChild) => void) {
     options = { provider: 'deepseek', model: 'deepseek-chat' }
     session: any
     constructor(readonly opts: any) {
+      this.options = opts.agentOptions ?? this.options
       const events = this.events
       this.session = {
         id: opts.sessionId,
@@ -24,6 +25,7 @@ function fakeAgents(script: (child: FakeChild) => void) {
         get seq() { return events.length },
         append: (type: string, data: unknown) => { events.push({ type, data }) },
         snapshotEvents: (from: number) => events.slice(from),
+        requestHeader: () => events.some(e => e.type === 'assistant/message') ? { config: this.options } : undefined,
       }
     }
     followup(m: unknown) { this.events.push({ type: 'user/message', data: m }); script(this) }
@@ -67,7 +69,7 @@ describe('isolated candidate session', () => {
     expect(opts.parentAgent).toBe(parent)
     expect(opts.agentOptions).toEqual({ provider: 'deepseek', model: 'deepseek-chat' })
     expect(res).toMatchObject({ stopReason: 'completed', summary: 'Done: added search.', actualRoute: { provider: 'deepseek', model: 'deepseek-chat' } })
-    expect(res.usage).toEqual({ kind: 'reported', inputTokens: 300, outputTokens: 30, cacheReadTokens: 50, totalTokens: 380 })
+    expect(res.usage).toEqual({ kind: 'reported', inputTokens: 300, outputTokens: 30, totalTokens: 380 })
     expect(created.some((c) => c.context?.name === 'agent-compare:candidate')).toBe(true)
     expect(disposed).toEqual([opts.sessionId])
   })

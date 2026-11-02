@@ -28,7 +28,7 @@ describe.skipIf(!existsSync(file))('client bundle', () => {
     const { exports, requested } = load(undefined)
     expect(requested).toEqual(['react'])
     expect(typeof exports.apply).toBe('function')
-    expect(exports.inject).toEqual(['slots'])
+    expect(exports.inject).toEqual(['slots', 'remote', 'remote.commands'])
   })
 
   it('apply registers every surface and does not throw when a slot is unavailable', () => {
@@ -36,7 +36,7 @@ describe.skipIf(!existsSync(file))('client bundle', () => {
     const names: string[] = []
     const specs: Array<Record<string, unknown>> = []
     exports.apply({ slots: { inject: (name: string, cb: () => () => void) => { names.push(name); return cb() }, register: (spec: Record<string, unknown>) => { specs.push(spec); return () => {} } } })
-    expect(names).toEqual(['conversation.session.header.utilities', 'conversation.input.left', 'conversation.chat.commandview', 'tool.call.toolview', 'shell.overlay'])
+    expect(names).toEqual(['conversation.session.header.utilities', 'conversation.input.left', 'conversation.input.dock', 'conversation.chat.commandview', 'tool.call.toolview', 'shell.overlay'])
     // Keyed slots render our views only for our command and our tool.
     expect(specs.find((s) => s.name === 'conversation.chat.commandview')?.key).toBe('ab')
     expect(specs.find((s) => s.name === 'tool.call.toolview')?.key).toBe('agent_compare_start')
