@@ -1,8 +1,9 @@
 {
   "name": "dsh-agent-compare",
-  "version": "0.2.0-alpha.5",
+  "version": "0.2.0-alpha.6",
   "description": "Same task, two live builds, pick blind. A DeepSeek Harness plugin that runs two isolated implementations of one front-end task, starts both apps, applies the same checks, lets you choose blind, then adopts the winner safely. · 同一需求，两版真跑，盲选再揭晓。",
   "type": "module",
+  "packageManager": "npm@12.2.1",
   "license": "MIT",
   "main": "lib/host/index.js",
   "types": "lib/host/index.d.ts",
@@ -30,13 +31,14 @@
     "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=22.19",
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
     "dsh": ">=0.2.1-rc.3 <0.3.0"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/wrap-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-    "test": "vitest run",
+    "test": "npm run build && vitest run",
+    "test:coverage": "npm run build && vitest run --coverage",
     "test:ui": "npm run build && node scripts/test-ui.mjs",
     "smoke": "npm run build && node scripts/smoke.mjs",
     "prepack": "npm run build"
@@ -56,13 +58,13 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-agent": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-chat": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-client-ui-conversation": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-host-webserver": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-llm": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.1",
-    "react": "^18.2.0",
-    "@deepseek-ai/dsh-client-ui-chat": "^0.2.1-rc.1"
+    "react": "^18.3.1 || ^19.3.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -94,16 +96,18 @@
     }
   },
   "optionalDependencies": {
-    "playwright-core": "^1.56.1"
+    "playwright-core": "^1.64.1"
   },
   "devDependencies": {
-    "@types/node": "^22.18.0",
-    "@types/react": "~18.3.1",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@vitest/coverage-v8": "^5.1.0",
     "axe-core": "^4.14.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "dsh": {
     "bundle": {

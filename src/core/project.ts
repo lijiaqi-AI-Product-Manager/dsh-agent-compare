@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { changedPaths, readBlob, treeBlobs } from './git.ts'
-import type { Acceptance, BrowserCheck, CheckCommand, ChecksSpec } from './types.ts'
+import type { Acceptance, CheckCommand, ChecksSpec } from './types.ts'
+import { parseAcceptanceConfig, parseBrowserCheck, type AcceptanceConfig } from './acceptance-config.ts'
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn'
 
@@ -31,6 +32,11 @@ export async function inspectProject(dir: string): Promise<ProjectInfo> {
   let pkg: PackageJson
   try {
     pkg = JSON.parse(await readFile(pkgPath, 'utf8')) as PackageJson
+    if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) throw new Error('根节点必须是对象')
+    for (const key of ['scripts', 'dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
+      const value = pkg[key]
+      if (value !== undefined && (!value || typeof value !== 'object' || Array.isArray(value) || Object.values(value).some(entry => typeof entry !== 'string'))) throw new Error(`${key} 必须是文本键值对象`)
+    }
   } catch (error) {
     return { kind: 'unsupported', packageManager: 'npm', scripts: {}, reason: `package.json 无法解析：${(error as Error).message}` }
   }
@@ -89,57 +95,54 @@ export function defaultChecks(info: ProjectInfo): ChecksSpec {
 /** The optional repository file that defines the acceptance (read from the baseline tree). */
 export const ACCEPTANCE_FILE = '.agent-compare.json'
 
-interface AcceptanceFile {
-  browser?: BrowserCheck
-  /** Extra package scripts to run, in order, before the build. */
-  scripts?: string[]
-}
-
 /**
  * Files whose content changes what a check means. A candidate may add new
  * tests; it may not edit or delete these baseline files and still count as
  * passing the shared acceptance.
  */
-const BOUND_PATTERNS: readonly RegExp[] = [
+const CONFIG_PATTERNS: readonly RegExp[] = [
   /(^|\/)tsconfig[^/]*\.json$/,
-  /(^|\/)(vite|vitest|playwright|jest|svelte|astro)\.config\.[cm]?[jt]s$/,
+  /(^|\/)(vite|vitest|playwright|jest|svelte|astro|rollup)\.config\.[cm]?[jt]sx?$/,
   /(^|\/)(eslint\.config\.[cm]?[jt]s|\.eslintrc(\.[a-z]+)?|\.prettierrc(\.[a-z]+)?|biome\.json)$/,
-  /\.(test|spec)\.[cm]?[jt]sx?$/,
-  /(^|\/)(__tests__|tests?|e2e)\//,
   /^\.(npmrc|nvmrc|node-version|yarnrc(\.yml)?)$/,
   /^\.agent-compare\.json$/,
+  /(^|\/)\.(gitignore|gitattributes|gitmodules)$/,
+  /(^|\/)\.env(\.[^/]*)?$/,
+  /^[^/]+\.[cm]?[jt]s$/,
+  /(^|\/)(scripts|tools|config)\//,
+  /(^|\/)(check|verify|validate|test|lint|setup)([.-][^/]*)?\.[cm]?[jt]s$/,
 ]
+const TEST_PATTERNS: readonly RegExp[] = [/\.(test|spec)\.[cm]?[jt]sx?$/, /(^|\/)(__tests__|tests?|e2e)\//]
 
-export const isBound = (p: string): boolean => BOUND_PATTERNS.some((re) => re.test(p))
-
-/** Package scripts a command runs (`npm run X`, `pnpm run X`). */
-function scriptsOf(commands: readonly CheckCommand[]): string[] {
-  return commands.flatMap((c) => {
-    const i = c.argv.indexOf('run')
-    return i >= 0 && c.argv[i + 1] !== undefined ? [c.argv[i + 1]!] : []
-  })
-}
+const isTest = (p: string): boolean => TEST_PATTERNS.some((re) => re.test(p))
+const isConfig = (p: string): boolean => !isTest(p) && CONFIG_PATTERNS.some((re) => re.test(p))
+export const isBound = (p: string): boolean => isConfig(p) || isTest(p)
 
 /** Build the acceptance for a baseline tree. `override` (tests, API) replaces the derived checks. */
 export async function buildAcceptance(repo: string, tree: string, info: ProjectInfo, override?: ChecksSpec): Promise<Acceptance> {
   let checks = override ?? defaultChecks(info)
+  if (checks.browser !== undefined) checks = { ...checks, browser: parseBrowserCheck(checks.browser) }
   let source: Acceptance['source'] = 'defaults'
+  let protectedFiles: readonly string[] = []
   const fileText = override === undefined ? await readBlob(repo, tree, ACCEPTANCE_FILE) : undefined
   if (fileText !== undefined) {
-    let parsed: AcceptanceFile
+    let parsed: AcceptanceConfig
     try {
-      parsed = JSON.parse(fileText) as AcceptanceFile
+      parsed = parseAcceptanceConfig(JSON.parse(fileText), info.scripts)
     } catch (error) {
       throw new Error(`${ACCEPTANCE_FILE} 无法解析：${(error as Error).message}`)
     }
-    const extra = (parsed.scripts ?? []).filter((s) => info.scripts[s] !== undefined && !checks.commands.some((c) => c.name === s))
+    const extra = (parsed.scripts ?? []).filter((s) => !checks.commands.some((c) => c.name === s))
     const commands = [...checks.commands.filter((c) => c.name !== 'build'), ...extra.map((s) => ({ name: s, argv: scriptArgv(info, s), timeoutMs: 300_000 })), ...checks.commands.filter((c) => c.name === 'build')]
     checks = { commands, browser: { ...checks.browser, ...parsed.browser } }
     source = 'repository'
+    protectedFiles = parsed.protectedFiles ?? []
   }
-  const scripts: Record<string, string> = {}
-  for (const s of scriptsOf(checks.commands)) if (info.scripts[s] !== undefined) scripts[s] = info.scripts[s]!
-  const bound = await treeBlobs(repo, tree, isBound)
+  // Lifecycle and nested script calls can affect verification even when the
+  // directly invoked script body is unchanged.
+  const scripts = { ...info.scripts }
+  const bound = await treeBlobs(repo, tree, p => isBound(p) || protectedFiles.includes(p))
+  for (const file of protectedFiles) if (!Object.hasOwn(bound, file)) throw new Error(`${ACCEPTANCE_FILE} protectedFiles：基线中不存在 ${file}`)
   const runtime = { node: process.version, packageManager: info.packageManager, platform: `${process.platform}-${process.arch}` }
   const body = { checks, scripts, bound, runtime, ...(info.lockfile === undefined ? {} : { lockfile: info.lockfile }) }
   return {
@@ -156,12 +159,15 @@ export async function buildAcceptance(repo: string, tree: string, info: ProjectI
  */
 export async function acceptanceChanges(repo: string, acceptance: Acceptance, baseTree: string, candTree: string): Promise<{ touched: string[]; dependencyChange: boolean }> {
   const changed = await changedPaths(repo, baseTree, candTree)
-  const touched = changed.filter((p) => acceptance.bound[p] !== undefined)
+  const touched = changed.filter((p) => Object.hasOwn(acceptance.bound, p) || isConfig(p))
   let dependencyChange = changed.some((p) => (LOCKFILES as readonly string[]).includes(p))
   if (changed.includes('package.json')) {
     const before = parsePkg(await readBlob(repo, baseTree, 'package.json'))
     const after = parsePkg(await readBlob(repo, candTree, 'package.json'))
-    for (const [name, body] of Object.entries(acceptance.scripts)) if (after.scripts?.[name] !== body) touched.push(`package.json scripts.${name}`)
+    for (const name of new Set([...Object.keys(before.scripts ?? {}), ...Object.keys(after.scripts ?? {})])) if (after.scripts?.[name] !== before.scripts?.[name]) touched.push(`package.json scripts.${name}`)
+    for (const key of ['type', 'packageManager', 'engines', 'imports', 'exports', 'eslintConfig', 'jest', 'browserslist'] as const) {
+      if (JSON.stringify((before as Record<string, unknown>)[key]) !== JSON.stringify((after as Record<string, unknown>)[key])) touched.push(`package.json ${key}`)
+    }
     for (const k of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
       if (JSON.stringify(before[k] ?? {}) !== JSON.stringify(after[k] ?? {})) dependencyChange = true
     }

@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- Give concurrent snapshots independent, atomically allocated private index directories, even within one wall-clock tick. Include the retained copy path when process inspection prevents cleanup.
+- Remove the repeated blank-conversation result header, size compact previews to the available window, distinguish preview availability from passing acceptance, and restore focus to current navigation when a previous session header has unmounted.
+- Serialize worktree administration within each Git common directory, including across processes, so one candidate cannot inspect another candidate's incomplete worktree metadata. Candidate generation remains parallel.
+- Distinguish unavailable process identity from a stopped process. Keep preview ownership and cleanup records through recovery until inspection succeeds; bound integration-test resource concurrency.
+- Validate repository acceptance definitions before generation. Bind verification helpers, all package-script definitions and added verification configuration; support explicit protected baseline files.
+- Await the owned preview process exit, escalate commands that ignore a graceful stop, and retain incomplete resource cleanup for retry.
+- Keep a durably completed adoption intact if cleanup fails. Show remaining resources and a cleanup retry without undoing the selected result.
+- Preserve missing provider token totals as unknown. Aggregate uncached input, output, cache reads, and cache writes separately; reject contradictory or unsafe totals and show the available counters in comparison evidence.
+
+## 0.2.0-alpha.6 — 2026-11-02
+
+- Update the development baseline to Node 26.13, npm 12.2, TypeScript 7, React 19.3, Vitest 5, and the current Playwright-supported Chromium. Update the executable example to Vite 8.3.5.
+- Bundle the client as the host's required classic loader entry using esbuild, while reusing the host's React runtime. Make bundle-contract checks mandatory in the standard test command.
+- Resolve the reported development dependency advisories and add separate project/example audit gates, backend coverage reporting, and Node 22/24/26 compatibility jobs on Windows and Ubuntu.
+- Verify the production comparison command and child sessions on DSH 0.2.1-rc.5 through a local scripted adapter, including delivery of the adopted result to the main conversation request.
+
 ## 0.2.0-alpha.5 — 2026-11-02
 
 - Keep comparison records and a direct tutorial control visible in the upper-right corner before a new conversation's first message. Use the host's blank-session extension without replacing its corner control.

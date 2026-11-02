@@ -3,14 +3,14 @@
  * preview processes and adoption, with a scripted agent. Each test pins one
  * failure path that earlier versions got wrong.
  */
-import { describe, expect, it } from 'vitest'
-import { existsSync, writeFileSync } from 'node:fs'
+import { describe, expect, it, vi } from 'vitest'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions } from '../src/core/orchestrator.ts'
 import { RunStore, repoKey, StaleRecordError } from '../src/core/run-store.ts'
 import { git, registeredWorktrees } from '../src/core/git.ts'
-import { isAlive } from '../src/core/proc.ts'
+import { isAlive, ownsProcess } from '../src/core/proc.ts'
 import { fixtureRepo, tmp } from './fixture.ts'
 
 type Edit = (dir: string, req: AgentRunRequest) => Promise<void>
@@ -41,12 +41,54 @@ async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; ed
   const comparer = new Comparer({ store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
   const started = await comparer.start({ repo, task: 'make the shop nicer', assignment: 'fixed' })
   const done = (await comparer.wait(started.runId))!
+  const failedPreparation = done.candidates.filter(c => c.error?.stage === 'preparing')
+  if (failedPreparation.length) {
+    const details = failedPreparation.map(c => `${c.label}: ${c.error?.message ?? 'unknown preparation failure'}`).join('\n')
+    try { await comparer.cleanup(started.runId) } catch { /* preserve the original preparation error below */ }
+    throw new Error(`Comparison fixture preparation failed before the tested behavior:\n${details}`)
+  }
   return { repo, store, comparer, runId: started.runId, done }
 }
 
 const T = 300_000
 
 describe.concurrent('comparison run', () => {
+  it('continues the peer when one preparation fails and preserves an unowned directory', async () => {
+    const repo = await fixtureRepo()
+    const store = new RunStore(await tmp('ac-one-preparation-fails'))
+    let foreign: string | undefined
+    const comparer = new Comparer({ store, runner: scripted({}), version: 'test', browserChecks: false, onUpdate: r => {
+      const a = r.candidates[0]!
+      if (!foreign && a.stage === 'preparing' && a.dir && a.ownerToken) {
+        foreign = a.dir
+        mkdirSync(a.dir, { recursive: true })
+        writeFileSync(path.join(a.dir, 'foreign.txt'), 'keep this directory\n')
+      }
+    } })
+    const started = await comparer.start({ repo, task: 'make the shop nicer', assignment: 'fixed' })
+    try {
+      const result = (await comparer.wait(started.runId))!
+      expect(result.candidates[0]).toMatchObject({ stage: 'failed', error: { stage: 'preparing' } })
+      expect(result.candidates[1]!.stage).toBe('ready')
+    } finally { await comparer.cleanup(started.runId) }
+    expect(foreign).toBeDefined()
+    expect(await readFile(path.join(foreign!, 'foreign.txt'), 'utf8')).toBe('keep this directory\n')
+  }, T)
+
+  it('finishes both worktree preparations before either candidate starts generation', async () => {
+    let observed = 0
+    const edit: Edit = async (dir, req) => {
+      for (const label of ['A', 'B']) expect(existsSync(path.join(path.dirname(dir), label, '.git'))).toBe(true)
+      observed++
+      await defaultEdit(dir, req)
+    }
+    const { comparer, runId, done } = await setup({ A: edit, B: edit })
+    try {
+      expect(observed).toBe(2)
+      expect(done.candidates.every(c => c.stage === 'ready')).toBe(true)
+    } finally { await comparer.cleanup(runId) }
+  }, T)
+
   it('runs both candidates to an eligible, previewed build; copies live outside the repository', async () => {
     const { repo, comparer, runId, done } = await setup({})
     expect(done.state).toBe('judging')
@@ -93,6 +135,22 @@ describe.concurrent('comparison run', () => {
     await expect(comparer.adopt(runId, 'worktree')).rejects.toThrow(/没有通过共同验收/)
     expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
     await comparer.cleanup(runId)
+  }, T)
+
+  it('refuses adoption when a broken candidate makes its verification helper always succeed', async () => {
+    const { repo, comparer, runId, done } = await setup({ B: async (dir) => {
+      await writeFile(path.join(dir, 'index.html'), 'BROKEN\n')
+      await writeFile(path.join(dir, 'check.cjs'), "console.log('ok')\n")
+    } })
+    try {
+      const candidate = done.candidates.find(c => c.label === 'B')!
+      expect(candidate.checks?.find(c => c.name === 'test')?.outcome).toBe('passed')
+      expect(candidate.acceptanceTouched).toContain('check.cjs')
+      expect(candidate.verdict?.eligible).toBe(false)
+      await comparer.choose(runId, 'B')
+      await expect(comparer.adopt(runId, 'worktree')).rejects.toThrow(/没有通过共同验收/)
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+    } finally { await comparer.cleanup(runId) }
   }, T)
 
   it('changing dependencies without the lockfile fails at a frozen install, with no unlocked retry', async () => {
@@ -188,7 +246,7 @@ describe.concurrent('adoption', () => {
     const { repo, store, comparer, runId, done } = await setup({})
     const head = (await git(repo, ['rev-parse', 'HEAD'])).trim()
     const staged = await git(repo, ['ls-files', '-s'])
-    const pids = done.candidates.map((c) => c.preview!.pid)
+    const previews = done.candidates.map((c) => c.preview!)
     await comparer.choose(runId, 'A')
     const r = await comparer.adopt(runId, 'worktree')
     expect(r.state).toBe('adopted')
@@ -197,7 +255,12 @@ describe.concurrent('adoption', () => {
     expect((await git(repo, ['rev-parse', 'HEAD'])).trim()).toBe(head)
     expect(await git(repo, ['ls-files', '-s'])).toBe(staged)
     for (const c of r.candidates) expect(existsSync(c.dir!)).toBe(false)
-    for (const pid of pids) expect(isAlive(pid)).toBe(false)
+    for (const p of previews) {
+      // A PID can be reused by another concurrent command; verify identity and
+      // the actual application endpoint instead of treating that PID as ours.
+      expect(await ownsProcess(p.pid, [path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${p.port}`])).toBe(false)
+      await expect(fetch(p.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+    }
     // The saved record no longer points at the stopped previews, so history shows screenshots, not a dead frame.
     const saved = (await new RunStore(store.home).load(runId))!
     for (const c of saved.candidates) expect(c.preview).toBeUndefined()
@@ -205,6 +268,21 @@ describe.concurrent('adoption', () => {
     const reverted = await comparer.revert(runId)
     expect(reverted.adoption?.state).toBe('reverted')
     expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+  }, T)
+
+  it('keeps a completed adoption when cleanup fails and retries cleanup separately', async () => {
+    const { repo, store, comparer, runId } = await setup({})
+    await comparer.choose(runId, 'A')
+    const cleanup = vi.spyOn(comparer as unknown as { releaseResources(r: unknown): Promise<void> }, 'releaseResources').mockRejectedValueOnce(new Error('resource is busy'))
+    try {
+      const result = await comparer.adopt(runId, 'worktree')
+      expect(result.state).toBe('adopted')
+      expect(result.adoption?.state).toBe('adopted')
+      expect(result.leftovers?.join()).toContain('resource is busy')
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop A</h1>\n')
+      expect((await store.load(runId))?.adoption?.state).toBe('adopted')
+    } finally { cleanup.mockRestore(); await comparer.cleanup(runId) }
+    expect((await store.load(runId))?.leftovers).toBeUndefined()
   }, T)
 
   it('rehearses on the current checkout and blocks, writing nothing, when the combination fails', async () => {
@@ -365,10 +443,14 @@ describe.concurrent('adoption', () => {
 describe.concurrent('resource ownership', () => {
   it('cleanup deletes only copies it can prove it created', async () => {
     const { store, comparer, runId } = await setup({})
+    // This case verifies directory ownership. Process observation failures
+    // are exercised separately; stop the known live handles first.
+    await comparer.dispose()
     const fake = await tmp('ac-not-ours')
     await mkdir(path.join(fake, 'keep'), { recursive: true })
     await writeFile(path.join(fake, 'keep', 'file.txt'), 'precious')
     const r = (await store.load(runId))!
+    for (const candidate of r.candidates) delete candidate.preview
     r.candidates[0]!.dir = fake
     await store.save(r)
     const cleaned = (await new Comparer({ store, runner: scripted({}), version: 'test' }).cleanup(runId))!

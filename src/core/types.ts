@@ -52,7 +52,7 @@ export interface AgentRoute {
 
 /** Token usage as the provider reported it, or an explicit unknown. */
 export type Usage =
-  | { readonly kind: 'reported'; readonly inputTokens?: number; readonly outputTokens?: number; readonly cacheReadTokens?: number; readonly totalTokens?: number }
+  | { readonly kind: 'reported'; readonly inputTokens?: number; readonly outputTokens?: number; readonly cacheReadTokens?: number; readonly cacheWriteTokens?: number; readonly totalTokens?: number }
   | { readonly kind: 'unknown'; readonly reason: string }
 
 export interface CheckCommand {
@@ -96,7 +96,7 @@ export interface ChecksSpec {
  */
 export interface Acceptance {
   readonly checks: ChecksSpec
-  /** Baseline body of each package script a check runs. */
+  /** Baseline package scripts, including lifecycle and nested commands. */
   readonly scripts: Readonly<Record<string, string>>
   /** Baseline path → blob sha of verification-defining files. */
   readonly bound: Readonly<Record<string, string>>

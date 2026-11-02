@@ -9,6 +9,7 @@ import { RunStore } from '../lib/core/run-store.js'
 import { PreferencesStore } from '../lib/host/preferences.js'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { build } from 'esbuild'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const now = Date.now()
@@ -49,9 +50,12 @@ const states = {
   ] }],
   failed: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, { label: 'B', stage: 'failed', timings: { preparing: t(60, 59), generating: t(59, 20), sealing: t(20, 19), installing: t(19, 10) }, error: { stage: 'installing', message: '按锁文件 package-lock.json 冻结安装失败。改了依赖就必须同时更新锁文件，AgentCompare 不会换成非冻结安装。\nnpm ERR! `npm ci` can only install packages when your package.json and package-lock.json are in sync.' } }] }],
   judging: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, B] }],
+  unverified: [{ ...base, state: 'judging', candidates: [{ ...A, checks: [{ name: 'build', outcome: 'passed', durationMs: 1000 }, { name: 'browser', outcome: 'skipped', durationMs: 0, reason: 'no browser' }], verdict: { eligible: true, reasons: [], warnings: ['页面检查未运行'] } }, B] }],
   revealed: [{ ...base, state: 'revealed', checksFavoured: 'A', choice: { pick: 'B' }, revealedAt: now, candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
+  partial: [{ ...base, state: 'revealed', choice: { pick: 'A' }, revealedAt: now, candidates: [{ ...A, ...strat.A, usage: { kind: 'reported', inputTokens: 10, outputTokens: 2, cacheReadTokens: 100, cacheWriteTokens: 50 } }, { ...B, ...strat.B, usage: { kind: 'unknown', reason: 'provider omitted usage' } }] }],
   blocked: [{ ...base, state: 'revealed', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'blocked', mode: 'worktree', rehearsed: true, message: '把这一版接到你当前的项目上预演后，验收没有通过：test 未通过。尚未写入任何文件。', rehearsalChecks: [{ name: 'typecheck', outcome: 'passed', durationMs: 1 }, { name: 'test', outcome: 'failed', durationMs: 1 }, { name: 'build', outcome: 'passed', durationMs: 1 }] }, candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   adopted: [{ ...base, state: 'adopted', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', rehearsed: true, message: '已写入 2 个文件，项目现在与预演通过的版本完全一致；未提交，index 和 HEAD 未改动' }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
+  cleanup: [{ ...base, state: 'adopted', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', message: '已采用' }, leftovers: ['候选 A 预览未停止：resource is busy'], candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   recovery: [{ ...base, state: 'recovery', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'needs-recovery', mode: 'worktree', message: '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。', attention: ['src/App.tsx'] }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
 }
 
@@ -61,7 +65,7 @@ const page = (state, theme, error) => `<!doctype html><html lang="zh-CN"><head><
 .header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid #8883}.harness-main{height:calc(100vh - 90px);overflow:auto;display:flex;flex-direction:column}.harness-chat{width:100%;max-width:1120px;margin:0 auto;flex:1;padding:16px 20px;box-sizing:border-box}.harness-composer{position:sticky;bottom:0;max-width:1080px;width:calc(100% - 32px);margin:0 auto;padding:8px 0 16px;background:${theme === 'dark' ? '#111317' : '#f5f6f8'}}
 .harness-input{border:1px solid #8886;border-radius:12px;padding:12px;background:${theme === 'dark' ? '#1b1d22' : '#fff'}}.harness-input textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:70px;background:transparent;color:inherit;border:0;font:inherit;line-height:1.7;outline-offset:3px}.harness-tools{display:flex;align-items:center;justify-content:space-between}.harness-send{background:#4056d9;color:white;border:0;padding:8px 18px;border-radius:8px;cursor:pointer}.harness-label{font-size:12px;color:${theme === 'dark' ? '#b4b9c3' : '#596475'}}
 ${theme === 'dark' ? ':root{--dsw-alias-bg-base:#1b1d22;--dsw-alias-bg-layer-1:#22252b;--dsw-alias-bg-layer-2:#2a2e35;--dsw-alias-label-primary:#eceef2;--dsw-alias-label-secondary:#b4b9c3;--dsw-alias-label-tertiary:#9ca3af;--dsw-alias-border-l2:rgba(255,255,255,.09);--dsw-alias-border-l3:rgba(255,255,255,.15);--dsw-alias-interactive-bg-hover:rgba(255,255,255,.06);--dsw-alias-bg-mask-1:rgba(0,0,0,.5)}' : ''}</style>
-<script src="/vendor/react.js"></script><script src="/vendor/react-dom.js"></script></head><body>
+<script src="/vendor/react-runtime.js"></script></head><body>
 <div class="titlebar">Client harness · sample data</div><header class="header"><b>Conversation</b><span id="btn"></span><span data-conversation-header-corner style="position:fixed;right:12px;top:5px;width:28px;height:28px"><button aria-label="宿主侧栏" style="width:28px;height:28px" onclick="window.__cornerClicks=(window.__cornerClicks??0)+1">☰</button></span></header><div id="hero-options"></div>
 <main class="harness-main"><div id="chat" class="harness-chat"></div><div class="harness-composer"><div id="settings"></div><div class="harness-input"><label for="draft" class="harness-label">需求</label><textarea id="draft" aria-label="需求"></textarea><div class="harness-tools"><div id="mode"></div><button class="harness-send" id="send">发送</button></div><p id="notice" role="status"></p></div></div></main><div id="overlay"></div>
 <script>
@@ -85,6 +89,7 @@ window.fetch = async (url, init) => {
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0) { runs[selected] = {...runs[selected],state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
   if (m[1] === 'adopt' && selected >= 0) { runs[selected] = {...runs[selected],state:'adopted',adoption:{state:'adopted',mode:body.mode,message:'已采用'}}; value=runs[selected]; }
+  if (m[1] === 'cleanup' && selected >= 0) { runs[selected] = {...runs[selected],leftovers:undefined}; value=runs[selected]; }
   return new Response(JSON.stringify({ok:true,value}),{headers:{'content-type':'application/json'}});
 };
 window.__ModuleLoader__ = {load:({factory})=>{
@@ -139,7 +144,11 @@ const demo = (label) => `<!doctype html><meta charset="utf-8"><body style="margi
 <div style="display:flex;gap:6px;margin-top:10px">${['Audio', 'Desk', 'Bags', 'Light'].map((c) => `<button aria-pressed="false">${c}</button>`).join('')}${label === 'A' ? '<button>清空</button>' : ''}</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:14px">${['Studio Headphones', 'Pocket Speaker', 'Monitor Stand', 'Desk Mat', 'Backpack', 'Desk Lamp'].map((n) => `<div style="border:1px solid #e3e6ea;border-radius:8px;padding:10px">${n}</div>`).join('')}</div>`
 
-const vendor = { 'react.js': 'node_modules/react/umd/react.development.js', 'react-dom.js': 'node_modules/react-dom/umd/react-dom.development.js' }
+const reactRuntime = (await build({
+  stdin: { contents: "import * as React from 'react'; import { createRoot } from 'react-dom/client'; globalThis.React = React; globalThis.ReactDOM = { createRoot };", resolveDir: root },
+  bundle: true, platform: 'browser', format: 'iife', write: false,
+  define: { 'process.env.NODE_ENV': '"development"' },
+})).outputFiles[0].text
 export async function createUiHarness({ port = 4317, demoPort = 4318 } = {}) {
 const preferencesHome = await mkdtemp(path.join(os.tmpdir(), 'agent-compare-ui-preferences-'))
 const preferences = new PreferencesStore(new RunStore(preferencesHome))
@@ -153,7 +162,7 @@ const server = createServer(async (req, res) => {
       res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true, value }))
     }
     if (u.pathname === '/') return res.end(page(u.searchParams.get('state') ?? 'judging', u.searchParams.get('theme') ?? 'light', u.searchParams.get('error') ?? ''))
-    if (u.pathname.startsWith('/vendor/')) return res.end(await readFile(path.join(root, vendor[u.pathname.slice(8)])))
+    if (u.pathname === '/vendor/react-runtime.js') { res.setHeader('content-type', 'application/javascript'); return res.end(reactRuntime) }
     if (u.pathname === '/lib/client.js') return res.end(await readFile(path.join(root, 'lib/client.js')))
     res.statusCode = 404
     res.end()

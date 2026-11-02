@@ -13,7 +13,7 @@ let browser
 let assertions = 0
 const check = (value, message) => { assert.ok(value, message); assertions++ }
 try {
-  browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true })
+  browser = await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -114,6 +114,14 @@ try {
   check((await requests('list')).at(-1).body.sessionId === 's1', 'blank-session history must address its own session')
   await page.keyboard.press('Escape')
   check(await records.evaluate(el => el === document.activeElement), 'closing blank-session history must restore its trigger focus')
+  await records.click()
+  await page.getByRole('dialog', { name: 'AgentCompare', exact: true }).waitFor()
+  await page.evaluate(() => window.__switchHeader('s3', false))
+  await page.locator('#btn .ac-header-tools').waitFor()
+  await page.keyboard.press('Escape')
+  check(await records.evaluate(el => el === document.activeElement), 'closing after the original header unmounts must focus the current navigation control')
+  await page.evaluate(() => window.__switchHeader('s1', true))
+  await page.locator('.ac-header-tools-hero').waitFor()
   await guide.click()
   await page.getByRole('button', { name: '回到输入框，开启 A|B', exact: true }).waitFor()
   check(await page.getByRole('button', { name: '使用指南与演示', exact: true }).getAttribute('aria-current') === 'page', 'the tutorial control must open guidance directly')
@@ -148,6 +156,14 @@ try {
   await page.locator('.ac-conversation-run iframe').nth(1).waitFor()
   check(await page.locator('#chat .ac-inline').count() === 0, 'the fixture must exercise a blank session without a Chat timeline')
   check(await page.getByRole('dialog').count() === 0 && await page.locator('.ac-conversation-run iframe').count() === 2, 'a blank conversation must show both applications directly')
+  await page.setViewportSize({ width: 1440, height: 1100 })
+  check(await page.locator('.ac-conversation-run iframe').first().evaluate(frame => {
+    const view = frame.getBoundingClientRect(), scroll = frame.closest('.ac-conversation-run-scroll').getBoundingClientRect()
+    const visible = Math.max(0, Math.min(view.bottom, scroll.bottom) - Math.max(view.top, scroll.top))
+    return visible >= 300 && view.height >= 320
+  }), 'a desktop conversation must expose useful application content below its controls')
+  await page.screenshot({ path: path.join(output, 'blank-preview-space.png') })
+  await page.setViewportSize({ width: 1440, height: 900 })
   check(await page.locator('.ac-conversation-run').evaluate(el => {
     const host = document.getElementById('settings')
     host.style.cssText = 'display:flex;flex-direction:column;height:300px'
@@ -163,7 +179,29 @@ try {
   check(await page.locator('.ac-conversation-run iframe').count() === 2, 'blank-session results must reopen from persisted run records')
   await page.screenshot({ path: path.join(output, 'blank-conversation.png') })
 
+  await open('cleanup')
+  await page.getByRole('status', { name: '资源清理状态', exact: true }).waitFor()
+  check((await page.getByRole('status', { name: '资源清理状态', exact: true }).innerText()).includes('采用已完成'), 'cleanup failure must preserve the completed adoption in the interface')
+  await page.getByRole('button', { name: '重试清理', exact: true }).click()
+  await page.getByRole('status', { name: '资源清理状态', exact: true }).waitFor({ state: 'hidden' })
+  check((await requests('cleanup')).length === 1 && (await requests('revert')).length === 0, 'retrying resource cleanup must not undo adoption')
+  check(await page.getByRole('button', { name: '撤销采用', exact: true }).isVisible(), 'resource cleanup must leave the adoption record available')
+
+  await open('partial')
+  for (const label of ['A', 'B']) await page.getByRole('region', { name: `候选 ${label}`, exact: true }).locator('.ac-evidence > summary').click()
+  const partialUsage = await page.getByRole('region', { name: '候选 A', exact: true }).locator('.ac-evidence').innerText()
+  check(partialUsage.includes('总用量未知') && partialUsage.includes('未缓存输入 10') && partialUsage.includes('输出 2'), 'partial counters must not turn into a fabricated total')
+  check(partialUsage.includes('缓存读取 100') && partialUsage.includes('缓存写入 50'), 'both cache counters must remain visible in the evidence')
+  check(!partialUsage.includes(' tokens'), 'missing totals must never be displayed as an inferred or zero total')
+  check((await page.getByRole('region', { name: '候选 B', exact: true }).locator('.ac-evidence').innerText()).includes('用量未知'), 'absent provider usage must stay unknown')
+
+  await open('unverified')
+  const unverified = page.getByRole('region', { name: '候选 A', exact: true })
+  check(await unverified.getByText('可预览 · 部分检查未运行', { exact: true }).isVisible() && await unverified.locator('.ac-card-head .ac-pill.ok').count() === 0, 'skipped checks must stay explicit without a successful-check badge')
+
   await open('judging')
+  check(await page.getByRole('region', { name: '候选 A', exact: true }).getByText('可预览 · 检查通过', { exact: true }).isVisible(), 'preview availability and successful acceptance must be stated separately')
+  check(await page.getByRole('region', { name: '候选 B', exact: true }).getByText('可预览 · 未通过检查', { exact: true }).isVisible(), 'a running application with failed acceptance must not display a successful-check status')
   await page.locator('iframe').nth(1).waitFor()
   const frames = page.frames().filter(f => f !== page.mainFrame())
   await Promise.all(frames.map(f => f.waitForLoadState('domcontentloaded')))
@@ -226,7 +264,7 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'Escape must close the workspace')
   check(await page.evaluate(() => document.activeElement.classList.contains('ac-header-btn')), 'closing must restore entry-button focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
-  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version() }))
+  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), react: await page.evaluate(() => React.version), node: process.version }))
 } finally {
   await browser?.close()
   await harness.close()

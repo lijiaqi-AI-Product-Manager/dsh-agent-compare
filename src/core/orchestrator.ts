@@ -7,7 +7,7 @@ import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdo
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
-import { killTree, ownsProcess, run, waitGone } from './proc.ts'
+import { commandHasMarkers, killTree, observeProcess, run, waitGone } from './proc.ts'
 import { BusyError, newRunId, repoKey, RunStore } from './run-store.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
 import { RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
@@ -138,9 +138,9 @@ export class Comparer {
     const head = await headCommit(root)
     const tree = await snapshotTree(root, scratch, ALWAYS_EXCLUDED)
     const dirty = head === undefined ? true : tree !== (await treeOf(root, head))
+    const acceptance = await buildAcceptance(root, tree, info, input.checks)
     const snapshotCommit = await commitTree(root, tree, [head], `agent-compare baseline ${runId}`)
     await pinRef(root, `refs/agent-compare/${runId}/base`, snapshotCommit)
-    const acceptance = await buildAcceptance(root, tree, info, input.checks)
 
     const order: [number, number] = input.assignment === 'fixed' || Math.random() < 0.5 ? [0, 1] : [1, 0]
     const mk = (label: CandidateLabel, i: number): Candidate => ({ label, strategy: strategies[i]!, route: routes[i]!, stage: 'queued', timings: {} })
@@ -197,7 +197,13 @@ export class Comparer {
 
   private async drive(lr: LiveRun): Promise<void> {
     const record = lr.record
-    await Promise.all(record.candidates.map((c) => this.driveCandidate(lr, c)))
+    const preparation = record.candidates.map(() => {
+      let complete!: () => void
+      const ready = new Promise<void>(resolve => { complete = resolve })
+      return { complete, ready }
+    })
+    const allPrepared = Promise.all(preparation.map(p => p.ready)).then(() => {})
+    await Promise.all(record.candidates.map((c, i) => this.driveCandidate(lr, c, preparation[i]!.complete, allPrepared)))
     if (record.state === 'running') {
       record.state = 'judging'
       record.checksFavoured = favoured(record.candidates)
@@ -205,7 +211,7 @@ export class Comparer {
     await this.persist(record)
   }
 
-  private async driveCandidate(lr: LiveRun, c: Candidate): Promise<void> {
+  private async driveCandidate(lr: LiveRun, c: Candidate, prepared: () => void, allPrepared: Promise<void>): Promise<void> {
     const record = lr.record
     const ctl = new AbortController()
     lr.perCandidate.set(c.label, ctl)
@@ -228,6 +234,10 @@ export class Comparer {
       // Recorded before the copy exists, so a crash right after creation still leaves a provable owner.
       await this.persist(record)
       await addOwnedWorktree(repo, dir, record.baseline.snapshotCommit, { runId: record.runId, label: c.label, token: c.ownerToken })
+      prepared()
+      // Candidate tools may invoke Git too. Finish both copies' shared Git
+      // metadata before either candidate can run a command in its copy.
+      await allPrepared
       signal.throwIfAborted()
 
       await enter('generating')
@@ -275,6 +285,9 @@ export class Comparer {
       await this.stopPreview(lr, c.label)
       delete c.preview
       await this.persist(record)
+    } finally {
+      // A failed preparation must not leave the other candidate waiting.
+      prepared()
     }
   }
 
@@ -455,7 +468,6 @@ export class Comparer {
     const p = lr?.previews.get(key)
     if (p) {
       await p.stop()
-      await waitGone(p.pid, 5000)
       lr?.previews.delete(key)
     }
   }
@@ -596,6 +608,7 @@ export class Comparer {
 
       let problem: string | undefined
       let attempted: string[] = []
+      let completed = false
       try {
         attempted = await writeCandidate(repo, c.candidateCommit, nameStatus, {
           expected: pf.target,
@@ -620,10 +633,7 @@ export class Comparer {
           }
           r.state = 'adopted'
           await this.save(r)
-          // Previews stop and copies go; record that, so nothing later points at a dead preview.
-          await this.releaseResources(r)
-          await this.save(r)
-          return r
+          completed = true
         }
       } catch (error) {
         if (error instanceof CandidateWriteError) {
@@ -632,6 +642,15 @@ export class Comparer {
           if (error.changedLocations) r.adoption.attention = [...error.changedLocations]
         }
         problem = `写入失败：${(error as Error).message}`
+      }
+      // Once the successful write is durable, cleanup cannot turn it into a
+      // failed adoption or roll back the user's selected result.
+      if (completed) {
+        try { await this.releaseResources(r) } catch (error) {
+          r.leftovers = [...(r.leftovers ?? []), `资源回收未完成：${(error as Error).message}`]
+        }
+        await this.save(r)
+        return r
       }
       // Drop the pending intent when its precondition failed before the write began.
       r.adoption.writtenPaths = attempted
@@ -766,7 +785,7 @@ export class Comparer {
         r.state = 'abandoned'
         await dropRefs(r.baseline.repoRoot, `refs/agent-compare/${runId}/`)
       }
-      this.live.delete(runId)
+      if (!r.leftovers?.length) this.live.delete(runId)
       await this.store.save(r)
       return r
     })
@@ -778,12 +797,21 @@ export class Comparer {
     const leftovers: string[] = []
     const repo = r.baseline.repoRoot
     for (const c of r.candidates) {
-      if (lr?.previews.has(c.label)) await this.stopPreview(lr, c.label)
-      else if (c.preview !== undefined) await stopOwnedPreview(c.preview)
+      try {
+        if (lr?.previews.has(c.label)) await this.stopPreview(lr, c.label)
+        else if (c.preview !== undefined) await stopOwnedPreview(c.preview)
+      } catch (error) {
+        const retained = c.dir ?? c.preview?.cwd
+        leftovers.push(`候选 ${c.label} 预览未停止：${(error as Error).message}${retained ? `；保留副本：${retained}` : ''}`)
+        // Retain its address and copy so a later cleanup can retry.
+        continue
+      }
       delete c.preview
       if (c.dir !== undefined && c.ownerToken !== undefined) {
-        const res = await removeOwnedWorktree(repo, c.dir, { runId: r.runId, label: c.label, token: c.ownerToken })
-        if (!res.removed) leftovers.push(`${c.dir}（${res.reason ?? '删除失败'}）`)
+        try {
+          const res = await removeOwnedWorktree(repo, c.dir, { runId: r.runId, label: c.label, token: c.ownerToken })
+          if (!res.removed) leftovers.push(`${c.dir}（${res.reason ?? '删除失败'}）`)
+        } catch (error) { leftovers.push(`${c.dir}（${(error as Error).message}）`) }
       }
     }
     const reh = r.adoption?.rehearsal
@@ -814,8 +842,13 @@ export class Comparer {
           changed = true
         }
         if (c.preview !== undefined) {
-          await stopOwnedPreview(c.preview)
-          delete c.preview
+          try {
+            await stopOwnedPreview(c.preview)
+            delete c.preview
+          } catch (error) {
+            const detail = `候选 ${c.label} 预览等待清理：${(error as Error).message}`
+            r.leftovers = [...new Set([...(r.leftovers ?? []), detail])]
+          }
           changed = true
         }
       }
@@ -896,9 +929,11 @@ async function copyTree(dir: string): Promise<string> {
 /** Kill a recorded preview only when its process provably is that preview. */
 async function stopOwnedPreview(p: PreviewInfo): Promise<void> {
   const bin = path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js')
-  if (await ownsProcess(p.pid, [bin, `--port ${p.port}`])) {
+  const observed = await observeProcess(p.pid)
+  if (observed.state === 'unavailable') throw new Error(`无法确认进程 ${p.pid} 的归属：${observed.reason}`)
+  if (observed.state === 'observed' && commandHasMarkers(observed.commandLine, [bin, `--port ${p.port}`])) {
     await killTree(p.pid)
-    await waitGone(p.pid, 5000)
+    if (!await waitGone(p.pid, 5000)) throw new Error(`预览进程 ${p.pid} 未退出`)
   }
 }
 

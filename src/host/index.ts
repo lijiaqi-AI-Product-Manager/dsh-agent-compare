@@ -10,7 +10,7 @@
  * - Model-facing tools: `agent_compare_start`, `agent_compare_status`.
  * - Client API: POST /agent-compare/api/<method>, fenced like every first-party route.
  *
- * Only APIs read from the shipped 0.2.1-rc.3 sources are used; anything this
+ * Interfaces are checked against the shipped 0.2.1-rc.5 sources; anything this
  * file cannot obtain is reported as unknown rather than guessed.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -45,7 +45,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.5'
+const VERSION = '0.2.0-alpha.6'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -102,19 +102,26 @@ function isDelegated(agent: AgentLike): boolean {
   return agent.session.header.origin === 'subagent'
 }
 
-/** Sum of the usage the provider reported on each assistant message, or unknown when none did. */
+/** Aggregate only complete provider-reported counters. Cache counters are disjoint input. */
 export function usageFromEvents(events: readonly SessionEvent[]): Usage {
   const messages = events.filter(e => e.type === 'assistant/message')
-  const valid = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
+  const valid = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0
+  const components = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const
   const usages = messages.map(e => {
-    const u = e.data?.usage ?? {}
-    return { ...u, totalTokens: valid(u.totalTokens) ? u.totalTokens : valid(u.inputTokens) && valid(u.outputTokens) ? u.inputTokens + u.outputTokens : undefined }
+    const raw = e.data?.usage
+    const u = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+    const known = components.reduce((n, key) => n + (valid(u[key]) ? u[key] : 0), 0)
+    // A provider may omit cache counters. Input + output cannot reconstruct its total.
+    const totalTokens = valid(u.totalTokens) && Number.isSafeInteger(known) && u.totalTokens >= known ? u.totalTokens : undefined
+    return { ...u, totalTokens }
   })
-  const sum: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; totalTokens?: number } = {}
-  for (const key of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'totalTokens'] as const) {
-    if (usages.length && usages.every(u => valid(u[key]))) sum[key] = usages.reduce((total, u) => total + u[key], 0)
+  const sum: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; totalTokens?: number } = {}
+  for (const key of [...components, 'totalTokens'] as const) {
+    if (!usages.length || !usages.every(u => valid(u[key]))) continue
+    const value = usages.reduce((total, u) => total + u[key], 0)
+    if (valid(value)) sum[key] = value
   }
-  return Object.keys(sum).length ? { kind: 'reported', ...sum } : { kind: 'unknown', reason: 'the session reported no complete token totals' }
+  return Object.keys(sum).length ? { kind: 'reported', ...sum } : { kind: 'unknown', reason: 'the session reported no complete valid token counters' }
 }
 
 /** Last non-empty assistant message text, as DSH's own subagent result selects it. */

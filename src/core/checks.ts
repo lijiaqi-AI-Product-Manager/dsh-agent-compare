@@ -104,13 +104,13 @@ async function launchBrowser(): Promise<{ browser: PwBrowser; channel: string } 
   } catch {
     return { error: 'playwright-core is not installed' }
   }
-  const channels = process.platform === 'win32' ? ['msedge', 'chrome'] : ['chrome', 'msedge', 'chromium']
+  const channels = process.platform === 'win32' ? [undefined, 'msedge', 'chrome'] : [undefined, 'chrome', 'msedge']
   const errors: string[] = []
   for (const channel of channels) {
     try {
-      return { browser: await pw.chromium.launch({ channel, headless: true }), channel }
+      return { browser: await pw.chromium.launch({ ...(channel ? { channel } : {}), headless: true }), channel: channel ?? 'chromium' }
     } catch (error) {
-      errors.push(`${channel}: ${(error as Error).message.split('\n')[0]}`)
+      errors.push(`${channel ?? 'chromium'}: ${(error as Error).message.split('\n')[0]}`)
     }
   }
   return { error: `no system browser found (${errors.join('; ')})` }
