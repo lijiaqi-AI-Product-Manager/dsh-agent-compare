@@ -25,6 +25,7 @@ import { inspectProject } from '../core/project.ts'
 import { repoRoot } from '../core/git.ts'
 import { defaultPreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
 import { ConversationMemory } from './memory.ts'
+import { historyPage, HistoryQueryError } from './history.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, type ProjectSandbox } from './project-process.ts'
 
@@ -46,7 +47,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.7'
+const VERSION = '0.2.0-alpha.8'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -527,13 +528,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       return { hostVersion: VERSION, current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
     },
     async list(b) {
-      const all = await store.listAll()
-      const sid = typeof b.sessionId === 'string' ? b.sessionId : undefined
-      return {
-        runs: all.current.filter((r) => sid === undefined || r.sessionId === sid).slice(0, 30).map(publicView),
-        legacy: all.legacy.slice(0, 20),
-        isolation: runner.isolation,
-      }
+      const page = await historyPage(store, b)
+      return { ...page, runs: page.runs.map(publicView), isolation: runner.isolation }
     },
     async get(b) { return view(runIdOf(b)) },
     async models(b) {
@@ -629,7 +625,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         const body = await readBody(req)
         json(res, 200, { ok: true, value: await handler(body, ctl.signal) })
       } catch (error) {
-        const status = error instanceof HttpError ? error.status : (error as Error).name === 'BusyError' ? 409 : 500
+        const status = error instanceof HttpError ? error.status : error instanceof HistoryQueryError ? 400 : (error as Error).name === 'BusyError' ? 409 : 500
         json(res, status, { ok: false, error: (error as Error).message })
       }
     },

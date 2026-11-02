@@ -59,6 +59,9 @@ const states = {
   recovery: [{ ...base, state: 'recovery', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'needs-recovery', mode: 'worktree', message: '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。', attention: ['src/App.tsx'] }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
 }
 
+const retainedHistory = state => state === 'history-many'
+  ? Array.from({ length: 71 }, (_, i) => ({ ...base, runId: (0x30000000 + i).toString(16), sessionId: i % 2 ? 's2' : 's1', task: `归档任务 ${i}`, createdAt: now - i * 60000, state: 'judging', candidates: [A, B] }))
+  : history.map((record, i) => ({ ...record, createdAt: record.createdAt - 60000, sessionId: state === 'blank' || state === 'blank-history' ? 's2' : i ? 's1' : 's2' }))
 const page = (state, theme, error) => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>AgentCompare client harness</title>
 <style>body{margin:0;font:14px system-ui,'Microsoft YaHei',sans-serif;background:${theme === 'dark' ? '#111317' : '#f5f6f8'};color:${theme === 'dark' ? '#eceef2' : '#111'};height:100vh}
 .titlebar{height:40px;display:flex;align-items:center;padding:0 18px;font-size:12px;color:#707784;border-bottom:1px solid #8883}
@@ -69,23 +72,32 @@ ${theme === 'dark' ? ':root{--dsw-alias-bg-base:#1b1d22;--dsw-alias-bg-layer-1:#
 <div class="titlebar">Client harness · sample data</div><header class="header"><b>Conversation</b><span id="btn"></span><span data-conversation-header-corner style="position:fixed;right:12px;top:5px;width:28px;height:28px"><button aria-label="宿主侧栏" style="width:28px;height:28px" onclick="window.__cornerClicks=(window.__cornerClicks??0)+1">☰</button></span></header><div id="hero-options"></div>
 <main class="harness-main"><div id="chat" class="harness-chat"></div><div class="harness-composer"><div id="settings"></div><div class="harness-input"><label for="draft" class="harness-label">需求</label><textarea id="draft" aria-label="需求"></textarea><div class="harness-tools"><div id="mode"></div><button class="harness-send" id="send">发送</button></div><p id="notice" role="status"></p></div></div></main><div id="overlay"></div>
 <script>
-const runs = ${JSON.stringify(states[state] ?? [])};
-const history = ${JSON.stringify(history)}, legacy = ${JSON.stringify(legacy)};
+const runs = ${JSON.stringify((states[state] ?? []).map(record => ({ ...record, sessionId: 's1' })))};
+const history = ${JSON.stringify(retainedHistory(state))}, legacy = ${JSON.stringify(legacy)};
 const templateRun = ${JSON.stringify({ ...base, state: 'judging', candidates: [A, B] })};
 const models = [{ provider:'deepseek', providerName:'DeepSeek', id:'deepseek-chat', name:'DeepSeek V3' }, { provider:'deepseek', providerName:'DeepSeek', id:'deepseek-reasoner', name:'DeepSeek R1' }];
 window.__requests = []; window.__commands = []; window.__edits = []; window.__commandAcks = [];
 const realFetch = window.fetch;
+function listHistory(body) {
+  const scope = body.scope ?? (body.sessionId ? 'session' : 'all');
+  const query = (body.search ?? '').trim();
+  const folded = value => value.normalize('NFKC').toLowerCase();
+  const rows = [...runs,...history,...legacy].filter(record => (scope === 'all' || record.sessionId === body.sessionId) && folded([record.task,record.runId,record.baseline?.repoRoot ?? ''].join(' ')).includes(folded(query))).sort((a,b) => b.createdAt-a.createdAt || b.runId.localeCompare(a.runId));
+  const offset = Math.min(body.offset ?? 0,Math.floor(Math.max(0,rows.length-1)/30)*30), selected = rows.slice(offset,offset+30);
+  return {runs:selected.filter(record=>!record.legacy),legacy:selected.filter(record=>record.legacy),isolation:'own-root',...${JSON.stringify(state === 'history-old')}?{}:{history:{version:1,scope,query,total:rows.length,offset,limit:30,hasNext:offset+30<rows.length}}};
+}
 window.fetch = async (url, init) => {
   const m = String(url).match(/agent-compare\\/api\\/(\\w+)/);
   if (!m) return realFetch(url, init);
   const body = JSON.parse(init.body ?? '{}'); window.__requests.push({ method:m[1], body });
   if (m[1] === ${JSON.stringify(error)}) return new Response(JSON.stringify({ok:false,error:'请求失败，请重试'}),{status:503});
   if (m[1] === 'preferences') return realFetch('/harness/preferences',init);
-  let value = m[1] === 'list' ? {runs:[...runs,...${JSON.stringify(state === 'blank' || state === 'blank-history' ? [] : history)}],legacy,isolation:'own-root'}
+  if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
+  let value = m[1] === 'list' ? listHistory(body)
     : m[1] === 'setup' ? {current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:true},generationMinutes:30}
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true}
-    : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false} : runs.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
+    : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false} : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0) { runs[selected] = {...runs[selected],state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
   if (m[1] === 'adopt' && selected >= 0) { runs[selected] = {...runs[selected],state:'adopted',adoption:{state:'adopted',mode:body.mode,message:'已采用'}}; value=runs[selected]; }
@@ -115,7 +127,7 @@ window.__ModuleLoader__ = {load:({factory})=>{
     if(${JSON.stringify(error==='command')})return{ok:false,error:{message:'请求失败，请重试'}};
     const request=JSON.parse(line.slice('/ab @ui '.length));
     if(request.preferences.mode==='cross-model'&&request.preferences.models.some(m=>!m.model))return{ok:true,value:{result:{kind:'error',text:'请选择两个模型'}}};
-    const run={...templateRun,runId:(0x10000000+window.__commands.length).toString(16),task:request.task||'示例任务',origin:{kind:'command',id:'command-'+window.__commands.length}};runs.unshift(run);
+    const run={...templateRun,runId:(0x10000000+window.__commands.length).toString(16),sessionId:sid,createdAt:Date.now(),task:request.task||'示例任务',origin:{kind:'command',id:'command-'+window.__commands.length}};runs.unshift(run);
     const result={kind:'success',text:'A|B 比较已开始 · 运行 '+run.runId};if(!${JSON.stringify(state==='blank'||state==='blank-history')})renderCommand(result,request.task);return{ok:true,value:{result}};
   }}};
   document.getElementById('send').onclick=async()=>{
@@ -134,7 +146,7 @@ window.__ModuleLoader__ = {load:({factory})=>{
   else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) setTimeout(()=>{
     document.querySelector('.ac-header-btn').focus();document.querySelector('.ac-header-btn').click();
     if(${JSON.stringify(state==='guide')})setTimeout(()=>[...document.querySelectorAll('.ac-tab')].at(-1).click(),100);
-    else if(${JSON.stringify(state!=='history')})setTimeout(()=>document.querySelector('.ac-hrow')?.click(),200);
+    else if(${JSON.stringify(!['history', 'history-many', 'history-old'].includes(state))})setTimeout(()=>document.querySelector('.ac-hrow')?.click(),200);
   },50);
 }};
 </script><script src="/lib/client.js"></script></body></html>`

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.8 — 2026-11-03
+
+- Browse retained comparisons across conversations, search tasks, repositories or run identifiers, and navigate all pages. Keep inline cards scoped to their own conversation and disclose an older backend that needs restarting.
+- Check current Node patches in CI and preserve concurrent test observations under Vitest 5. Include history in light/dark accessibility checks.
+
 - Close admission before shutdown, drain accepted starts and journaled writes, cancel rehearsal, await both candidates after persistence failures, and save stopped preview addresses. Host unloading now awaits cleanup.
 
 - Reserve comparison capacity before repository preparation, transfer the slot without double-counting, and release failed startup entries. Create new records without replacing existing history, and pin baseline references only after the record is accepted.
