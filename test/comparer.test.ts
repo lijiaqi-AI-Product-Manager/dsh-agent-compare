@@ -443,10 +443,14 @@ describe.concurrent('adoption', () => {
 describe.concurrent('resource ownership', () => {
   it('cleanup deletes only copies it can prove it created', async () => {
     const { store, comparer, runId } = await setup({})
+    // This case verifies directory ownership. Process observation failures
+    // are exercised separately; stop the known live handles first.
+    await comparer.dispose()
     const fake = await tmp('ac-not-ours')
     await mkdir(path.join(fake, 'keep'), { recursive: true })
     await writeFile(path.join(fake, 'keep', 'file.txt'), 'precious')
     const r = (await store.load(runId))!
+    for (const candidate of r.candidates) delete candidate.preview
     r.candidates[0]!.dir = fake
     await store.save(r)
     const cleaned = (await new Comparer({ store, runner: scripted({}), version: 'test' }).cleanup(runId))!

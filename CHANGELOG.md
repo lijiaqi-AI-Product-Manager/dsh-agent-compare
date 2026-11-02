@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Give concurrent snapshots independent, atomically allocated private index directories, even within one wall-clock tick. Include the retained copy path when process inspection prevents cleanup.
 - Remove the repeated blank-conversation result header, size compact previews to the available window, distinguish preview availability from passing acceptance, and restore focus to current navigation when a previous session header has unmounted.
 - Serialize worktree administration within each Git common directory, including across processes, so one candidate cannot inspect another candidate's incomplete worktree metadata. Candidate generation remains parallel.
 - Distinguish unavailable process identity from a stopped process. Keep preview ownership and cleanup records through recovery until inspection succeeds; bound integration-test resource concurrency.
