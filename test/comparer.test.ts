@@ -4,10 +4,10 @@
  * failure path that earlier versions got wrong.
  */
 import { describe, expect, it } from 'vitest'
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { Comparer, type AgentRunner, type AgentRunRequest } from '../src/core/orchestrator.ts'
+import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions } from '../src/core/orchestrator.ts'
 import { RunStore, repoKey, StaleRecordError } from '../src/core/run-store.ts'
 import { git, registeredWorktrees } from '../src/core/git.ts'
 import { isAlive } from '../src/core/proc.ts'
@@ -35,10 +35,10 @@ function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editT
 }
 const defaultEdit: Edit = async (dir, req) => writeFile(path.join(dir, 'index.html'), `<h1>shop ${req.label}</h1>\n`)
 
-async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number } = {}) {
+async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number; onUpdate?: ComparerOptions['onUpdate'] } = {}) {
   const repo = await fixtureRepo()
   const store = new RunStore(await tmp('ac-home'))
-  const comparer = new Comparer({ store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}) })
+  const comparer = new Comparer({ store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
   const started = await comparer.start({ repo, task: 'make the shop nicer', assignment: 'fixed' })
   const done = (await comparer.wait(started.runId))!
   return { repo, store, comparer, runId: started.runId, done }
@@ -239,6 +239,91 @@ describe.concurrent('adoption', () => {
     expect(r.adoption).toMatchObject({ state: 'blocked', attention: ['index.html'] })
     expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>mine</h1>\n')
     await comparer.cleanup(runId)
+  }, T)
+
+  it.each(['rehearsal', 'journal'] as const)('preserves edits made during adoption %s', async (boundary) => {
+    let targetRepo: string | undefined
+    let edited = false
+    const mine = '<h1>edited while adopting</h1>\n'
+    const { repo, store, comparer, runId } = await setup({}, {
+      onUpdate: (record) => {
+        const reached = boundary === 'rehearsal' ? record.adoption?.rehearsal?.reused === false : record.adoption?.state === 'writing'
+        if (targetRepo !== undefined && reached && !edited) {
+          edited = true
+          writeFileSync(path.join(targetRepo, 'index.html'), mine)
+        }
+      },
+    })
+    targetRepo = repo
+    try {
+      // A non-overlapping edit forces the combined result through rehearsal.
+      await writeFile(path.join(repo, 'keep.txt'), 'keep\nchanged before adoption\n')
+      const head = await git(repo, ['rev-parse', 'HEAD'])
+      const staged = await git(repo, ['ls-files', '-s', '-z'])
+      await comparer.choose(runId, 'A')
+      const result = await comparer.adopt(runId)
+      expect(edited).toBe(true)
+      expect(result.state).toBe('revealed')
+      expect(result.adoption?.state).toBe('blocked')
+      expect(result.adoption?.attention).toContain('index.html')
+      expect(result.adoption?.message).toMatch(/尚未写入任何文件/)
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe(mine)
+      expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('keep\nchanged before adoption\n')
+      expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(head)
+      expect(await git(repo, ['ls-files', '-s', '-z'])).toBe(staged)
+      expect((await store.load(runId))?.adoption?.state).toBe('blocked')
+      expect(result.adoption?.writtenPaths ?? []).toEqual([])
+      // Resolve the overlap, then retry using the existing verified candidate.
+      await writeFile(path.join(repo, 'index.html'), '<h1>shop</h1>\n')
+      const retried = await comparer.adopt(runId)
+      expect(retried.adoption?.state).toBe('adopted')
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop A</h1>\n')
+      await comparer.revert(runId)
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+      expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('keep\nchanged before adoption\n')
+    } finally {
+      await comparer.cleanup(runId)
+      await comparer.dispose()
+    }
+  }, T)
+
+  it('rolls back only attempted paths when a later file changes to the candidate content', async () => {
+    let targetRepo: string | undefined
+    let edited = false
+    const mine = 'independently saved content\n'
+    const { repo, store, comparer, runId } = await setup({
+      A: async (dir) => {
+        await writeFile(path.join(dir, 'index.html'), '<h1>shop A</h1>\n')
+        await writeFile(path.join(dir, 'keep.txt'), mine)
+      },
+    }, {
+      onUpdate: (record) => {
+        if (targetRepo !== undefined && record.adoption?.state === 'writing' && record.adoption.writtenPaths?.length === 2 && !edited) {
+          edited = true
+          writeFileSync(path.join(targetRepo, 'keep.txt'), mine)
+        }
+      },
+    })
+    targetRepo = repo
+    try {
+      const head = await git(repo, ['rev-parse', 'HEAD'])
+      const staged = await git(repo, ['ls-files', '-s', '-z'])
+      await comparer.choose(runId, 'A')
+      const result = await comparer.adopt(runId)
+      expect(edited).toBe(true)
+      expect(result.state).toBe('revealed')
+      expect(result.adoption?.state).toBe('rolled-back')
+      expect(result.adoption?.writtenPaths).toEqual(['index.html'])
+      expect(result.adoption?.attention).toContain('keep.txt')
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+      expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe(mine)
+      expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(head)
+      expect(await git(repo, ['ls-files', '-s', '-z'])).toBe(staged)
+      expect((await store.load(runId))?.adoption?.writtenPaths).toEqual(['index.html'])
+    } finally {
+      await comparer.cleanup(runId)
+      await comparer.dispose()
+    }
   }, T)
 
   it('an adoption interrupted mid-write becomes recovery and can be restored', async () => {

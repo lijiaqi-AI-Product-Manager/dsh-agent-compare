@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, rmdir } from 'node:fs/promises'
 import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, writePatch } from './git.ts'
-import { adoptAsBranch, AdoptError, checkWritten, pinPreAdopt, preflight, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
+import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdopt, preflight, targetChanges, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
@@ -567,6 +567,7 @@ export class Comparer {
         r.adoption!.state = 'blocked'
         r.adoption!.endedAt = Date.now()
         r.adoption!.message = `${message}尚未写入任何文件。`
+        if (r.adoption!.writtenPaths !== undefined) r.adoption!.writtenPaths = []
         if (attention) r.adoption!.attention = attention
         r.state = 'revealed'
         await this.save(r)
@@ -584,15 +585,26 @@ export class Comparer {
         if (!rehearsal.ok) return blocked(`把这一版接到你当前的项目上预演后，验收没有通过：${rehearsal.reasons.join('；')}。`)
       }
 
+      const changed = await targetChanges(repo, scratch, pf.target)
+      if (changed.length > 0) return blocked(`预演期间项目发生了变化，请检查后重新采用：${changed.slice(0, 10).join('、')}。`, changed)
+
       // Journal: everything needed to undo is durable before the first byte changes.
       const preAdopt = await pinPreAdopt(repo, pf.target)
       await pinRef(repo, `refs/agent-compare/${runId}/pre-adopt`, preAdopt)
-      Object.assign(r.adoption, { state: 'writing', preAdoptCommit: preAdopt, expectedTree: pf.expectedTree, headBefore: pf.target.head, stagedBefore: pf.target.staged, writtenPaths: touched })
+      Object.assign(r.adoption, { state: 'writing', preAdoptCommit: preAdopt, expectedTree: pf.expectedTree, headBefore: pf.target.head, stagedBefore: pf.target.staged, writtenPaths: [] })
       await this.save(r)
 
       let problem: string | undefined
+      let attempted: string[] = []
       try {
-        await writeCandidate(repo, c.candidateCommit, nameStatus)
+        attempted = await writeCandidate(repo, c.candidateCommit, nameStatus, {
+          expected: pf.target,
+          scratchDir: scratch,
+          beforeWrite: async (paths) => {
+            r.adoption!.writtenPaths = [...paths]
+            await this.save(r)
+          },
+        })
         const chk = await checkWritten(repo, scratch, { expectedTree: pf.expectedTree, candidateCommit: c.candidateCommit, touched, before: pf.target })
         if (chk.mismatched.length > 0) problem = `写入后这些文件和验收过的版本不一致：${chk.mismatched.slice(0, 10).join('、')}`
         else {
@@ -614,13 +626,21 @@ export class Comparer {
           return r
         }
       } catch (error) {
+        if (error instanceof CandidateWriteError) {
+          attempted = error.attemptedPaths
+          if (attempted.length === 0) return blocked(`写入前检查已停止采用：${error.message}${error.changedLocations?.length ? `（${error.changedLocations.slice(0, 10).join('、')}）` : ''}。`, error.changedLocations ? [...error.changedLocations] : undefined)
+          if (error.changedLocations) r.adoption.attention = [...error.changedLocations]
+        }
         problem = `写入失败：${(error as Error).message}`
       }
-      const undo = await undoAdoption(repo, scratch, { preAdoptCommit: preAdopt, candidateCommit: c.candidateCommit, touched })
+      // Drop the pending intent when its precondition failed before the write began.
+      r.adoption.writtenPaths = attempted
+      await this.save(r)
+      const undo = await undoAdoption(repo, scratch, { preAdoptCommit: preAdopt, candidateCommit: c.candidateCommit, touched: attempted })
       r.adoption.endedAt = Date.now()
       if (undo.conflicts.length === 0) {
         r.adoption.state = 'rolled-back'
-        r.adoption.message = `${problem}。已把涉及的 ${touched.length} 个文件恢复到采用前。`
+        r.adoption.message = `${problem}。已把本次尝试写入的 ${attempted.length} 个文件恢复到采用前。`
         r.state = 'revealed'
       } else {
         r.adoption.state = 'needs-recovery'

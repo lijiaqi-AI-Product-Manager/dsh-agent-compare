@@ -23,7 +23,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 - Each candidate **can only write its own copy** — not your project, not the other candidate.
 - Two installs, two builds, two ports, **running at once**.
 - **One fixed, content-bound acceptance**: a candidate that edits the test script, configs or existing tests does not count as passing.
-- Adoption first proves the result works **together with what you changed meanwhile**, and never overwrites your edits.
+- Adoption checks the result **together with what you changed meanwhile**, and stops when the checked target changes before a pending write.
 
 ## How it works
 
@@ -38,6 +38,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 9. **Adopt** (adoptable candidates only):
    - Compute the exact tree your checkout will have: your current files plus the candidate's touched paths. If you edited any of those paths since the baseline, stop — nothing is written.
    - If you changed other files meanwhile, **rehearse** that combination in a scratch copy with the full acceptance; if it fails, stop — nothing is written.
+   - Recheck the checkout, HEAD and staged entries after rehearsal and before each file write or deletion. A detected change stops adoption; only earlier attempted paths are considered for rollback, preserving later user edits.
    - Persist a recovery journal (pre-adopt snapshot, expected tree, HEAD and staged-state fingerprints) and hold a repository lock before the first write.
    - Write using the repository's own eol/filter settings, then verify the checkout **equals the rehearsed tree** and HEAD and the index are unchanged. Nothing is committed.
    - A failed write is rolled back automatically; an interrupted one is offered for recovery the next time the panel opens. Undo is available later unless you edited those files (they are listed, never overwritten).
@@ -50,6 +51,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 |---|---|---|
 | Candidate writes | The candidate session's directory is its copy; DSH's sandbox enforces it up front | DSH marks its Windows sandbox as partial; platform temp areas may be writable |
 | Your project | Compared with the baseline while candidates run and shown in the panel | Candidates cannot write there, so differences are your own edits; adoption checks for overlap |
+| Concurrent editing | Rechecks the target after rehearsal and before each write, including after saving its journal | The repository lock coordinates plugin operations; it does not lock external editors. Pause edits during the brief write stage |
 | Acceptance | Script bodies, configs and test files are hash-bound; the copy is checked before and after | Requirements that cannot be checked automatically are left to you, never claimed as verified |
 | Dependencies | Always a frozen install when a lockfile exists | Projects without a lockfile get an unlocked install, with a warning |
 | Processes | A recorded preview is stopped only when its command line proves it is ours | Network and processes are **not** isolated; the preview servers are not sandboxed |
@@ -138,8 +140,9 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 ## Verified (2026-11-02, Windows 11, Node 24.22, Git 2.53)
 
-- 68 automated tests on real git, real npm installs, real builds and preview processes (temporary paths contain spaces), including a regression for every known 0.1 issue: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, real token usage).
-- `node scripts/smoke.mjs`: the built-in case with scripted agents on real Vite 6 and system Edge. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Adopting the complete one rehearses first (an uncommitted file was present) and keeps that file. With `--escape B`, a write outside the copy is detected.
+- 76 automated tests, including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
+- Adoption regressions preserve edits made during rehearsal or journal persistence, stop on concurrent HEAD/index changes, guard replacements and deletions, preserve ignored files at addition paths, and roll back only attempted paths. Retrying after resolving an overlap still supports adoption and undo.
+- `node scripts/smoke.mjs`: the built-in case with scripted agents on real Vite 6 and system Edge. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
 
 - Real model (DSH 0.2.1-rc.3 desktop, deepseek-flash, built-in case): both candidate session headers record their own copy as `cwd`, with `sandbox/mode` `workspace-write` and `approval/policy` `never`; `pwsh` runs inside the candidates (the 0.1 `SetNamedSecurityInfoW` error is gone); token usage comes from the session logs. Neither candidate declared completion within 30 minutes. One had written its whole change, and the shared acceptance run on its copy afterwards passed the frozen install, typecheck, build and 12/12 page steps — which is why 0.2.0-alpha.2 verifies written work when the time limit is reached.
 
