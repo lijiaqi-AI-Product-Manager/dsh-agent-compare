@@ -62,6 +62,7 @@ export interface StartInput {
   readonly checks?: ChecksSpec
   readonly sessionId?: string
   readonly follows?: string
+  readonly origin?: RunRecord['origin']
   readonly generationMs?: number
   /** Fixed A/B assignment for tests; production shuffles. */
   readonly assignment?: 'fixed' | 'shuffle'
@@ -151,6 +152,7 @@ export class Comparer {
       task,
       ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
       ...(input.follows === undefined ? {} : { follows: input.follows }),
+      ...(input.origin === undefined ? {} : { origin: input.origin }),
       baseline: { repoRoot: root, headCommit: head, snapshotCommit, snapshotTree: tree, dirty },
       acceptance,
       mode,
@@ -482,6 +484,29 @@ export class Comparer {
     })
   }
 
+  /**
+   * Serve a finished candidate again (its preview stopped with a host
+   * restart, or was never started). Uses the copy's existing build output
+   * when there is one; the copy must still be the one this run created.
+   */
+  async reopenPreview(runId: string, label: CandidateLabel): Promise<RunRecord> {
+    const r = await this.mustLoad(runId)
+    return this.serial(runId, async () => {
+      const lr: LiveRun = this.live.get(runId) ?? { record: r, hostContext: undefined, controller: new AbortController(), perCandidate: new Map(), previews: new Map(), done: Promise.resolve() }
+      this.live.set(runId, lr)
+      const c = lr.record.candidates.find((x) => x.label === label)
+      if (c === undefined || c.stage !== 'ready') throw new Error('只有已完成验收的候选可以重新打开预览')
+      if (lr.previews.has(label) && c.preview !== undefined) return lr.record
+      if (c.dir === undefined || !existsSync(c.dir)) throw new Error('这个候选的副本已经清理，只能查看截图')
+      const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(c.dir, 'dist')) ? 'build' : 'dev'
+      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000 })
+      lr.previews.set(label, handle)
+      c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir }
+      await this.save(lr.record)
+      return lr.record
+    })
+  }
+
   /** Report-only adoption check: overlap, eligibility and whether a rehearsal will run. Writes nothing. */
   async adoptPreflight(runId: string): Promise<{ ok: boolean; eligible: boolean; reasons: string[]; overlapping?: string[]; targetChanged?: boolean; rehearsal?: boolean }> {
     const r = await this.mustLoad(runId)
@@ -583,7 +608,9 @@ export class Comparer {
           }
           r.state = 'adopted'
           await this.save(r)
+          // Previews stop and copies go; record that, so nothing later points at a dead preview.
           await this.releaseResources(r)
+          await this.save(r)
           return r
         }
       } catch (error) {
@@ -913,6 +940,8 @@ export interface PublicCandidate {
   readonly progress?: Candidate['progress']
   /** Failed while generating, and its copy is still there: what it wrote can still be verified. */
   readonly salvageable: boolean
+  /** Finished, not being served, and its copy still exists: the preview can be started again. */
+  readonly canReopenPreview: boolean
   /** Present only after the reveal. */
   readonly strategy?: Strategy
   readonly route?: AgentRoute
@@ -965,6 +994,7 @@ export function publicView(r: RunRecord): PublicRun {
       hasMobileScreenshot: c.mobileScreenshot !== undefined,
       salvageable: (r.state === 'judging' || r.state === 'interrupted') && (c.stage === 'failed' || c.stage === 'interrupted')
         && (c.error?.stage === 'generating' || c.error?.stage === 'sealing') && c.dir !== undefined && existsSync(c.dir),
+      canReopenPreview: c.stage === 'ready' && c.preview === undefined && c.dir !== undefined && existsSync(c.dir),
       ...(c.generation === undefined ? {} : { generation: c.generation }),
       ...(c.progress === undefined || c.stage !== 'generating' ? {} : { progress: c.progress }),
       ...(c.preview === undefined ? {} : { previewUrl: c.preview.url, previewKind: c.preview.kind }),

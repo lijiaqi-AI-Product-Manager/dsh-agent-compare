@@ -250,6 +250,8 @@ export interface RunRecord {
   readonly sessionId?: string
   /** Run this one continues (the previous adopted result is part of its baseline). */
   readonly follows?: string
+  /** What started it: the `/ab` command in a conversation, the model's tool call, or the panel. */
+  readonly origin?: { readonly kind: 'command' | 'tool' | 'panel'; readonly id?: string }
   readonly baseline: Baseline
   readonly acceptance: Acceptance
   /**

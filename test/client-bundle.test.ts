@@ -31,11 +31,15 @@ describe.skipIf(!existsSync(file))('client bundle', () => {
     expect(exports.inject).toEqual(['slots'])
   })
 
-  it('apply registers both slots and does not throw when a slot is unavailable', () => {
+  it('apply registers every surface and does not throw when a slot is unavailable', () => {
     const { exports } = load(undefined)
     const names: string[] = []
-    exports.apply({ slots: { inject: (name: string, cb: () => () => void) => { names.push(name); return cb() }, register: () => () => {} } })
-    expect(names).toEqual(['conversation.session.header.utilities', 'shell.overlay'])
+    const specs: Array<Record<string, unknown>> = []
+    exports.apply({ slots: { inject: (name: string, cb: () => () => void) => { names.push(name); return cb() }, register: (spec: Record<string, unknown>) => { specs.push(spec); return () => {} } } })
+    expect(names).toEqual(['conversation.session.header.utilities', 'conversation.input.left', 'conversation.chat.commandview', 'tool.call.toolview', 'shell.overlay'])
+    // Keyed slots render our views only for our command and our tool.
+    expect(specs.find((s) => s.name === 'conversation.chat.commandview')?.key).toBe('ab')
+    expect(specs.find((s) => s.name === 'tool.call.toolview')?.key).toBe('agent_compare_start')
     expect(() => exports.apply({ slots: { inject: () => { throw new Error('no such slot') }, register: () => () => {} } })).not.toThrow()
   })
 })

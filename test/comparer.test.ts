@@ -168,8 +168,24 @@ describe.concurrent('comparison run', () => {
 })
 
 describe.concurrent('adoption', () => {
+  it('a preview stopped by a host restart can be opened again from its copy', async () => {
+    const { store, comparer, runId, done } = await setup({})
+    await comparer.dispose()
+    const after = new Comparer({ store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
+    await after.recover()
+    const recovered = (await store.load(runId))!
+    expect(recovered.candidates[0]!.preview).toBeUndefined()
+    expect(isAlive(done.candidates[0]!.preview!.pid)).toBe(false)
+    const reopened = await after.reopenPreview(runId, 'A')
+    const p = reopened.candidates[0]!.preview!
+    expect(p.kind).toBe('build')
+    expect(await (await fetch(p.url)).text()).toContain('shop A')
+    await after.cleanup(runId)
+    expect(isAlive(p.pid)).toBe(false)
+  }, T)
+
   it('writes exactly the checked tree, keeps index and HEAD, then releases copies and previews', async () => {
-    const { repo, comparer, runId, done } = await setup({})
+    const { repo, store, comparer, runId, done } = await setup({})
     const head = (await git(repo, ['rev-parse', 'HEAD'])).trim()
     const staged = await git(repo, ['ls-files', '-s'])
     const pids = done.candidates.map((c) => c.preview!.pid)
@@ -182,6 +198,9 @@ describe.concurrent('adoption', () => {
     expect(await git(repo, ['ls-files', '-s'])).toBe(staged)
     for (const c of r.candidates) expect(existsSync(c.dir!)).toBe(false)
     for (const pid of pids) expect(isAlive(pid)).toBe(false)
+    // The saved record no longer points at the stopped previews, so history shows screenshots, not a dead frame.
+    const saved = (await new RunStore(store.home).load(runId))!
+    for (const c of saved.candidates) expect(c.preview).toBeUndefined()
     // Revert restores the pre-adopt content.
     const reverted = await comparer.revert(runId)
     expect(reverted.adoption?.state).toBe('reverted')
