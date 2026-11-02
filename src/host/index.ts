@@ -84,13 +84,13 @@ interface Activation { readonly childId: string; readonly result: Promise<{ outp
 interface WebCtx {
   webServer: { register(route: { kind: 'prefix' | 'exact'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => Promise<void> | void }): () => void }
   connection: { requestRejection(req: IncomingMessage): unknown }
-  effect(fn: () => () => void, label?: string): void
+  effect(fn: () => () => void | Promise<void>, label?: string): void
 }
 interface HostCtx {
   tools: { register(def: unknown): () => void }
   inject(names: string[], cb: (sub: WebCtx) => void): unknown
   get(name: string): unknown
-  effect(fn: () => () => void, label?: string): void
+  effect(fn: () => () => void | Promise<void>, label?: string): void
   logger: { info(m: string): void; warn(m: string): void }
 }
 interface WorkingDirectory { ensure(agent: AgentLike, signal: AbortSignal): Promise<string> }
@@ -372,7 +372,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     void reconcileMemory().catch(error => ctx.logger.warn(`agent-compare: conversation restore failed: ${(error as Error).message}`))
     return () => clearInterval(timer)
   }, 'agent-compare: reconcile conversation memory')
-  ctx.effect(() => () => { void comparer.dispose() }, 'agent-compare: stop previews and candidates')
+  ctx.effect(() => () => comparer.dispose(), 'agent-compare: stop previews and candidates')
   const recovered = await comparer.recover()
   if (recovered.length > 0) ctx.logger.info(`agent-compare: settled ${recovered.length} unfinished run(s) after restart`)
 

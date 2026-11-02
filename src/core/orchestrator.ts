@@ -106,6 +106,10 @@ export class Comparer {
   private readonly live = new Map<string, LiveRun>()
   private readonly queues = new Map<string, Promise<unknown>>()
   private readonly startReservations = new Set<object>()
+  private readonly operations = new Set<Promise<unknown>>()
+  private readonly lifetime = new AbortController()
+  private closing = false
+  private disposal?: Promise<void>
 
   constructor(private readonly opts: ComparerOptions) {
     if (!Number.isSafeInteger(opts.maxActiveRuns ?? 1) || (opts.maxActiveRuns ?? 1) < 1) throw new Error('maxActiveRuns 必须是正整数')
@@ -113,7 +117,11 @@ export class Comparer {
   }
 
   /** Validate, snapshot the baseline, bind the acceptance, persist, then work in the background. */
-  async start(input: StartInput): Promise<RunRecord> {
+  start(input: StartInput): Promise<RunRecord> {
+    return this.operation(() => this.startRun(input))
+  }
+
+  private async startRun(input: StartInput): Promise<RunRecord> {
     if (this.opts.prepareProjectProcess === undefined) throw new Error('项目命令没有可用的写入边界；请由宿主提供进程沙箱后开始比较')
     const task = input.task.trim()
     if (task === '') throw new Error('任务描述为空')
@@ -127,6 +135,7 @@ export class Comparer {
 
   private async prepareStart(input: StartInput, task: string, reservation: object): Promise<RunRecord> {
     const root = await repoRoot(input.repo)
+    this.assertOpen()
     const info = await inspectProject(root)
     if (info.kind === 'unsupported') throw new Error(info.reason ?? 'unsupported project')
 
@@ -176,6 +185,7 @@ export class Comparer {
       updatedAt: Date.now(),
     }
     const lr: LiveRun = { record, hostContext: input.hostContext, controller: new AbortController(), perCandidate: new Map(), previews: new Map(), done: Promise.resolve() }
+    this.assertOpen()
     // An identifier collision must not displace a live run or its previews.
     if (this.live.has(runId)) throw new StaleRecordError(runId)
     // No await between releasing the reservation and publishing the live slot.
@@ -184,7 +194,9 @@ export class Comparer {
     try {
       // Creation refuses an existing record before any baseline ref can change.
       await this.persist(record)
+      this.assertOpen()
       await pinRef(root, `refs/agent-compare/${runId}/base`, snapshotCommit)
+      this.assertOpen()
       lr.done = this.drive(lr).catch(() => {})
       return record
     } catch (error) {
@@ -235,8 +247,13 @@ export class Comparer {
       return { complete, ready }
     })
     const allPrepared = Promise.all(preparation.map(p => p.ready)).then(() => {})
-    await Promise.all(record.candidates.map((c, i) => this.driveCandidate(lr, c, preparation[i]!.complete, allPrepared)))
-    if (record.state === 'running') {
+    const settled = await Promise.allSettled(record.candidates.map(async (c, i) => {
+      try { await this.driveCandidate(lr, c, preparation[i]!.complete, allPrepared) }
+      catch (error) { lr.controller.abort(error); throw error }
+    }))
+    if (settled.some(result => result.status === 'rejected')) {
+      record.state = 'interrupted'
+    } else if (record.state === 'running') {
       record.state = 'judging'
       record.checksFavoured = favoured(record.candidates)
     }
@@ -373,7 +390,11 @@ export class Comparer {
    * generation (stopped by the budget, an earlier version, or a host
    * restart). Its copy must still be the one this run created.
    */
-  async salvage(runId: string, label: CandidateLabel): Promise<RunRecord> {
+  salvage(runId: string, label: CandidateLabel): Promise<RunRecord> {
+    return this.operation(() => this.salvageRun(runId, label))
+  }
+
+  private async salvageRun(runId: string, label: CandidateLabel): Promise<RunRecord> {
     if (this.live.get(runId)?.record.state === 'running') throw new BusyError('这次比较还在进行中')
     const r = await this.mustLoad(runId)
     if (r.state !== 'judging' && r.state !== 'interrupted') throw new Error(`现在不能验收（${r.state}）`)
@@ -386,7 +407,7 @@ export class Comparer {
     const cand = record.candidates.find((x) => x.label === label)!
     const ctl = new AbortController()
     lr.perCandidate.set(label, ctl)
-    const signal = AbortSignal.any([lr.controller.signal, ctl.signal])
+    const signal = AbortSignal.any([this.lifetime.signal, lr.controller.signal, ctl.signal])
     const enter = async (stage: CandidateStage): Promise<void> => {
       const prev = cand.timings[cand.stage]
       if (prev && prev.endedAt === undefined) prev.endedAt = Date.now()
@@ -520,27 +541,31 @@ export class Comparer {
   }
 
   /** Stop one candidate or the whole run. Shows "stopping" until each candidate has actually settled. */
-  async cancel(runId: string, label?: CandidateLabel): Promise<RunRecord | undefined> {
+  cancel(runId: string, label?: CandidateLabel): Promise<RunRecord | undefined> {
+    return this.operation(() => this.cancelRun(runId, label))
+  }
+
+  private async cancelRun(runId: string, label?: CandidateLabel): Promise<RunRecord | undefined> {
     const lr = this.live.get(runId)
     if (lr === undefined) return this.get(runId)
     for (const c of lr.record.candidates) {
       if ((label === undefined || c.label === label) && !SETTLED.has(c.stage)) c.stage = 'stopping'
     }
-    await this.persist(lr.record)
     if (label === undefined) lr.controller.abort()
     else lr.perCandidate.get(label)?.abort()
+    await this.persist(lr.record)
     return lr.record
   }
 
   /** Record the blind choice and reveal at once. Any finished candidate can be picked; adoption rules come later. */
-  async choose(runId: string, pick: CandidateLabel | 'none', note?: string): Promise<RunRecord> {
-    return this.mutate(runId, (r) => {
+  choose(runId: string, pick: CandidateLabel | 'none', note?: string): Promise<RunRecord> {
+    return this.operation(() => this.mutate(runId, (r) => {
       if (r.state !== 'judging') throw new Error(r.state === 'revealed' ? '已经选过了' : `现在不能选择（${r.state}）`)
       if (pick !== 'none' && r.candidates.find((c) => c.label === pick)?.stage !== 'ready') throw new Error(`候选 ${pick} 还没有可体验的结果`)
       r.choice = { pick, at: Date.now(), ...(note === undefined ? {} : { note }) }
       r.state = 'revealed'
       r.revealedAt = Date.now()
-    })
+    }))
   }
 
   /**
@@ -548,7 +573,11 @@ export class Comparer {
    * restart, or was never started). Uses the copy's existing build output
    * when there is one; the copy must still be the one this run created.
    */
-  async reopenPreview(runId: string, label: CandidateLabel): Promise<RunRecord> {
+  reopenPreview(runId: string, label: CandidateLabel): Promise<RunRecord> {
+    return this.operation(() => this.reopenRunPreview(runId, label))
+  }
+
+  private async reopenRunPreview(runId: string, label: CandidateLabel): Promise<RunRecord> {
     const r = await this.mustLoad(runId)
     return this.serial(runId, async () => {
       const lr: LiveRun = this.live.get(runId) ?? { record: r, hostContext: undefined, controller: new AbortController(), perCandidate: new Map(), previews: new Map(), done: Promise.resolve() }
@@ -558,7 +587,7 @@ export class Comparer {
       if (lr.previews.has(label) && c.preview !== undefined) return lr.record
       if (c.dir === undefined || !existsSync(c.dir)) throw new Error('这个候选的副本已经清理，只能查看截图')
       const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(c.dir, 'dist')) ? 'build' : 'dev'
-      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, prepareProjectProcess: this.opts.prepareProjectProcess })
+      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: this.opts.prepareProjectProcess })
       lr.previews.set(label, handle)
       c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir }
       await this.save(lr.record)
@@ -567,7 +596,11 @@ export class Comparer {
   }
 
   /** Report-only adoption check: overlap, eligibility and whether a rehearsal will run. Writes nothing. */
-  async adoptPreflight(runId: string): Promise<{ ok: boolean; eligible: boolean; reasons: string[]; overlapping?: string[]; targetChanged?: boolean; rehearsal?: boolean }> {
+  adoptPreflight(runId: string): Promise<{ ok: boolean; eligible: boolean; reasons: string[]; overlapping?: string[]; targetChanged?: boolean; rehearsal?: boolean }> {
+    return this.operation(() => this.preflightAdoption(runId))
+  }
+
+  private async preflightAdoption(runId: string): Promise<{ ok: boolean; eligible: boolean; reasons: string[]; overlapping?: string[]; targetChanged?: boolean; rehearsal?: boolean }> {
     const r = await this.mustLoad(runId)
     const c = r.candidates.find((x) => x.label === r.choice?.pick)
     if (!c?.candidateCommit) return { ok: false, eligible: false, reasons: ['没有选中的候选'] }
@@ -591,7 +624,11 @@ export class Comparer {
    * `branch`: create a branch with the candidate, switching nothing. Allowed
    * for any finished candidate, so an unverified one can still be inspected.
    */
-  async adopt(runId: string, mode: 'worktree' | 'branch' = 'worktree'): Promise<RunRecord> {
+  adopt(runId: string, mode: 'worktree' | 'branch' = 'worktree'): Promise<RunRecord> {
+    return this.operation(() => this.adoptRun(runId, mode))
+  }
+
+  private async adoptRun(runId: string, mode: 'worktree' | 'branch'): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
     return this.store.withLock(`repo-${repoKey(first.baseline.repoRoot)}`, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
@@ -608,6 +645,7 @@ export class Comparer {
       const touched = nameStatus.map((n) => n.path)
 
       if (mode === 'branch') {
+        this.assertOpen()
         const verified = c.verdict?.eligible === true
         const { branch } = await adoptAsBranch({ baseline: r.baseline, candidateCommit: c.candidateCommit, nameStatus, scratchDir: scratch, branch: `agent-compare/${runId}-${pick}`, ...(verified ? {} : { note: 'not verified' }) })
         r.adoption = { label: pick, mode, state: 'adopted', startedAt: Date.now(), endedAt: Date.now(), branch, message: `已创建分支 ${branch}（含一个提交）；当前 checkout、文件和 index 均未改动${verified ? '' : '。注意：这一版没有通过共同验收'}` }
@@ -634,6 +672,7 @@ export class Comparer {
       }
 
       const pf = await preflight({ baseline: r.baseline, candidateCommit: c.candidateCommit, nameStatus, scratchDir: scratch })
+      if (this.closing) return blocked('宿主正在停止，已取消采用。')
       if (!pf.ok) return blocked(`基线之后你改过这些文件，和这一版的改动重叠：${pf.overlapping.slice(0, 10).join('、')}。`, pf.overlapping)
 
       if (pf.expectedTree === c.candidateTree) {
@@ -650,6 +689,7 @@ export class Comparer {
       // Journal: everything needed to undo is durable before the first byte changes.
       const preAdopt = await pinPreAdopt(repo, pf.target)
       await pinRef(repo, `refs/agent-compare/${runId}/pre-adopt`, preAdopt)
+      if (this.closing) return blocked('宿主正在停止，已取消采用。')
       Object.assign(r.adoption, { state: 'writing', preAdoptCommit: preAdopt, expectedTree: pf.expectedTree, headBefore: pf.target.head, stagedBefore: pf.target.staged, writtenPaths: [] })
       await this.save(r)
 
@@ -730,9 +770,8 @@ export class Comparer {
     const commit = await commitTree(repo, tree, [head], `agent-compare rehearsal ${r.runId}`)
     await pinRef(repo, `refs/agent-compare/${r.runId}/rehearsal`, commit)
     await addOwnedWorktree(repo, dir, commit, { runId: r.runId, label: 'R', token })
-    const ctl = new AbortController()
     try {
-      const v = await this.verifyCopy(r.acceptance, dir, tree, path.join(this.store.artifacts(r.runId), 'R'), ctl.signal)
+      const v = await this.verifyCopy(r.acceptance, dir, tree, path.join(this.store.artifacts(r.runId), 'R'), this.lifetime.signal)
       await v.preview?.handle.stop()
       const reasons = [
         ...v.checks.filter((k) => k.outcome === 'failed' || k.outcome === 'timeout').map((k) => `${k.name} 未通过${k.reason ? `（${k.reason.slice(0, 120)}）` : ''}`),
@@ -751,7 +790,11 @@ export class Comparer {
    * Undo a worktree adoption. Refuses (and lists the paths) when any touched
    * file was edited after adoption, so nothing the user wrote is overwritten.
    */
-  async revert(runId: string): Promise<RunRecord> {
+  revert(runId: string): Promise<RunRecord> {
+    return this.operation(() => this.revertRun(runId))
+  }
+
+  private async revertRun(runId: string): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
     return this.store.withLock(`repo-${repoKey(first.baseline.repoRoot)}`, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
@@ -778,7 +821,11 @@ export class Comparer {
    * still holds our content back to its pre-adopt state (paths edited by
    * someone else are listed, not touched); `keep` accepts the files as they are.
    */
-  async recoverAdoption(runId: string, action: 'restore' | 'keep'): Promise<RunRecord> {
+  recoverAdoption(runId: string, action: 'restore' | 'keep'): Promise<RunRecord> {
+    return this.operation(() => this.recoverRunAdoption(runId, action))
+  }
+
+  private async recoverRunAdoption(runId: string, action: 'restore' | 'keep'): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
     return this.store.withLock(`repo-${repoKey(first.baseline.repoRoot)}`, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
@@ -818,7 +865,11 @@ export class Comparer {
    * record, patches and screenshots stay. Paths whose ownership cannot be
    * proven are kept and listed in `leftovers`.
    */
-  async cleanup(runId: string): Promise<RunRecord | undefined> {
+  cleanup(runId: string): Promise<RunRecord | undefined> {
+    return this.operation(() => this.cleanupRun(runId))
+  }
+
+  private async cleanupRun(runId: string): Promise<RunRecord | undefined> {
     const lr = this.live.get(runId)
     if (lr !== undefined) {
       lr.controller.abort()
@@ -877,7 +928,11 @@ export class Comparer {
    * Previews are stopped only when the process is provably ours; an
    * interrupted write becomes `recovery`, never "done" or "failed".
    */
-  async recover(): Promise<string[]> {
+  recover(): Promise<string[]> {
+    return this.operation(() => this.recoverRuns())
+  }
+
+  private async recoverRuns(): Promise<string[]> {
     const touched: string[] = []
     for (const r of await this.store.list()) {
       if (this.live.has(r.runId)) continue
@@ -923,12 +978,52 @@ export class Comparer {
     return touched
   }
 
-  async dispose(): Promise<void> {
-    for (const [, lr] of this.live) {
-      lr.controller.abort()
-      for (const key of [...lr.previews.keys()]) await this.stopPreview(lr, key)
+  dispose(): Promise<void> {
+    if (this.disposal) return this.disposal
+    this.closing = true
+    this.lifetime.abort()
+    for (const lr of this.live.values()) lr.controller.abort()
+    return this.disposal = this.finishDisposal()
+  }
+
+  private async finishDisposal(): Promise<void> {
+    // Admission is closed: this snapshot includes every accepted operation.
+    // Journaled writes finish normally; generation and rehearsal observe abort.
+    await Promise.allSettled([...this.operations])
+    await Promise.allSettled([...this.live.values()].map(lr => lr.done))
+    const errors: unknown[] = []
+    for (const lr of this.live.values()) {
+      let changed = false
+      for (const key of [...lr.previews.keys()]) {
+        try {
+          await this.stopPreview(lr, key)
+          const candidate = lr.record.candidates.find(c => c.label === key)
+          if (candidate) delete candidate.preview
+          changed = true
+        } catch (error) {
+          errors.push(error)
+          lr.record.leftovers = [...new Set([...(lr.record.leftovers ?? []), `预览 ${key} 等待清理：${(error as Error).message}`])]
+          changed = true
+        }
+      }
+      if (changed) {
+        try { await this.persist(lr.record) } catch (error) { errors.push(error) }
+      }
     }
-    await Promise.allSettled([...this.live.values()].map((lr) => lr.done))
+    if (errors.length) throw new AggregateError(errors, '部分比较资源没有停止或保存，请查看历史记录并重试清理')
+  }
+
+  private assertOpen(): void {
+    if (this.closing) throw new BusyError('比较服务正在停止，请等待宿主重新启动后再试')
+  }
+
+  private operation<T>(fn: () => Promise<T>): Promise<T> {
+    const pending = Promise.resolve().then(() => { this.assertOpen(); return fn() })
+    // Add before invoking work, including work that can still be preparing.
+    this.operations.add(pending)
+    const remove = (): void => { this.operations.delete(pending) }
+    void pending.then(remove, remove)
+    return pending
   }
 
   private async mustLoad(runId: string): Promise<RunRecord> {
