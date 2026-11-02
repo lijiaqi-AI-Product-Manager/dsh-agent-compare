@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each confined to its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.1, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.2, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -30,7 +30,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 1. **Baseline** — snapshot the working tree through a private temporary index (uncommitted and untracked files included, ignored ones excluded).
 2. **Bound acceptance** — derive the checks from the baseline (`typecheck` / `lint` / `test` / `build` scripts plus a page check) and record the script bodies, content hashes of verification files (`tsconfig*`, Vite/Vitest config, lint config, existing tests, `.agent-compare.json`), the lockfile and runtime. A committed `.agent-compare.json` can add step-by-step interaction checks.
 3. **Owned copies** — one branchless `git worktree` per candidate under the plugin home (`~/.dsh/agent-compare/w/<run>/<A|B>`), with an owner mark in its git admin dir.
-4. **Candidate sessions** — each candidate is its own DSH session whose directory is its copy. DSH's sandbox takes a session's write boundary from that directory, so the candidate is confined **before it runs**; approvals are pinned to `never`. Each has a generation budget (30 min by default).
+4. **Candidate sessions** — each candidate is its own DSH session whose directory is its copy. DSH's sandbox takes a session's write boundary from that directory, so the candidate is confined **before it runs**; approvals are pinned to `never`. Each has a generation time limit (15 / 30 / 60 / 90 minutes per comparison, 30 by default). When it runs out, the agent is stopped and what it wrote is still sealed and verified; while it works, the card shows its steps, latest action and how long it has been quiet.
 5. **Seal** — the session is closed and the change frozen as a commit plus a full binary patch (SHA-256); `node_modules` is always excluded.
 6. **Verify** — copy equals the sealed tree → **frozen install** (a failure fails; there is no unlocked retry) → acceptance commands → serve the **build output** with `vite preview` → page acceptance in a fresh headless browser context (loads, no console errors, scripted steps, desktop and phone screenshots) → the copy still equals the sealed tree. When the build fails, only a dev-server preview is offered, marked "for observation only".
 7. **Verdict** — "adoptable" only when every check passed, no verification file was touched, and the checked tree is the sealed tree. Dependency changes, missing lockfiles and a missing system browser are shown as warnings.
@@ -71,7 +71,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.1.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.2.tgz
 ```
 
 Restart DSH and click **A|B** in the session header. Start with "试跑内置案例" (try the built-in case): it creates a separate example shop repository (your project is not touched) and requires both versions to deliver search, combined filters, a clear button and phone layout, each checked step by step.
@@ -123,7 +123,7 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 | Item | Status |
 |---|---|
-| DSH 0.2.1-rc.3 desktop, Windows 11 | Plugin loading and panel tested with 0.1; the 0.2 candidate sessions are **awaiting a real-model run** |
+| DSH 0.2.1-rc.3 desktop, Windows 11 | Real-model run: each candidate session's directory is its own copy, sandbox `workspace-write`, approvals `never`, and shell commands work; a full round through adoption is still pending |
 | DSH 0.2.1-rc.4+, Web UI | Not tested |
 | macOS / Linux | Core tests run in CI; not tested inside DSH |
 | Node | ≥ 22.19 (tested on 24) |
@@ -131,12 +131,15 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 ## Verified (2026-11-02, Windows 11, Node 24.22, Git 2.53)
 
-- 57 automated tests on real git, real npm installs, real builds and preview processes (temporary paths contain spaces), including a regression for every known 0.1 issue: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, real token usage).
+- 61 automated tests on real git, real npm installs, real builds and preview processes (temporary paths contain spaces), including a regression for every known 0.1 issue: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, real token usage).
 - `node scripts/smoke.mjs`: the built-in case with scripted agents on real Vite 6 and system Edge. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Adopting the complete one rehearses first (an uncommitted file was present) and keeps that file. With `--escape B`, a write outside the copy is detected.
+
+- Real model (DSH 0.2.1-rc.3 desktop, deepseek-flash, built-in case): both candidate session headers record their own copy as `cwd`, with `sandbox/mode` `workspace-write` and `approval/policy` `never`; `pwsh` runs inside the candidates (the 0.1 `SetNamedSecurityInfoW` error is gone); token usage comes from the session logs. Neither candidate declared completion within 30 minutes. One had written its whole change, and the shared acceptance run on its copy afterwards passed the frozen install, typecheck, build and 12/12 page steps — which is why 0.2.0-alpha.2 verifies written work when the time limit is reached.
 
 ## Not verified yet
 
-- A full real-model round with the 0.2 candidate sessions, including whether candidates can run shell commands on Windows (in 0.1, the subagent shell failed with a `SetNamedSecurityInfoW` permission error).
+- A full real-model round from generation through choice, adoption and the next task.
+- On this Windows machine each tool call inside DSH's sandbox took from about ten seconds to several minutes, and the model often waited two to three minutes between steps, so one comparison can exceed 30 minutes. The cause lies on the DSH and model-service side and has not been pinned down.
 - Whether storage inside the panel's iframes is isolated from your own browser; use "open in browser" when it matters.
 - Provider behaviour in two-model mode.
 

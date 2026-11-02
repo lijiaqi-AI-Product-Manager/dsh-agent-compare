@@ -15,12 +15,13 @@ import { fixtureRepo, tmp } from './fixture.ts'
 
 type Edit = (dir: string, req: AgentRunRequest) => Promise<void>
 
-/** Plays both agents: A and B get their own edit function. */
-function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B' } = {}): AgentRunner {
+/** Plays both agents: A and B get their own edit function. `hang` agents never finish (after their edit, if any). */
+function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean } = {}): AgentRunner {
   return {
     isolation: 'own-root',
     async run(req) {
       if (opts.hang === req.label) {
+        if (opts.editThenHang) await (edits[req.label] ?? defaultEdit)(req.cwd, req)
         await new Promise<void>((resolve) => {
           if (req.signal.aborted) return resolve()
           req.signal.addEventListener('abort', () => resolve(), { once: true })
@@ -34,7 +35,7 @@ function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B' } = {}
 }
 const defaultEdit: Edit = async (dir, req) => writeFile(path.join(dir, 'index.html'), `<h1>shop ${req.label}</h1>\n`)
 
-async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; generationMs?: number } = {}) {
+async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number } = {}) {
   const repo = await fixtureRepo()
   const store = new RunStore(await tmp('ac-home'))
   const comparer = new Comparer({ store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}) })
@@ -110,12 +111,46 @@ describe.concurrent('comparison run', () => {
     await comparer.cleanup(runId)
   }, T)
 
-  it('a generation over budget fails that candidate only', async () => {
+  it('a generation over budget with nothing written fails that candidate only', async () => {
     const { comparer, runId, done } = await setup({}, { hang: 'A', generationMs: 1500 })
     expect(done.candidates[0]!.stage).toBe('failed')
-    expect(done.candidates[0]!.error?.message).toMatch(/超出生成时间预算/)
+    expect(done.candidates[0]!.generation).toEqual({ ended: 'budget' })
+    expect(done.candidates[0]!.error?.message).toMatch(/超出生成时间预算.*还没有改动任何文件/)
     expect(done.candidates[1]!.stage).toBe('ready')
     await comparer.cleanup(runId)
+  }, T)
+
+  it('work written before the budget ran out is sealed and verified, not discarded', async () => {
+    const { comparer, runId, done } = await setup({}, { hang: 'A', editThenHang: true, generationMs: 1500 })
+    const a = done.candidates[0]!
+    expect(a.stage).toBe('ready')
+    expect(a.generation).toEqual({ ended: 'budget' })
+    expect(a.verdict?.eligible).toBe(true)
+    expect(a.verdict?.warnings.join()).toMatch(/时间预算截断/)
+    await comparer.cleanup(runId)
+  }, T)
+
+  it('a candidate an earlier version failed at the budget can be salvaged and verified', async () => {
+    const { store, comparer, runId } = await setup({})
+    await comparer.dispose()
+    // The record as the previous behaviour left it: B failed while generating, its copy intact.
+    const r = (await store.load(runId))!
+    const b = r.candidates[1]!
+    for (const k of ['generation', 'patchFile', 'patchSha256', 'patchStats', 'touchedFiles', 'candidateCommit', 'candidateTree', 'acceptanceTouched', 'dependencyChange', 'install', 'checks', 'checkedTree', 'drift', 'preview', 'screenshot', 'mobileScreenshot', 'verdict'] as const) delete b[k]
+    b.stage = 'failed'
+    b.stopReason = 'aborted'
+    b.error = { stage: 'generating', message: '超出生成时间预算（30 分钟），已停止这个候选' }
+    b.timings = { preparing: b.timings.preparing!, generating: b.timings.generating! }
+    await store.save(r)
+    const later = new Comparer({ store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
+    const started = await later.salvage(runId, 'B')
+    expect(started.candidates[1]!.stage).toBe('sealing')
+    const done = (await later.wait(runId))!
+    expect(done.candidates[1]).toMatchObject({ stage: 'ready', generation: { ended: 'budget' }, verdict: { eligible: true } })
+    expect(done.checksFavoured).toBe('tie')
+    await expect(later.salvage(runId, 'B')).rejects.toThrow(/只有在生成阶段中止/)
+    await later.choose(runId, 'B')
+    expect((await later.adopt(runId, 'worktree')).adoption?.state).toBe('adopted')
   }, T)
 
   it('cancel shows stopping, then settles as cancelled', async () => {

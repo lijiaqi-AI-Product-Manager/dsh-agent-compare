@@ -151,6 +151,10 @@ export interface Candidate {
   readonly route: AgentRoute
   actualRoute?: AgentRoute
   stage: CandidateStage
+  /** How generation ended. Anything but `completed` still seals and verifies what was written. */
+  generation?: { ended: 'completed' | 'budget' | 'agent-stopped'; stopReason?: string }
+  /** Live activity of the agent while it generates (observed, not reported by the agent). */
+  progress?: { steps: number; lastAction?: string; lastActivityAt: number; tokens?: number }
   /** The candidate's private copy (a detached git worktree). */
   dir?: string
   /** Random token written into the copy's git admin dir; required before deleting it. */

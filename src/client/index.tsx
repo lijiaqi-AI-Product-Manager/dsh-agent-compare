@@ -36,6 +36,9 @@ interface Cand {
   usage?: { kind: 'reported'; totalTokens?: number; inputTokens?: number; outputTokens?: number } | { kind: 'unknown'; reason: string }
   hasScreenshot?: boolean
   hasMobileScreenshot?: boolean
+  generation?: { ended: 'completed' | 'budget' | 'agent-stopped'; stopReason?: string }
+  progress?: { steps: number; lastAction?: string; lastActivityAt: number; tokens?: number }
+  salvageable?: boolean
   strategy?: { id: string; title: string }
   route?: Route
   actualRoute?: Route
@@ -250,6 +253,12 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-skel{width:min(320px,70%);display:flex;flex-direction:column;gap:8px}.ac-skel i{height:10px;border-radius:5px;background:var(--ac-l2);animation:ac-pulse 1.4s ease-in-out infinite}
 .ac-fail{flex:1;margin:12px;padding:12px;border-radius:var(--ac-r-md);background:color-mix(in srgb,var(--ac-err) 7%,transparent);color:var(--ac-fg);overflow:auto;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;white-space:pre-wrap}
 .ac-fail b{display:block;color:var(--ac-err);font-family:var(--dsw-font-family,inherit);margin-bottom:6px}
+.ac-salvage{display:flex;align-items:center;gap:12px;margin-top:14px;padding:10px 12px;border-radius:var(--ac-r-sm);background:var(--ac-bg);border:1px solid var(--ac-border);font-family:var(--dsw-font-family,inherit);white-space:normal;color:var(--ac-fg2)}
+.ac-salvage span{flex:1}
+.ac-activity code{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;color:var(--ac-fg2)}
+.ac-slow{color:var(--ac-warn)}
+.ac-budget{display:inline-flex;align-items:center;gap:6px;color:var(--ac-fg3);font-size:12px;white-space:nowrap}
+.ac-budget select{height:28px;border-radius:7px;border:1px solid var(--ac-border-strong);background:var(--ac-bg);color:var(--ac-fg);font:inherit;font-size:12px}
 .ac-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--ac-border);background:var(--ac-bg);flex-wrap:wrap}
 .ac-bar-text{flex:1;min-width:200px;color:var(--ac-fg2)}
 .ac-bar-text strong{color:var(--ac-fg)}
@@ -357,6 +366,18 @@ function Screenshots({ runId, c }: { runId: string; c: Cand }): React.ReactEleme
   )
 }
 
+/** What the agent is doing right now, so a slow run reads as slow rather than stuck. */
+function Activity({ p }: { p: NonNullable<Cand['progress']> }): React.ReactElement {
+  const idle = Date.now() - p.lastActivityAt
+  return (
+    <div className="ac-meta ac-activity">
+      已进行 {p.steps} 轮{p.lastAction ? <> · 最近：<code>{p.lastAction}</code></> : null}
+      {p.tokens ? ` · ${p.tokens.toLocaleString()} tokens` : ''}
+      {idle > 90_000 ? <span className="ac-slow"> · {fmt(idle)} 没有新动作（在等模型或工具）</span> : null}
+    </div>
+  )
+}
+
 function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act }): React.ReactElement {
   const usage = c.usage === undefined ? '' : c.usage.kind === 'unknown' ? '用量未知' : `${(c.usage.totalTokens ?? 0).toLocaleString()} tokens`
   const live = c.previewUrl !== undefined && !['failed', 'cancelled', 'interrupted'].includes(c.stage)
@@ -374,6 +395,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: C
         </div>
         <Track c={c} />
         {step > 0 && <div className="ac-meta">第 {step}/{PIPELINE.length} 步 · {STAGE_TEXT[c.stage]}</div>}
+        {c.stage === 'generating' && c.progress && <Activity p={c.progress} />}
         <Checks checks={c.checks} />
         <Verdict c={c} />
         {(c.patchStats || usage) && (
@@ -395,7 +417,15 @@ function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: C
           <iframe className="ac-frame" title={`候选 ${c.label} 的运行页面`} src={c.previewUrl} />
         </div>
       ) : c.error ? (
-        <div className="ac-fail"><b>{STAGE_TEXT[c.error.stage] ?? c.error.stage}阶段失败</b>{c.error.message}</div>
+        <div className="ac-fail">
+          <b>{STAGE_TEXT[c.error.stage] ?? c.error.stage}阶段失败</b>{c.error.message}
+          {c.salvageable && (
+            <div className="ac-salvage">
+              <span>副本里还保留着它已经写的改动，可以照样封存并跑完整验收，由验收结果决定能否采用。</span>
+              <button className="ac-btn primary sm" disabled={busy} onClick={() => act('salvage', { label: c.label })}>验收已写的改动</button>
+            </div>
+          )}
+        </div>
       ) : c.stage === 'ready' ? (
         <Screenshots runId={run.runId} c={c} />
       ) : (
@@ -448,6 +478,7 @@ function Composer({ sessionId, follows, onStarted, compact }: { sessionId: strin
   const [task, setTask] = useState('')
   const [mode, setMode] = useState<'same-model' | 'cross-model'>('same-model')
   const [pair, setPair] = useState<[string, string]>(['', ''])
+  const [minutes, setMinutes] = useState(30)
   const [err, setErr] = useState<string>()
   const [busy, setBusy] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -458,7 +489,7 @@ function Composer({ sessionId, follows, onStarted, compact }: { sessionId: strin
     setBusy(true)
     setErr(undefined)
     const models = mode === 'cross-model' ? pair.map((k) => { const [provider, model] = k.split('\u0000'); return { provider, model } }) : undefined
-    call<Run>('start', { sessionId, task, mode: example ? 'same-model' : mode, ...(models && !example ? { models } : {}), ...(follows ? { follows } : {}), ...(example ? { example: true } : {}) })
+    call<Run>('start', { sessionId, task, generationMinutes: minutes, mode: example ? 'same-model' : mode, ...(models && !example ? { models } : {}), ...(follows ? { follows } : {}), ...(example ? { example: true } : {}) })
       .then(onStarted, (e: Error) => setErr(e.message)).finally(() => setBusy(false))
   }
   return (
@@ -469,6 +500,11 @@ function Composer({ sessionId, follows, onStarted, compact }: { sessionId: strin
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) start() }} aria-label="对比任务" style={compact ? { minHeight: 72 } : undefined} />
         <div className="ac-field-foot">
           <div className="ac-chips">{!compact && EXAMPLES.map((x) => <button key={x} className="ac-chip" onClick={() => { setTask(x); ref.current?.focus() }}>{x}</button>)}</div>
+          <label className="ac-budget" title="到时还没说完成，就停下并验收它已写的改动">每版最多
+            <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label="每个候选的生成时间上限">
+              {[15, 30, 60, 90].map((m) => <option key={m} value={m}>{m} 分钟</option>)}
+            </select>
+          </label>
           <span className="ac-kbd">Ctrl + Enter</span>
           <button className="ac-btn primary lg" disabled={busy || task.trim() === '' || !pairOk} onClick={() => start()}>{busy ? <><span className="ac-spin" />准备中</> : follows ? '再次比较' : '开始对比'}</button>
         </div>
@@ -530,6 +566,15 @@ function ActionBar({ run, busy, act, home }: { run: Run; busy: boolean; act: Act
         </div>
       )
     case 'judging':
+      if (ready === 0) {
+        const salvageable = run.candidates.some((c) => c.salvageable)
+        return (
+          <div className="ac-bar">
+            <span className="ac-bar-text"><strong>两边都没有可体验的结果。</strong>{salvageable ? '可以在卡片里验收它们已经写的改动，或结束这次比较。' : '可以结束这次比较，调整描述或时间上限后再来。'}</span>
+            <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>结束并清理</button>
+          </div>
+        )
+      }
       return (
         <div className="ac-bar">
           <span className="ac-bar-text"><strong>两边都试一下</strong>，选出你更愿意采用的那一版；选完立即揭晓</span>

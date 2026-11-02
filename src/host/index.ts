@@ -39,7 +39,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.1'
+const VERSION = '0.2.0-alpha.2'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -116,6 +116,26 @@ export function finalText(events: readonly SessionEvent[]): string {
   return (last ?? []).filter((b) => b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n').trim()
 }
 
+/** Observed activity so far: model steps taken, the latest tool call, tokens reported. */
+export function progressOf(events: readonly SessionEvent[]): { steps: number; lastAction?: string; tokens?: number } {
+  let steps = 0
+  let lastAction: string | undefined
+  for (const e of events) {
+    if (e.type === 'step/start') steps++
+    if (e.type === 'tool/call' && typeof e.data?.name === 'string') {
+      let target = ''
+      try {
+        const args = typeof e.data.arguments === 'string' ? JSON.parse(e.data.arguments) : (e.data.arguments ?? {})
+        const raw = args.file_path ?? args.path ?? args.pattern ?? args.command ?? ''
+        target = String(raw).replace(/^.*[\\/](src[\\/])/, '$1').replace(/\s+/g, ' ').slice(0, 100)
+      } catch { /* arguments still streaming or not JSON */ }
+      lastAction = target ? `${e.data.name} ${target}` : e.data.name
+    }
+  }
+  const usage = usageFromEvents(events)
+  return { steps, ...(lastAction === undefined ? {} : { lastAction }), ...(usage.kind === 'reported' && usage.totalTokens !== undefined ? { tokens: usage.totalTokens } : {}) }
+}
+
 /** Map the epoch's last turn ending onto the subagent stop-reason vocabulary. */
 export function stopReasonOf(events: readonly SessionEvent[]): string {
   const ends = events.filter((e) => e.type === 'turn/end')
@@ -186,13 +206,25 @@ export class IsolatedSessionRunner implements AgentRunner {
       // A stop that landed while the session was being created would otherwise never reach it.
       if (req.signal.aborted) throw new Error('cancelled before the candidate started')
       child.followup(createUserMessage({ content: [{ type: 'text', text: req.prompt }], source: { kind: 'user' } }))
-      // Quiescent = idle with nothing queued and at least one turn ended (or cancelled).
-      for (;;) {
-        await child.whenIdle()
-        const pending = (child.inbox?.nextTurn.length ?? 0) + (child.inbox?.nextStep.length ?? 0)
-        const ended = child.session.snapshotEvents(start).some((e) => e.type === 'turn/end')
-        if (pending === 0 && (ended || req.signal.aborted)) break
-        await new Promise((r) => setTimeout(r, 250))
+      // Report what the session is doing while it works; the agent itself says nothing until the end.
+      let seen = -1
+      const watch = req.onProgress === undefined ? undefined : setInterval(() => {
+        const events = child.session.snapshotEvents(start)
+        if (events.length === seen) return
+        seen = events.length
+        try { req.onProgress!(progressOf(events)) } catch { /* progress is best effort */ }
+      }, 2000)
+      try {
+        // Quiescent = idle with nothing queued and at least one turn ended (or cancelled).
+        for (;;) {
+          await child.whenIdle()
+          const pending = (child.inbox?.nextTurn.length ?? 0) + (child.inbox?.nextStep.length ?? 0)
+          const ended = child.session.snapshotEvents(start).some((e) => e.type === 'turn/end')
+          if (pending === 0 && (ended || req.signal.aborted)) break
+          await new Promise((r) => setTimeout(r, 250))
+        }
+      } finally {
+        if (watch !== undefined) clearInterval(watch)
       }
       const events = child.session.snapshotEvents(start)
       const summary = finalText(events)
@@ -414,6 +446,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       if (mode === 'cross-model' && (pair[0] === undefined || pair[1] === undefined)) throw new HttpError(400, '请选择两个模型')
       const routes: [AgentRoute, AgentRoute] = mode === 'cross-model' ? [pair[0]!, pair[1]!] : [currentRoute(agent), currentRoute(agent)]
       const follows = typeof b.follows === 'string' && /^[0-9a-f]{8}$/.test(b.follows) ? b.follows : undefined
+      const minutes = typeof b.generationMinutes === 'number' && b.generationMinutes >= 5 && b.generationMinutes <= 120 ? b.generationMinutes : undefined
       const repo = b.example === true ? await createExampleRepo(store.examplesDir) : await repoFor(agent, signal)
       const r = await comparer.start({
         repo,
@@ -423,8 +456,14 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         hostContext: agent,
         sessionId: agent.session.id,
         ...(follows === undefined ? {} : { follows }),
+        ...(minutes === undefined ? {} : { generationMs: minutes * 60_000 }),
       })
       return publicView(r)
+    },
+    async salvage(b) {
+      const l = label(b.label)
+      if (l === undefined) throw new HttpError(400, 'label must be A or B')
+      return publicView(await comparer.salvage(runIdOf(b), l))
     },
     async choose(b) {
       const pick = b.pick === 'none' ? 'none' : label(b.pick)

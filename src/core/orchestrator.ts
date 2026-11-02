@@ -20,6 +20,14 @@ export interface AgentRunRequest {
   readonly signal: AbortSignal
   /** Opaque value from StartInput.hostContext (DSH: the parent Agent). */
   readonly hostContext?: unknown
+  /** Called while the agent works, whenever its observed activity changes. */
+  readonly onProgress?: (p: AgentProgress) => void
+}
+
+export interface AgentProgress {
+  readonly steps: number
+  readonly lastAction?: string
+  readonly tokens?: number
 }
 
 export interface AgentRunResult {
@@ -190,9 +198,7 @@ export class Comparer {
     await Promise.all(record.candidates.map((c) => this.driveCandidate(lr, c)))
     if (record.state === 'running') {
       record.state = 'judging'
-      const score = (c: Candidate): number | undefined => (c.stage === 'ready' ? (c.verdict?.eligible ? 1000 : 0) + (checksScore(c.checks) ?? 0) : undefined)
-      const [a, b] = record.candidates.map(score)
-      record.checksFavoured = a === undefined && b === undefined ? 'none' : a === undefined ? 'B' : b === undefined ? 'A' : a > b ? 'A' : b > a ? 'B' : 'tie'
+      record.checksFavoured = favoured(record.candidates)
     }
     await this.persist(record)
   }
@@ -225,6 +231,7 @@ export class Comparer {
       await enter('generating')
       signal.throwIfAborted()
       const budget = AbortSignal.timeout(record.budget.generationMs)
+      let lastSave = 0
       const result = await this.opts.runner.run({
         label: c.label,
         cwd: dir,
@@ -232,6 +239,13 @@ export class Comparer {
         route: c.route,
         signal: AbortSignal.any([signal, budget]),
         hostContext: lr.hostContext,
+        onProgress: (p) => {
+          c.progress = { steps: p.steps, lastActivityAt: Date.now(), ...(p.lastAction === undefined ? {} : { lastAction: p.lastAction.slice(0, 160) }), ...(p.tokens === undefined ? {} : { tokens: p.tokens }) }
+          if (Date.now() - lastSave > 3000) {
+            lastSave = Date.now()
+            void this.persist(record).catch(() => {})
+          }
+        },
       })
       c.stopReason = result.stopReason
       c.usage = result.usage
@@ -240,40 +254,12 @@ export class Comparer {
       if (result.summary !== undefined) c.summary = result.summary.slice(0, SUMMARY_MAX)
       await this.noteOutsideChanges(record)
       signal.throwIfAborted()
-      if (budget.aborted) throw new StageFailure('generating', `超出生成时间预算（${Math.round(record.budget.generationMs / 60_000)} 分钟），已停止这个候选`)
-      if (result.stopReason !== 'completed') throw new StageFailure('generating', `Agent 没有正常完成：${result.stopReason}${c.summary ? `\n${c.summary.slice(0, 600)}` : ''}`)
-
-      await enter('sealing')
-      const change = await captureChange(dir, record.baseline.snapshotCommit, `agent-compare candidate ${record.runId}/${c.label}`)
-      if (change.touched.length === 0) {
-        // The agent's own account is the only clue to why (e.g. sandbox denials); show its start.
-        const why = (result.summary ?? '').replace(/```[\s\S]*?```/g, '').trim().slice(0, 600)
-        throw new StageFailure('sealing', `Agent 没有改动任何文件。${why ? `\nAgent 的说明：${why}` : ''}`)
-      }
-      const artifacts = this.store.artifacts(record.runId)
-      c.patchFile = path.join(artifacts, `${c.label}.patch`)
-      c.patchSha256 = await writePatch(c.patchFile, change.patch)
-      c.patchStats = change.stats
-      c.touchedFiles = change.touched
-      c.candidateCommit = change.commit
-      c.candidateTree = change.tree
-      await pinRef(repo, `refs/agent-compare/${record.runId}/${c.label}`, change.commit)
-      const acc = await acceptanceChanges(repo, record.acceptance, record.baseline.snapshotTree, change.tree)
-      c.acceptanceTouched = acc.touched
-      c.dependencyChange = acc.dependencyChange
-
-      const v = await this.verifyCopy(record.acceptance, dir, change.tree, path.join(artifacts, c.label), signal, enter)
-      if (v.preview) lr.previews.set(c.label, v.preview.handle)
-      c.install = v.install
-      c.checks = v.checks
-      c.checkedTree = v.checkedTree
-      c.drift = v.drift
-      if (v.preview) c.preview = v.preview.info
-      if (v.screenshot) c.screenshot = v.screenshot
-      if (v.mobileScreenshot) c.mobileScreenshot = v.mobileScreenshot
-      c.verdict = verdictOf(c, record.acceptance)
-      signal.throwIfAborted()
-      await enter('ready')
+      // How generation ended is a fact to show, not a verdict: whatever the
+      // agent wrote is sealed and verified by the same acceptance either way.
+      c.generation = budget.aborted
+        ? { ended: 'budget' }
+        : result.stopReason === 'completed' ? { ended: 'completed' } : { ended: 'agent-stopped', stopReason: result.stopReason }
+      await this.sealAndVerify(lr, c, signal, enter)
     } catch (error) {
       const stage = c.stage === 'stopping' ? (Object.entries(c.timings).find(([, t]) => t?.endedAt === undefined)?.[0] as CandidateStage | undefined) ?? 'queued' : c.stage
       // `signal` is the user's stop; the generation budget is separate and ends as a failure.
@@ -288,6 +274,95 @@ export class Comparer {
       delete c.preview
       await this.persist(record)
     }
+  }
+
+  /** Freeze what the copy holds, then run the full acceptance on it. Ends in `ready` or throws. */
+  private async sealAndVerify(lr: LiveRun, c: Candidate, signal: AbortSignal, enter: (s: CandidateStage) => Promise<void>): Promise<void> {
+    const record = lr.record
+    const repo = record.baseline.repoRoot
+    const dir = c.dir!
+    await enter('sealing')
+    const change = await captureChange(dir, record.baseline.snapshotCommit, `agent-compare candidate ${record.runId}/${c.label}`)
+    if (change.touched.length === 0) {
+      // The agent's own account is the only clue to why (e.g. sandbox denials); show its start.
+      const why = (c.summary ?? '').replace(/```[\s\S]*?```/g, '').trim().slice(0, 600)
+      const ended = c.generation?.ended === 'budget'
+        ? `超出生成时间预算（${Math.round(record.budget.generationMs / 60_000)} 分钟）时还没有改动任何文件。`
+        : c.generation?.ended === 'agent-stopped' ? `Agent 没有正常结束（${c.generation.stopReason}），也没有改动任何文件。` : 'Agent 没有改动任何文件。'
+      throw new StageFailure('sealing', `${ended}${why ? `\nAgent 的说明：${why}` : ''}`)
+    }
+    const artifacts = this.store.artifacts(record.runId)
+    c.patchFile = path.join(artifacts, `${c.label}.patch`)
+    c.patchSha256 = await writePatch(c.patchFile, change.patch)
+    c.patchStats = change.stats
+    c.touchedFiles = change.touched
+    c.candidateCommit = change.commit
+    c.candidateTree = change.tree
+    await pinRef(repo, `refs/agent-compare/${record.runId}/${c.label}`, change.commit)
+    const acc = await acceptanceChanges(repo, record.acceptance, record.baseline.snapshotTree, change.tree)
+    c.acceptanceTouched = acc.touched
+    c.dependencyChange = acc.dependencyChange
+
+    const v = await this.verifyCopy(record.acceptance, dir, change.tree, path.join(artifacts, c.label), signal, enter)
+    if (v.preview) lr.previews.set(c.label, v.preview.handle)
+    c.install = v.install
+    c.checks = v.checks
+    c.checkedTree = v.checkedTree
+    c.drift = v.drift
+    if (v.preview) c.preview = v.preview.info
+    if (v.screenshot) c.screenshot = v.screenshot
+    if (v.mobileScreenshot) c.mobileScreenshot = v.mobileScreenshot
+    c.verdict = verdictOf(c, record.acceptance)
+    signal.throwIfAborted()
+    await enter('ready')
+  }
+
+  /**
+   * Seal and verify what a candidate had written when it failed during
+   * generation (stopped by the budget, an earlier version, or a host
+   * restart). Its copy must still be the one this run created.
+   */
+  async salvage(runId: string, label: CandidateLabel): Promise<RunRecord> {
+    if (this.live.get(runId)?.record.state === 'running') throw new BusyError('这次比较还在进行中')
+    const r = await this.mustLoad(runId)
+    if (r.state !== 'judging' && r.state !== 'interrupted') throw new Error(`现在不能验收（${r.state}）`)
+    const c = r.candidates.find((x) => x.label === label)
+    if (c === undefined || (c.stage !== 'failed' && c.stage !== 'interrupted') || (c.error?.stage !== 'generating' && c.error?.stage !== 'sealing')) throw new Error('只有在生成阶段中止的候选可以验收已写的改动')
+    if (c.dir === undefined || c.ownerToken === undefined || !existsSync(c.dir)) throw new Error('这个候选的副本已经不在了')
+    const lr: LiveRun = this.live.get(runId) ?? { record: r, hostContext: undefined, controller: new AbortController(), perCandidate: new Map(), previews: new Map(), done: Promise.resolve() }
+    this.live.set(runId, lr)
+    const record = lr.record
+    const cand = record.candidates.find((x) => x.label === label)!
+    const ctl = new AbortController()
+    lr.perCandidate.set(label, ctl)
+    const signal = AbortSignal.any([lr.controller.signal, ctl.signal])
+    const enter = async (stage: CandidateStage): Promise<void> => {
+      const prev = cand.timings[cand.stage]
+      if (prev && prev.endedAt === undefined) prev.endedAt = Date.now()
+      cand.stage = stage
+      cand.timings[stage] = { startedAt: Date.now() }
+      await this.persist(record)
+    }
+    const failedWhy = cand.error?.message
+    delete cand.error
+    cand.generation ??= { ended: /预算/.test(failedWhy ?? '') ? 'budget' : 'agent-stopped', ...(cand.stopReason ? { stopReason: cand.stopReason } : {}) }
+    if (record.state === 'interrupted') record.state = 'judging'
+    await enter('sealing')
+    // Runs in the background like a fresh candidate; `wait(runId)` resolves when it settles.
+    lr.done = (async () => {
+      try {
+        await this.sealAndVerify(lr, cand, signal, enter)
+      } catch (error) {
+        cand.stage = signal.aborted ? 'cancelled' : 'failed'
+        if (!signal.aborted) cand.error = { stage: error instanceof StageFailure ? error.stage : cand.stage, message: String((error as Error).message ?? error).slice(0, 2000) }
+        for (const t of Object.values(cand.timings)) if (t && t.endedAt === undefined) t.endedAt = Date.now()
+        await this.stopPreview(lr, label)
+        delete cand.preview
+      }
+      record.checksFavoured = favoured(record.candidates)
+      await this.persist(record)
+    })().catch(() => {})
+    return record
   }
 
   /**
@@ -780,6 +855,13 @@ async function stopOwnedPreview(p: PreviewInfo): Promise<void> {
   }
 }
 
+/** Which candidate the checks favour: eligibility first, then passes minus failures. */
+function favoured(cands: readonly Candidate[]): RunRecord['checksFavoured'] {
+  const score = (c: Candidate): number | undefined => (c.stage === 'ready' ? (c.verdict?.eligible ? 1000 : 0) + (checksScore(c.checks) ?? 0) : undefined)
+  const [a, b] = cands.map(score)
+  return a === undefined && b === undefined ? 'none' : a === undefined ? 'B' : b === undefined ? 'A' : a > b ? 'A' : b > a ? 'B' : 'tie'
+}
+
 /** Decide adoption eligibility from recorded facts only. */
 export function verdictOf(c: Candidate, acceptance: Acceptance): Verdict {
   const reasons: string[] = []
@@ -798,6 +880,8 @@ export function verdictOf(c: Candidate, acceptance: Acceptance): Verdict {
   if ((c.acceptanceTouched ?? []).length > 0) reasons.push(`改动了验收相关文件：${c.acceptanceTouched!.slice(0, 5).join('、')}`)
   if ((c.drift ?? []).length > 0) reasons.push(`验收过程中副本多出了未封存的改动：${c.drift!.slice(0, 5).join('、')}`)
   if (c.checkedTree === undefined || c.checkedTree !== c.candidateTree) reasons.push('验收的内容不是封存的版本')
+  if (c.generation?.ended === 'budget') warnings.push('生成被时间预算截断，Agent 没有说完成；以上结论针对截断时已写的文件')
+  if (c.generation?.ended === 'agent-stopped') warnings.push(`Agent 没有正常结束（${c.generation.stopReason ?? '未知'}）；以上结论针对它已写的文件`)
   if (c.dependencyChange) warnings.push('改动了依赖（已按锁文件安装）')
   if (c.install && !c.install.frozen) warnings.push('项目没有锁文件，依赖版本可能与你本地不同')
   return { eligible: c.stage !== 'failed' && reasons.length === 0, reasons, warnings }
@@ -825,6 +909,10 @@ export interface PublicCandidate {
   readonly usage?: Usage
   readonly hasScreenshot: boolean
   readonly hasMobileScreenshot: boolean
+  readonly generation?: Candidate['generation']
+  readonly progress?: Candidate['progress']
+  /** Failed while generating, and its copy is still there: what it wrote can still be verified. */
+  readonly salvageable: boolean
   /** Present only after the reveal. */
   readonly strategy?: Strategy
   readonly route?: AgentRoute
@@ -875,6 +963,10 @@ export function publicView(r: RunRecord): PublicRun {
       timings: c.timings,
       hasScreenshot: c.screenshot !== undefined,
       hasMobileScreenshot: c.mobileScreenshot !== undefined,
+      salvageable: (r.state === 'judging' || r.state === 'interrupted') && (c.stage === 'failed' || c.stage === 'interrupted')
+        && (c.error?.stage === 'generating' || c.error?.stage === 'sealing') && c.dir !== undefined && existsSync(c.dir),
+      ...(c.generation === undefined ? {} : { generation: c.generation }),
+      ...(c.progress === undefined || c.stage !== 'generating' ? {} : { progress: c.progress }),
       ...(c.preview === undefined ? {} : { previewUrl: c.preview.url, previewKind: c.preview.kind }),
       ...(c.checks === undefined ? {} : { checks: c.checks }),
       ...(c.patchStats === undefined ? {} : { patchStats: c.patchStats }),

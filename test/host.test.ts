@@ -3,7 +3,7 @@
  * records exactly how a candidate session is created and driven.
  */
 import { describe, expect, it } from 'vitest'
-import { IsolatedSessionRunner, finalText, stopReasonOf, usageFromEvents } from '../src/host/index.ts'
+import { IsolatedSessionRunner, finalText, progressOf, stopReasonOf, usageFromEvents } from '../src/host/index.ts'
 
 interface Ev { type: string; data?: any }
 
@@ -105,6 +105,17 @@ describe('isolated candidate session', () => {
 })
 
 describe('session log readers', () => {
+  it('summarises live progress: steps, latest tool call and tokens', () => {
+    expect(progressOf([
+      { type: 'step/start' },
+      { type: 'tool/call', data: { name: 'read', arguments: '{"file_path":"C:\\\\copy\\\\src\\\\App.tsx"}' } },
+      { type: 'assistant/message', data: { message: { content: [] }, usage: { totalTokens: 1200 } } },
+      { type: 'step/start' },
+      { type: 'tool/call', data: { name: 'pwsh', arguments: '{"command":"npm run   typecheck"}' } },
+    ])).toEqual({ steps: 2, lastAction: 'pwsh npm run typecheck', tokens: 1200 })
+    expect(progressOf([{ type: 'tool/call', data: { name: 'write', arguments: '{"file_path":"C:\\\\c' } }])).toEqual({ steps: 0, lastAction: 'write' })
+  })
+
   it('reports unknown usage when the provider reported none', () => {
     expect(usageFromEvents([{ type: 'assistant/message', data: { message: { content: [] } } }])).toMatchObject({ kind: 'unknown' })
   })
