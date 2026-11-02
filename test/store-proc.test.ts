@@ -112,7 +112,8 @@ describe('public view', () => {
     const after = publicView(r)
     expect(after.candidates[0]?.strategy?.id).toBe('bold')
     expect(after.candidates[0]?.summary).toBe('I went bold')
-    expect(JSON.stringify(after)).not.toMatch(/snapshotCommit|repoRoot/)
+    expect(after.baseline.repoRoot).toBe('/r')
+    expect(JSON.stringify(after)).not.toMatch(/snapshotCommit|snapshotTree|ownerToken/)
   })
 })
 

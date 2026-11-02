@@ -30,7 +30,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 1. **Baseline** — snapshot the working tree through a private temporary index (uncommitted and untracked files included, ignored ones excluded).
 2. **Bound acceptance** — derive the checks from the baseline (`typecheck` / `lint` / `test` / `build` scripts plus a page check) and record the script bodies, content hashes of verification files (`tsconfig*`, Vite/Vitest config, lint config, existing tests, `.agent-compare.json`), the lockfile and runtime. A committed `.agent-compare.json` can add step-by-step interaction checks.
 3. **Owned copies** — one branchless `git worktree` per candidate under the plugin home (`~/.dsh/agent-compare/w/<run>/<A|B>`), with an owner mark in its git admin dir.
-4. **Candidate sessions** — each candidate is its own DSH session whose directory is its copy. DSH's sandbox takes a session's write boundary from that directory, so the candidate is confined **before it runs**; approvals are pinned to `never`. Each has a generation time limit (15 / 30 / 60 / 90 minutes per comparison, 30 by default). When it runs out, the agent is stopped and what it wrote is still sealed and verified; while it works, the card shows its steps, latest action and how long it has been quiet.
+4. **Candidate sessions** — each candidate is its own DSH session whose directory is its copy. DSH's sandbox takes a session's write boundary from that directory, so the candidate is confined **before it runs**; approvals are pinned to `never`. Each has a generation time limit (5 / 15 / 30 / 60 / 120 minutes in the interface, 30 by default). When it runs out, the agent is stopped and what it wrote is still sealed and verified; while it works, the card shows its steps, latest action and how long it has been quiet.
 5. **Seal** — the session is closed and the change frozen as a commit plus a full binary patch (SHA-256); `node_modules` is always excluded.
 6. **Verify** — copy equals the sealed tree → **frozen install** (a failure fails; there is no unlocked retry) → acceptance commands → serve the **build output** with `vite preview` → page acceptance in a fresh headless browser context (loads, no console errors, scripted steps, desktop and phone screenshots) → the copy still equals the sealed tree. When the build fails, only a dev-server preview is offered, marked "for observation only".
 7. **Verdict** — "adoptable" only when every check passed, no verification file was touched, and the checked tree is the sealed tree. Dependency changes, missing lockfiles and a missing system browser are shown as warnings.
@@ -76,14 +76,17 @@ cd dsh-agent-compare && npm ci && npm pack
 dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.3.tgz
 ```
 
-After restarting DSH, comparisons run inside the conversation:
+After restarting DSH, click **A|B** in the composer or header to open the workspace:
 
-- **The A|B button at the bottom left of the composer** sends the message as an `/ab` command; click it again to turn it off. Typing `/ab <task>` does the same.
-- **The A|B card in the conversation** shows both candidates' running builds in two small windows, with progress and verdicts; choosing, adopting and undoing all happen in the card ("大窗口查看" enlarges it).
-- **Record and memory**: the command and its result are in the conversation's session log, and each milestone (generation finished, your pick, adoption or undo) is written into the conversation as a model-visible note, so the next message can build on what was adopted.
-- **The A|B button in the header** opens history (with reopening stopped previews) and the guide; the guide puts the built-in case (`/ab --example`) into the composer for a first try.
+1. Choose the current repository or a separate example shop.
+2. Describe the task. Reuse the current model with two strategies, or select two configured models.
+3. Select a per-candidate generation limit (5–120 minutes) and start directly. No command flags; the conversation draft is preserved.
+4. Try both applications in matching desktop (1280px) or phone (390px) viewports. Compare side by side or focus on A/B. Views scale to fit; ordinary browser tabs share browser site data.
+5. Choose, reveal, and inspect the source changes. Adoption first shows the target repository and preflight result; a separate confirmation writes the result. Recovery actions stay at the top.
 
-Flags: `--minutes 60` per-candidate time limit; `--models provider/model,provider/model` two models; `--example` the built-in case in a new example repository.
+History, live status, and guidance share one workspace. Compact conversation cards show progress and checks; expand a card to interact with the applications.
+
+`/ab <task>` remains an optional shortcut. Models, time limits, and the example are available through the interface.
 
 A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); the conversation shows the same A|B card.
 

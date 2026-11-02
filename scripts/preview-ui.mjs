@@ -5,7 +5,7 @@
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const now = Date.now()
@@ -19,7 +19,7 @@ const checks = (ok) => [
   { name: 'browser', outcome: ok ? 'passed' : 'failed', durationMs: 6400, steps: steps(!ok), ...(ok ? {} : { reason: '验收步骤未通过：点「清空」（找不到按钮）' }) },
 ]
 const acceptance = { source: 'repository', checks: ['typecheck', 'build', 'browser'], steps: 12, frozenInstall: true, sha256: 'abc' }
-const base = { runId: '0a1b2c3d', task: '给商品列表加上搜索框和分类筛选，手机上也要好用。要求：搜索不区分大小写；分类可与搜索组合；有「清空」按钮；390px 手机可用。', mode: 'same-model', isolation: 'own-root', createdAt: now - 95000, baseline: { dirty: true }, acceptance }
+const base = { runId: '0a1b2c3d', task: '给商品列表加上搜索框和分类筛选，手机上也要好用。要求：搜索不区分大小写；分类可与搜索组合；有「清空」按钮；390px 手机可用。', mode: 'same-model', isolation: 'own-root', createdAt: now - 95000, baseline: { dirty: true, repoRoot: 'D:\\Projects\\demo-shop' }, acceptance }
 const reported = { kind: 'reported', totalTokens: 48210 }
 const A = { label: 'A', stage: 'ready', previewUrl: 'http://127.0.0.1:4318/a', previewKind: 'build', checks: checks(true), verdict: { eligible: true, reasons: [], warnings: [] }, patchStats: { files: 2, insertions: 48, deletions: 9, binary: 0 }, timings: done, usage: reported, hasScreenshot: false }
 const B = { label: 'B', stage: 'ready', previewUrl: 'http://127.0.0.1:4318/b', previewKind: 'build', checks: checks(false), verdict: { eligible: false, reasons: ['页面验收未通过'], warnings: ['改动了依赖（已按锁文件安装）'] }, patchStats: { files: 3, insertions: 121, deletions: 4, binary: 0 }, timings: done, usage: { kind: 'reported', totalTokens: 71533 }, hasScreenshot: false }
@@ -50,7 +50,7 @@ const states = {
   recovery: [{ ...base, state: 'recovery', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'needs-recovery', mode: 'worktree', message: '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。', attention: ['src/App.tsx'] }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
 }
 
-const page = (state, theme) => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>AgentCompare preview</title>
+const page = (state, theme, error) => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>AgentCompare preview</title>
 <style>body{margin:0;font-family:system-ui,'Microsoft YaHei',sans-serif;background:${theme === 'dark' ? '#111317' : '#f5f6f8'};height:100vh}
 .titlebar{height:40px;display:flex;align-items:center;gap:16px;padding:0 16px;font-size:13px;color:#888;border-bottom:1px solid rgba(128,128,128,.2)}
 .header{display:flex;align-items:center;gap:12px;padding:10px 20px;font-weight:600;color:${theme === 'dark' ? '#eee' : '#111'}}
@@ -62,13 +62,23 @@ const runs = ${JSON.stringify(states[state] ?? [])};
 const history = ${JSON.stringify(history)};
 const legacy = ${JSON.stringify(legacy)};
 const models = [{ provider: 'deepseek', providerName: 'DeepSeek', id: 'deepseek-chat', name: 'DeepSeek V3' }, { provider: 'deepseek', providerName: 'DeepSeek', id: 'deepseek-reasoner', name: 'DeepSeek R1' }];
+window.__requests = [];
 const realFetch = window.fetch;
 window.fetch = async (url, init) => {
   const m = String(url).match(/agent-compare\\/api\\/(\\w+)/);
   if (!m) return realFetch(url, init);
-  const value = m[1] === 'list' ? { runs: [...runs, ...history], legacy, isolation: 'own-root' }
+  const body = JSON.parse(init.body ?? '{}');
+  window.__requests.push({ method: m[1], body });
+  if (m[1] === ${JSON.stringify(error)}) return new Response(JSON.stringify({ ok: false, error: '请求失败，请重试' }), { status: 503 });
+  let value = m[1] === 'list' ? { runs: [...runs, ...history], legacy, isolation: 'own-root' }
+    : m[1] === 'setup' ? { current: { provider: 'deepseek', model: 'deepseek-chat' }, models, project: { path: 'D:/Projects/demo-shop', supported: true }, generationMinutes: 30 }
     : m[1] === 'models' ? { current: { provider: 'deepseek', model: 'deepseek-chat' }, models }
+    : m[1] === 'preflight' ? { ok: true, reasons: [], rehearsal: true }
+    : m[1] === 'patch' ? { text: 'diff --git a/src/App.tsx b/src/App.tsx\\n--- a/src/App.tsx\\n+++ b/src/App.tsx\\n+<button>Clear</button>', sha256: 'a'.repeat(64), truncated: false }
     : runs[0] ?? null;
+  if (m[1] === 'start') { const r = { ...${JSON.stringify(base)}, task: body.task || '示例任务', state: 'running', candidates: [{ label: 'A', stage: 'generating', timings: {} }, { label: 'B', stage: 'queued', timings: {} }] }; runs.unshift(r); value = r; }
+  if (m[1] === 'choose') { runs[0] = { ...runs[0], state: 'revealed', choice: { pick: body.pick }, candidates: runs[0].candidates.map(c => ({ ...c, ...${JSON.stringify(strat)}[c.label] })) }; value = runs[0]; }
+  if (m[1] === 'adopt') { runs[0] = { ...runs[0], state: 'adopted', adoption: { state: 'adopted', mode: body.mode, message: '已采用' } }; value = runs[0]; }
   return new Response(JSON.stringify({ ok: true, value }), { headers: { 'content-type': 'application/json' } });
 };
 window.__ModuleLoader__ = { load: ({ factory }) => {
@@ -84,9 +94,13 @@ window.__ModuleLoader__ = { load: ({ factory }) => {
     const host = document.createElement('div'); host.style.cssText = 'max-width:980px;margin:0 auto;padding:0 20px'; document.body.appendChild(host);
     ReactDOM.createRoot(host).render(React.createElement(cv.C, { ...cv.spec.inject('s1'), node: { name: 'ab', args: ' 给商品列表加上搜索框和分类筛选', outcome: { kind: 'success', text: 'A|B 比较已开始 · 运行 0a1b2c3d' } } }));
   } else if (${JSON.stringify(state !== 'closed')}) setTimeout(() => {
+    document.querySelector('.ac-header-btn').focus();
     document.querySelector('.ac-header-btn').click();
     if (${JSON.stringify(state === 'guide')}) setTimeout(() => [...document.querySelectorAll('.ac-tab')].at(-1).click(), 300);
-    else if (${JSON.stringify(state !== 'history')}) setTimeout(() => document.querySelector('.ac-hrow')?.click(), 300);
+    else if (${JSON.stringify(state !== 'start' && state !== 'closed')}) setTimeout(() => {
+      [...document.querySelectorAll('.ac-tab')].find(el => el.textContent === '历史记录')?.click();
+      if (${JSON.stringify(state !== 'history')}) setTimeout(() => document.querySelector('.ac-hrow')?.click(), 200);
+    }, 100);
   }, 50);
 } };
 </script><script src="/lib/client.js"></script></body></html>`
@@ -97,15 +111,28 @@ const demo = (label) => `<!doctype html><meta charset="utf-8"><body style="margi
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:14px">${['Studio Headphones', 'Pocket Speaker', 'Monitor Stand', 'Desk Mat', 'Backpack', 'Desk Lamp'].map((n) => `<div style="border:1px solid #e3e6ea;border-radius:8px;padding:10px">${n}</div>`).join('')}</div>`
 
 const vendor = { 'react.js': 'node_modules/react/umd/react.development.js', 'react-dom.js': 'node_modules/react-dom/umd/react-dom.development.js' }
-createServer(async (req, res) => {
+export async function createUiHarness({ port = 4317, demoPort = 4318 } = {}) {
+const server = createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x')
   try {
-    if (u.pathname === '/') return res.end(page(u.searchParams.get('state') ?? 'judging', u.searchParams.get('theme') ?? 'light'))
+    if (u.pathname === '/') return res.end(page(u.searchParams.get('state') ?? 'judging', u.searchParams.get('theme') ?? 'light', u.searchParams.get('error') ?? ''))
     if (u.pathname.startsWith('/vendor/')) return res.end(await readFile(path.join(root, vendor[u.pathname.slice(8)])))
     if (u.pathname === '/lib/client.js') return res.end(await readFile(path.join(root, 'lib/client.js')))
     res.statusCode = 404
     res.end()
   } catch (e) { res.statusCode = 500; res.end(String(e)) }
-}).listen(4317, '127.0.0.1')
-createServer((req, res) => { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A')) }).listen(4318, '127.0.0.1')
-console.log('preview: http://127.0.0.1:4317/?state=start|history|running|judging|failed|revealed|blocked|adopted|recovery&theme=light|dark')
+})
+const demoServer = createServer((req, res) => { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A')) })
+const listen = (s, p) => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, '127.0.0.1', resolve) })
+await listen(demoServer, demoPort)
+try { await listen(server, port) } catch (error) { await new Promise(r => demoServer.close(r)); throw error }
+const demoBase = `http://127.0.0.1:${demoServer.address().port}`
+for (const list of Object.values(states)) for (const run of list) for (const candidate of run.candidates) {
+  if (candidate.previewUrl) candidate.previewUrl = `${demoBase}/${candidate.label.toLowerCase()}`
+}
+return { url: `http://127.0.0.1:${server.address().port}`, close: async () => { await Promise.all([server, demoServer].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))) } }
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const harness = await createUiHarness()
+  console.log(`preview (sample data): ${harness.url}/?state=start|history|running|judging|failed|revealed|blocked|adopted|recovery&theme=light|dark`)
+}

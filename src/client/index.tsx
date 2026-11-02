@@ -23,6 +23,7 @@ interface ClientCtx { slots: SlotsLike; effect?(fn: () => () => void): void }
 type Stage = 'queued' | 'preparing' | 'generating' | 'sealing' | 'installing' | 'verifying' | 'previewing' | 'ready' | 'failed' | 'stopping' | 'cancelled' | 'interrupted'
 interface Check { name: string; outcome: 'passed' | 'failed' | 'skipped' | 'timeout'; reason?: string; durationMs: number; steps?: Array<{ label: string; ok: boolean; detail?: string }> }
 interface Route { provider?: string; model?: string }
+interface Setup { current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string } }
 interface Cand {
   label: 'A' | 'B'
   stage: Stage
@@ -55,7 +56,7 @@ interface Run {
   createdAt: number
   follows?: string
   origin?: { kind: 'command' | 'tool' | 'panel'; id?: string }
-  baseline: { dirty: boolean; headCommit?: string }
+  baseline: { dirty: boolean; headCommit?: string; repoRoot?: string }
   acceptance: { source: 'defaults' | 'repository'; checks: string[]; steps: number; frozenInstall: boolean }
   candidates: Cand[]
   choice?: { pick: 'A' | 'B' | 'none' }
@@ -77,9 +78,10 @@ async function call<T>(method: string, body: Record<string, unknown>): Promise<T
 }
 
 // ---- tiny shared store: which session's sheet is open, optionally on one run ----
-let openSession: { sessionId: string; runId?: string; tab?: 'history' | 'guide' } | undefined
+type Tab = 'start' | 'history' | 'guide'
+let openSession: { sessionId: string; runId?: string; tab?: Tab } | undefined
 const listeners = new Set<() => void>()
-function setOpen(sessionId: string | undefined, runId?: string, tab?: 'history' | 'guide'): void {
+function setOpen(sessionId: string | undefined, runId?: string, tab?: Tab): void {
   openSession = sessionId === undefined ? undefined : { sessionId, ...(runId ? { runId } : {}), ...(tab ? { tab } : {}) }
   for (const l of listeners) l()
 }
@@ -110,15 +112,6 @@ function inputShell(sessionId: string): InputShell | undefined {
     return undefined
   }
 }
-const AB_PREFIX = /^\/ab(\s+|$)/
-/** Put a `/ab` command line into the composer (replacing an existing `/ab` prefix); false when the composer is unreachable. */
-function setAbDraft(sessionId: string, line: string): boolean {
-  const shell = inputShell(sessionId)
-  if (shell?.actions?.setDraft === undefined) return false
-  shell.actions.setDraft(line)
-  return true
-}
-
 /** Re-render every second while `on`, for live elapsed times. */
 function useTick(on: boolean): void {
   const [, set] = useState(0)
@@ -159,8 +152,9 @@ function fmt(ms: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`
 }
 function elapsed(c: Cand): number {
-  const starts = Object.values(c.timings).map((t) => t?.startedAt ?? Infinity)
-  const ends = Object.values(c.timings).map((t) => t?.endedAt ?? Date.now())
+  const timings = Object.entries(c.timings).filter(([s]) => s !== 'ready')
+  const starts = timings.map(([, t]) => t?.startedAt ?? Infinity)
+  const ends = timings.map(([, t]) => t?.endedAt ?? (busyStage(c.stage) ? Date.now() : t?.startedAt ?? 0))
   const first = Math.min(...starts)
   return Number.isFinite(first) ? Math.max(...ends) - first : 0
 }
@@ -178,10 +172,10 @@ function when(ts: number): string {
 // ---- styles (scoped by the .ac- prefix) ----
 const CSS = `
 .ac-root{--ac-bg:var(--dsw-alias-bg-base,#fff);--ac-l1:var(--dsw-alias-bg-layer-1,#f7f8fa);--ac-l2:var(--dsw-alias-bg-layer-2,#f0f2f5);
---ac-fg:var(--dsw-alias-label-primary,#0f1115);--ac-fg2:var(--dsw-alias-label-secondary,#4b5260);--ac-fg3:var(--dsw-alias-label-tertiary,#8a919e);
+--ac-fg:var(--dsw-alias-label-primary,#0f1115);--ac-fg2:var(--dsw-alias-label-secondary,#4b5260);--ac-fg3:var(--dsw-alias-label-secondary,#596475);
 --ac-border:var(--dsw-alias-border-l2,rgba(15,17,21,.10));--ac-border-strong:var(--dsw-alias-border-l3,rgba(15,17,21,.16));
---ac-brand:var(--dsw-alias-brand-primary,#4d6bfe);--ac-brand-fg:var(--dsw-alias-label-primary-foreground,#fff);
---ac-ok:var(--dsw-alias-state-success-primary,#1a9a5a);--ac-err:var(--dsw-alias-state-error-primary,#e5484d);--ac-warn:var(--dsw-alias-state-warn-primary,#d08700);
+--ac-brand:var(--dsw-alias-brand-primary,#4056d9);--ac-brand-fg:var(--dsw-alias-label-primary-foreground,#fff);
+--ac-ok:var(--dsw-alias-state-success-primary,#157847);--ac-err:var(--dsw-alias-state-error-primary,#a91e2e);--ac-warn:var(--dsw-alias-state-warn-primary,#926200);
 --ac-hover:var(--dsw-alias-interactive-bg-hover,rgba(15,17,21,.05));
 --ac-r-sm:var(--dsw-radius-sm,8px);--ac-r-md:var(--dsw-radius-md,10px);--ac-r-lg:var(--dsw-radius-lg,14px);
 font-family:var(--dsw-font-family,inherit);color:var(--ac-fg);font-size:13px;line-height:1.5}
@@ -327,7 +321,54 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-guide ol,.ac-guide ul{margin:6px 0 0;padding-left:20px;color:var(--ac-fg2);display:flex;flex-direction:column;gap:4px}
 .ac-guide code{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;background:var(--ac-l2);padding:1px 5px;border-radius:5px}
 .ac-back{margin:12px 16px 0;align-self:flex-start}
-@media (prefers-reduced-motion:reduce){.ac-root *{animation:none!important}}
+/* Workspace layout */
+.ac-sheet{top:max(48px,calc(env(titlebar-area-height,0px) + 8px));left:12px;right:12px;bottom:12px;outline:none}
+.ac-head{min-height:64px;padding:14px 24px;gap:12px}
+.ac-logo{height:30px;padding:0 9px;border-radius:9px;background:var(--ac-fg);color:var(--ac-bg)}
+.ac-header-caption{color:var(--ac-fg3);font-size:12px;border-left:1px solid var(--ac-border);padding-left:12px}
+.ac-tabs{background:transparent;gap:4px}.ac-tab{height:34px;padding:0 14px;font-size:13px}.ac-tab.on{background:var(--ac-l2);box-shadow:none;color:var(--ac-fg)}
+.ac-root button,.ac-root select,.ac-root textarea{font-family:inherit}
+.ac-root :is(input,select,textarea,a,summary):focus-visible{outline:2px solid var(--ac-brand);outline-offset:3px}
+.ac-sr{position:absolute!important;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.ac-start{max-width:920px;margin:0 auto;padding:30px 36px 0;gap:22px}
+.ac-eyebrow{display:block;color:var(--ac-fg3);font-size:12px;letter-spacing:.08em;margin-bottom:8px}
+.ac-h1{font-size:30px;font-weight:650;letter-spacing:-.03em;line-height:1.35}.ac-lead{font-size:13px;margin-top:8px;line-height:1.7}
+.ac-form-group{border:0;padding:0;margin:0;min-width:0;display:flex;flex-direction:column;gap:10px}
+.ac-form-group legend{float:left;display:flex;align-items:center;gap:8px;width:100%;font-size:13px;font-weight:600;padding:0;margin-bottom:10px}
+.ac-step-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:var(--ac-l2);color:var(--ac-fg2);border-radius:7px;font-size:11px}
+.ac-options{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;clear:both}
+.ac-option{display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border:1px solid var(--ac-border-strong);border-radius:12px;cursor:pointer;background:var(--ac-bg);min-width:0;transition:border-color .15s,background .15s}
+.ac-option.selected{border-color:var(--ac-brand);background:color-mix(in srgb,var(--ac-brand) 4%,var(--ac-bg))}
+.ac-option input{accent-color:var(--ac-brand);margin:3px 0 0;flex:none}
+.ac-option>span{min-width:0;display:flex;flex-direction:column;gap:4px}.ac-option b{font-size:13px;font-weight:600}.ac-option small{font-size:12px;color:var(--ac-fg2);overflow-wrap:anywhere;line-height:1.5}
+.ac-option em{font-style:normal;margin-left:5px;font-size:10px;font-weight:500;background:var(--ac-l2);color:var(--ac-fg2);padding:2px 5px;border-radius:4px}
+.ac-field textarea{min-height:94px;padding:13px 15px 4px;line-height:1.65;font-size:14px}.ac-field-foot{padding:4px 12px 10px;gap:8px}
+.ac-field textarea:focus-visible{outline:none}
+.ac-field-note{margin:0;font-size:12px;color:var(--ac-fg2);line-height:1.6}.ac-field-note.warn{color:var(--ac-warn)}
+.ac-limit{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:var(--ac-fg2);font-size:12px;padding-top:4px}
+.ac-limit label{color:var(--ac-fg);font-weight:500}.ac-limit select{height:32px;padding:0 26px 0 10px;border:1px solid var(--ac-border-strong);background:var(--ac-bg);color:var(--ac-fg);border-radius:8px}.ac-limit>span{flex:1;min-width:180px}
+.ac-start-foot{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 0 20px;border-top:1px solid var(--ac-border);background:var(--ac-bg);z-index:2}
+.ac-start-foot>div{display:flex;flex-direction:column;gap:4px}.ac-start-foot b{font-size:13px}.ac-start-foot span{font-size:12px;color:var(--ac-fg2)}.ac-start-foot .ac-btn{height:42px;min-width:155px;justify-content:center}
+.ac-text-btn{border:0;background:transparent;color:var(--ac-brand);font:inherit;font-size:12px;padding:4px;cursor:pointer;white-space:nowrap}
+.ac-feedback{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px;border:1px solid color-mix(in srgb,var(--ac-err) 35%,transparent);background:color-mix(in srgb,var(--ac-err) 6%,var(--ac-bg));border-radius:10px;white-space:pre-wrap}
+.ac-run-heading{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--ac-border)}
+.ac-action-dock{position:sticky;top:0;z-index:3;background:var(--ac-bg)}.ac-bar{border-top:0;border-bottom:1px solid var(--ac-border);padding:12px 20px;min-height:60px}
+.ac-review{display:flex;justify-content:space-between;gap:20px;margin:16px 20px 0;padding:16px;border:1px solid var(--ac-brand);border-radius:12px;background:color-mix(in srgb,var(--ac-brand) 5%,var(--ac-bg))}.ac-review p{margin:6px 0;font-size:12px;color:var(--ac-fg2)}.ac-review .ac-row{align-self:flex-start;flex:none}.ac-project-path{overflow-wrap:anywhere}
+.ac-compare-tools{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 20px 0}.ac-compare-tools .ac-seg button{font-size:12px;height:28px;padding:0 12px}
+.ac-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;min-height:0;flex:none;padding:16px 20px 20px;gap:16px}.ac-grid.focus{grid-template-columns:minmax(0,1fr)}
+.ac-card{min-width:0;min-height:360px}.ac-card[hidden]{display:none}.ac-card-head{min-height:128px;gap:8px;padding:14px}.ac-card .ac-empty,.ac-card .ac-fail{min-height:240px}
+.ac-evidence>summary,.ac-patch>summary{font-size:12px;color:var(--ac-fg2)}.ac-evidence[open]{display:flex;flex-direction:column;gap:8px}.ac-evidence .ac-verdict{margin-top:8px}
+.ac-patch pre{max-height:340px;max-width:100%;overflow:auto;white-space:pre;font:11px/1.6 ui-monospace,monospace;background:var(--ac-l1);border:1px solid var(--ac-border);border-radius:8px;padding:12px}
+.ac-patch .ac-meta{overflow-wrap:anywhere;margin-top:8px}.ac-checks{min-height:22px}.ac-strategy{margin-left:0;flex-basis:100%;overflow-wrap:anywhere;font-weight:500;color:var(--ac-fg2)}
+.ac-preview-stage{padding:12px;background:var(--ac-l1);overflow:hidden;min-height:100px;display:flex;justify-content:center}
+.ac-preview-surface{position:relative;flex:none;background:white;border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--ac-border)}
+.ac-frame{position:absolute;left:0;top:0;transform-origin:top left;display:block;max-width:none;min-height:0;border:0;background:white}
+.ac-guide{max-width:800px;padding:36px;gap:24px}.ac-guide-steps{counter-reset:step;list-style:none!important;padding:0!important;gap:22px!important}.ac-guide-steps li{padding-left:38px;position:relative;counter-increment:step}.ac-guide-steps li:before{content:counter(step);position:absolute;left:0;top:0;width:24px;height:24px;display:grid;place-items:center;background:var(--ac-l2);border-radius:8px;color:var(--ac-fg2);font-size:12px}.ac-guide-steps b{font-size:14px;color:var(--ac-fg)}.ac-guide-steps p{margin:6px 0 0;line-height:1.8;font-size:13px}
+.ac-inline .ac-compare-tools{display:none}.ac-inline .ac-preview-stage{display:none}.ac-inline .ac-browser{height:auto;min-height:0}.ac-inline .ac-card-head{min-height:128px}.ac-inline .ac-card{min-height:0}.ac-inline .ac-action-dock{position:static}.ac-inline .ac-chrome:before{content:'实时页面请打开工作区体验';color:var(--ac-fg2);font-size:12px}.ac-inline .ac-url,.ac-inline .ac-lights{display:none}
+@media(max-width:900px){.ac-sheet{left:6px;right:6px;bottom:6px}.ac-head{padding:12px 14px;gap:8px}.ac-header-caption{display:none}.ac-start{padding:24px 20px 0}.ac-grid{grid-template-columns:minmax(0,1fr)}.ac-card{min-height:0}.ac-models{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:600px){.ac-sheet{top:max(40px,env(titlebar-area-height,0px));left:0;right:0;bottom:0;border-radius:0}.ac-head{flex-wrap:wrap;gap:6px}.ac-title{font-size:13px}.ac-tabs{order:2;flex-basis:100%;justify-content:center}.ac-tab{flex:1}.ac-h1{font-size:25px}.ac-start{padding:22px 16px 0;gap:20px}.ac-options,.ac-models{grid-template-columns:minmax(0,1fr)}.ac-start-foot{align-items:stretch;flex-direction:column;gap:10px;padding:12px 0}.ac-start-foot>div>span{display:none}.ac-start-foot .ac-btn{width:100%}.ac-bar{padding:10px 12px;gap:8px}.ac-bar-text{min-width:100%;font-size:12px}.ac-bar .ac-btn{flex:1;justify-content:center;min-height:40px}.ac-grid{padding:12px;gap:12px}.ac-compare-tools{padding:12px 12px 0;gap:8px}.ac-compare-tools>.ac-meta{display:none}.ac-seg button{min-height:36px}.ac-review{margin:12px;flex-direction:column}.ac-run-heading{padding:10px 12px}.ac-run-heading>.ac-meta{display:none}.ac-guide{padding:24px 18px}.ac-hrow{flex-wrap:wrap}.ac-hrow .t{min-width:150px}.ac-header-caption{display:none}.ac-field-foot>.ac-meta{font-size:11px}.ac-field-foot{gap:4px}}
+@media(prefers-color-scheme:dark){.ac-root{--ac-brand:var(--dsw-alias-brand-primary,#a1b0ff);--ac-brand-fg:var(--dsw-alias-label-primary-foreground,#111827);--ac-ok:var(--dsw-alias-state-success-primary,#65d89f);--ac-err:var(--dsw-alias-state-error-primary,#ff98a3);--ac-warn:var(--dsw-alias-state-warn-primary,#edc575)}}
+@media(prefers-reduced-motion:reduce){.ac-root *{animation:none!important;transition:none!important}}
 `
 function Styles(): React.ReactElement {
   return <style>{CSS}</style>
@@ -384,7 +425,7 @@ function Verdict({ c }: { c: Cand }): React.ReactElement | null {
   return (
     <>
       <div className={`ac-verdict ${v.eligible ? 'ok' : 'bad'}`}>
-        {v.eligible ? '✓ 通过共同验收，可以采用' : `✕ 未通过共同验收：${v.reasons.join('；')}`}
+        {v.eligible ? '✓ 已通过已配置的检查；采用前仍需审查与目标核验' : `✕ 当前不能采用：${v.reasons.join('；')}`}
         {v.warnings.length > 0 && <small>{v.warnings.join('；')}</small>}
       </div>
       {steps && steps.length > 0 && (
@@ -438,13 +479,42 @@ function Activity({ p }: { p: NonNullable<Cand['progress']> }): React.ReactEleme
   )
 }
 
-function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act }): React.ReactElement {
-  const usage = c.usage === undefined ? '' : c.usage.kind === 'unknown' ? '用量未知' : `${(c.usage.totalTokens ?? 0).toLocaleString()} tokens`
+function LivePreview({ c, device }: { c: Cand; device: 'desktop' | 'phone' }): React.ReactElement {
+  const holder = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  const size = device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
+  useEffect(() => {
+    const el = holder.current
+    if (!el) return
+    const observer = new ResizeObserver(() => { if (el.clientWidth > 0) setWidth(el.clientWidth) })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  const scale = Math.min(1, Math.max(1, width - 24) / size.width)
+  return <div ref={holder} className="ac-preview-stage"><div className="ac-preview-surface" style={{ width: size.width * scale, height: size.height * scale }}>
+    <iframe className="ac-frame" title={`候选 ${c.label} 的运行页面`} src={c.previewUrl} style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
+  </div></div>
+}
+
+function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): React.ReactElement {
+  const [patch, setPatch] = useState<{ text: string; sha256?: string; truncated: boolean }>()
+  const [error, setError] = useState<string>()
+  const read = (): void => { setError(undefined); call<NonNullable<typeof patch>>('patch', { runId, label }).then(setPatch, (e: Error) => setError(e.message)) }
+  return <details className="ac-details ac-patch" onToggle={(e) => { if (e.currentTarget.open && !patch) read() }}><summary>查看 {label} 的代码改动</summary>
+    {error ? <div role="alert">{error} <button className="ac-text-btn" onClick={read}>重试</button></div> : !patch ? <p className="ac-meta">正在读取补丁…</p> : <>
+      <div className="ac-meta">SHA-256 {patch.sha256 ?? '未知'}{patch.truncated ? ' · 补丁较大，当前仅显示前 400,000 个字符，请另存分支进行完整审查。' : ''}</div>
+      <pre tabIndex={0} aria-label={`候选 ${label} 的补丁`}>{patch.text || '没有文本改动'}</pre>
+    </>}
+  </details>
+}
+
+function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: 'desktop' | 'phone'; hidden?: boolean }): React.ReactElement {
+  const usage = c.usage?.kind !== 'reported' ? '用量未知' : c.usage.totalTokens !== undefined ? `${c.usage.totalTokens.toLocaleString()} tokens` : `总用量未知${c.usage.inputTokens === undefined ? '' : ` · 输入 ${c.usage.inputTokens.toLocaleString()}`}${c.usage.outputTokens === undefined ? '' : ` · 输出 ${c.usage.outputTokens.toLocaleString()}`}`
   const live = c.previewUrl !== undefined && !['failed', 'cancelled', 'interrupted'].includes(c.stage)
   const step = busyStage(c.stage) && c.stage !== 'stopping' ? PIPELINE.findIndex((p) => p.stage === c.stage) + 1 : 0
   const model = revealed ? routeText(c.actualRoute ?? c.route) : ''
   return (
-    <section className={`ac-card${picked ? ' picked' : ''}`} aria-label={`候选 ${c.label}`}>
+    <section className={`ac-card${picked ? ' picked' : ''}`} aria-label={`候选 ${c.label}`} hidden={hidden}>
       <div className="ac-card-head">
         <div className="ac-row">
           <span className="ac-label">{c.label}</span>
@@ -453,18 +523,19 @@ function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: C
           {run.state === 'running' && busyStage(c.stage) && c.stage !== 'stopping' && <button className="ac-btn sm" disabled={busy} onClick={() => act('cancel', { label: c.label })}>停止这一版</button>}
           {revealed && c.strategy && <span className="ac-strategy">{c.strategy.title}{model ? ` · ${model}` : ''}</span>}
         </div>
-        <Track c={c} />
+        {busyStage(c.stage) && <Track c={c} />}
         {step > 0 && <div className="ac-meta">第 {step}/{PIPELINE.length} 步 · {STAGE_TEXT[c.stage]}</div>}
         {c.stage === 'generating' && c.progress && <Activity p={c.progress} />}
         <Checks checks={c.checks} />
-        <Verdict c={c} />
+        <details className="ac-details ac-evidence"><summary>检查依据与用量{c.verdict ? c.verdict.eligible ? ' · 已通过配置检查' : ' · 存在采用阻碍' : ''}</summary><Verdict c={c} />
         {(c.patchStats || usage) && (
           <div className="ac-meta">
             {c.patchStats ? `${c.patchStats.files} 个文件 · +${c.patchStats.insertions} −${c.patchStats.deletions}${c.patchStats.binary ? ` · ${c.patchStats.binary} 个二进制` : ''}` : ''}
             {c.patchStats && usage ? ' · ' : ''}{usage}
           </div>
         )}
-        {revealed && c.summary && <div className="ac-summary">{c.summary}</div>}
+        {revealed && c.summary && <div className="ac-summary">{c.summary}</div>}</details>
+        {revealed && c.patchStats && <PatchReview runId={run.runId} label={c.label} />}
       </div>
       {live ? (
         <div className="ac-browser">
@@ -472,9 +543,9 @@ function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: C
             <span className="ac-lights"><i /><i /><i /></span>
             {c.previewKind === 'dev' && <span className="ac-pill warn" title="构建没有通过，这是开发模式，只供观察">开发模式</span>}
             <span className="ac-url" title={c.previewUrl}>{c.previewUrl}</span>
-            <a className="ac-icon-btn" href={c.previewUrl} target="_blank" rel="noreferrer" title="在独立浏览器窗口中打开" aria-label={`在浏览器中打开 ${c.label}`}><IconExternal /></a>
+            <a className="ac-icon-btn" href={c.previewUrl} target="_blank" rel="noreferrer" title="在浏览器标签页中打开；共享该浏览器的站点数据" aria-label={`在浏览器中打开 ${c.label}`}><IconExternal /></a>
           </div>
-          <iframe className="ac-frame" title={`候选 ${c.label} 的运行页面`} src={c.previewUrl} />
+          <LivePreview c={c} device={device} />
         </div>
       ) : c.error ? (
         <div className="ac-fail">
@@ -498,30 +569,85 @@ function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: C
   )
 }
 
-/** Two configured models for a cross-model run, returned as the `--models` value. */
-function ModelPicker({ sessionId, onPick }: { sessionId: string; onPick: (models: string) => void }): React.ReactElement {
-  const [models, setModels] = useState<ModelItem[]>()
+/** A task is submitted directly; neither entry point rewrites the conversation draft. */
+function Start({ sessionId, onStarted }: { sessionId: string; onStarted: (run: Run) => void }): React.ReactElement {
+  const [setup, setSetup] = useState<Setup>()
+  const [loadError, setLoadError] = useState<string>()
+  const [error, setError] = useState<string>()
+  const [target, setTarget] = useState<'project' | 'example'>('project')
+  const [mode, setMode] = useState<'same-model' | 'cross-model'>('same-model')
   const [pair, setPair] = useState<[string, string]>(['', ''])
-  const [err, setErr] = useState<string>()
-  useEffect(() => {
-    call<{ current: Route; models: ModelItem[] }>('models', { sessionId }).then((r) => setModels(r.models), (e: Error) => setErr(e.message))
+  const [models, setModels] = useState<ModelItem[]>([])
+  const [modelError, setModelError] = useState<string>()
+  const [modelLoading, setModelLoading] = useState(false)
+  const [minutes, setMinutes] = useState(30)
+  const [task, setTask] = useState('')
+  const [busy, setBusy] = useState(false)
+  const mounted = useRef(true)
+  const load = useCallback(async () => {
+    setLoadError(undefined)
+    try {
+      const result = await call<Setup>('setup', { sessionId })
+      if (!mounted.current) return
+      setSetup(result)
+      setMinutes(result.generationMinutes)
+      if (!result.project?.supported) setTarget('example')
+    } catch (e) { if (mounted.current) setLoadError((e as Error).message) }
   }, [sessionId])
-  const key = (m: ModelItem): string => `${m.provider}/${m.id}`
-  if (models === undefined) return <div className="ac-meta">{err ? `读取模型列表失败：${err}` : '正在读取已配置的模型…'}</div>
-  if (models.length < 2) return <div className="ac-meta">至少需要两个已配置的模型，请先在 DSH 的模型设置里添加。</div>
-  const ok = pair[0] !== '' && pair[1] !== '' && pair[0] !== pair[1]
+  useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false } }, [load])
+  const loadModels = useCallback(async () => {
+    setModelLoading(true); setModelError(undefined)
+    try {
+      const result = await call<{ models: ModelItem[] }>('models', { sessionId })
+      if (mounted.current) setModels(result.models)
+    } catch (e) { if (mounted.current) setModelError((e as Error).message) }
+    finally { if (mounted.current) setModelLoading(false) }
+  }, [sessionId])
+  useEffect(() => { if (mode === 'cross-model') void loadModels() }, [mode, loadModels])
+  const validPair = pair[0] !== '' && pair[1] !== '' && pair[0] !== pair[1]
+  const canStart = setup && !busy && (target === 'example' || (setup.project?.supported && task.trim() !== '')) && (mode === 'same-model' || validPair)
+  const submit = async (event: React.FormEvent): Promise<void> => {
+    event.preventDefault()
+    if (!canStart) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      const routes = pair.map((key) => { const m = models.find((item) => `${item.provider}/${item.id}` === key); return m ? { provider: m.provider, model: m.id } : undefined })
+      const run = await call<Run>('start', { sessionId, task, mode, example: target === 'example', generationMinutes: minutes, ...(mode === 'cross-model' ? { models: routes } : {}) })
+      if (mounted.current) onStarted(run)
+    } catch (e) { if (mounted.current) setError((e as Error).message) }
+    finally { if (mounted.current) setBusy(false) }
+  }
   return (
-    <div className="ac-models">
-      {[0, 1].map((i) => (
-        <label key={i}>{i === 0 ? '模型一' : '模型二'}
-          <select value={pair[i]} onChange={(e) => { const next: [string, string] = [...pair]; next[i] = e.target.value; setPair(next) }}>
-            <option value="">选择模型</option>
-            {models.map((m) => <option key={key(m)} value={key(m)}>{m.name} · {m.providerName}</option>)}
-          </select>
-        </label>
-      ))}
-      <div><button className="ac-btn" disabled={!ok} onClick={() => onPick(`${pair[0]},${pair[1]}`)}>放进输入框</button></div>
-    </div>
+    <form className="ac-start" onSubmit={(e) => { void submit(e) }} aria-label="新建比较" aria-busy={busy}>
+      <div className="ac-intro"><span className="ac-eyebrow">从想法到可采用的结果</span><h1 className="ac-h1">同一需求，跑过再选。</h1><p className="ac-lead">两份独立实现，真实运行与共同检查。体验后选择，再审查并采用。</p></div>
+      {loadError ? <div className="ac-feedback" role="alert"><span>读取项目配置失败：{loadError}</span><button type="button" className="ac-btn sm" onClick={() => { void load() }}>重新读取</button></div> : !setup ? <div className="ac-meta" role="status">正在读取当前项目和模型配置…</div> : null}
+      <fieldset className="ac-form-group" disabled={busy}><legend><span className="ac-step-num">1</span>选择项目</legend>
+        <div className="ac-options">
+          <label className={`ac-option${target === 'project' ? ' selected' : ''}`}><input type="radio" name="target" value="project" checked={target === 'project'} onChange={() => setTarget('project')} /><span><b>当前项目</b><small title={setup?.project?.path}>{setup?.project?.path ?? '请先在 DSH 中打开项目'}</small></span></label>
+          <label className={`ac-option${target === 'example' ? ' selected' : ''}`}><input type="radio" name="target" value="example" checked={target === 'example'} onChange={() => setTarget('example')} /><span><b>体验示例商店</b><small>新建独立 Git 仓库，实际生成、运行和验收</small></span></label>
+        </div>
+        {target === 'project' && setup && !setup.project?.supported && <p className="ac-field-note warn">{setup.project?.reason ?? '未找到可用项目。选择示例即可开始体验。'}</p>}
+        {target === 'example' && <p className="ac-field-note">结果采用到示例仓库。你当前项目中的文件不会被写入。</p>}
+      </fieldset>
+      <fieldset className="ac-form-group" disabled={busy}><legend><span className="ac-step-num">2</span>描述需求</legend>
+        <label className="ac-sr" htmlFor="ac-task-input">想比较的需求</label>
+        <div className="ac-field"><textarea id="ac-task-input" value={task} onChange={(e) => setTask(e.target.value)} placeholder={target === 'example' ? '留空使用内置任务：商品搜索、组合筛选、清空与手机适配' : '例如：重新设计商品列表，突出主操作，并让手机上的筛选更容易使用'} maxLength={20000} />
+          <div className="ac-field-foot"><span className="ac-meta">两版收到同一份需求与验收条件</span><span className="ac-spacer" /><button type="button" className="ac-text-btn" onClick={() => setTask(inputShell(sessionId)?.projection?.clipboardText ?? task)}>使用当前输入</button></div>
+        </div>
+        {target === 'project' && <div className="ac-chips">{EXAMPLES.map((text) => <button type="button" className="ac-chip" key={text} onClick={() => setTask(text)}>{text}</button>)}</div>}
+      </fieldset>
+      <fieldset className="ac-form-group" disabled={busy}><legend><span className="ac-step-num">3</span>选择比较方式</legend>
+        <div className="ac-options">
+          <label className={`ac-option${mode === 'same-model' ? ' selected' : ''}`}><input type="radio" name="mode" checked={mode === 'same-model'} onChange={() => setMode('same-model')} /><span><b>一个模型，两种策略 <em>推荐</em></b><small>{setup ? routeText(setup.current) || '复用对话当前配置' : '复用当前模型，无需额外账号'}</small></span></label>
+          <label className={`ac-option${mode === 'cross-model' ? ' selected' : ''}`}><input type="radio" name="mode" checked={mode === 'cross-model'} onChange={() => setMode('cross-model')} /><span><b>两个模型，同一要求</b><small>从 DSH 已配置的模型中选择</small></span></label>
+        </div>
+        {mode === 'cross-model' && <div className="ac-models">{[0, 1].map((i) => <label key={i}>{i === 0 ? '模型一' : '模型二'}<select disabled={modelLoading} value={pair[i]} onChange={(e) => { const next: [string, string] = [...pair]; next[i] = e.target.value; setPair(next) }}><option value="">选择已配置的模型</option>{models.map((m) => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={pair[1 - i] === `${m.provider}/${m.id}`}>{m.name} · {m.providerName}</option>)}</select></label>)}{modelLoading ? <p className="ac-field-note" role="status">正在读取模型…</p> : modelError ? <p className="ac-field-note warn" role="alert">{modelError} <button className="ac-text-btn" type="button" onClick={() => { void loadModels() }}>重试模型列表</button></p> : models.length < 2 ? <p className="ac-field-note warn">当前可读取的模型不足两个，可以先用一个模型的两种策略，无需另配账号。</p> : null}</div>}
+        <div className="ac-limit"><label htmlFor="ac-time-limit">每版生成上限</label><select id="ac-time-limit" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>{[...new Set([5, 15, 30, 60, 120, minutes])].sort((a, b) => a - b).map((m) => <option key={m} value={m}>{m} 分钟</option>)}</select><span>到时停止生成，继续检查已写的改动。两版分别消耗用量。</span></div>
+      </fieldset>
+      {error && <div className="ac-feedback" role="alert">{error}</div>}
+      <div className="ac-start-foot"><div><b>先比较，再决定。</b><span>先隐藏模型与策略；采用前审查改动并重新检查目标。</span></div><button className="ac-btn primary lg" type="submit" disabled={!canStart}>{busy ? <><span className="ac-spin" />正在创建比较…</> : '开始比较 →'}</button></div>
+    </form>
   )
 }
 
@@ -577,7 +703,7 @@ function ActionBar({ run, busy, act, onDone }: { run: Run; busy: boolean; act: A
           <span className="ac-bar-text">{pick === 'none' || picked === undefined ? '这次两版都没选。可以换个描述再来一次。' : eligible ? '采用前会先在你当前项目的副本里预演并验收；不提交，不动 index。' : '这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。'}</span>
           <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>结束并清理</button>
           {picked !== undefined && <button className="ac-btn" disabled={busy} onClick={() => act('adopt', { mode: 'branch' })} title="只新建分支（含一个提交），不切换、不改当前文件">另存为分支</button>}
-          {picked !== undefined && eligible && <button className="ac-btn primary" disabled={busy} onClick={() => act('adopt', { mode: 'worktree' })}>采用 {pick} 到工作区</button>}
+          {picked !== undefined && eligible && <button className="ac-btn primary" disabled={busy} onClick={() => act('reviewAdoption')}>审查并采用 {pick}</button>}
         </div>
       )
     }
@@ -660,6 +786,9 @@ function RunView({ runId, initial, compact, onDone, onExpand }: { runId: string;
   const [run, setRun] = useState<Run | undefined>(initial)
   const [err, setErr] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const [device, setDevice] = useState<'desktop' | 'phone'>('desktop')
+  const [layout, setLayout] = useState<'side' | 'A' | 'B'>('side')
+  const [preflight, setPreflight] = useState<{ ok: boolean; reasons: string[]; overlapping?: string[]; rehearsal?: boolean }>()
   const refresh = useCallback(async () => {
     try { setRun(await call<Run>('get', { runId })); setErr(undefined) } catch (e) { setErr((e as Error).message) }
   }, [runId])
@@ -674,6 +803,11 @@ function RunView({ runId, initial, compact, onDone, onExpand }: { runId: string;
   const act: Act = (method, extra = {}) => {
     setBusy(true)
     setErr(undefined)
+    if (method === 'reviewAdoption') {
+      call<NonNullable<typeof preflight>>('preflight', { runId }).then(setPreflight, (e: Error) => setErr(e.message)).finally(() => setBusy(false))
+      return
+    }
+    setPreflight(undefined)
     call<Run | null>(method, { runId, ...extra })
       .then((r) => { if (r && typeof r === 'object' && 'runId' in r) setRun(r) }, (e: Error) => setErr(e.message))
       .finally(() => { setBusy(false); void refresh() })
@@ -682,12 +816,14 @@ function RunView({ runId, initial, compact, onDone, onExpand }: { runId: string;
   const revealed = REVEALED.has(run.state) || run.choice !== undefined
   const body = (
     <>
-      {err && <div className="ac-error" style={{ marginTop: 12 }}>{err}</div>}
+      {err && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err}</div>}
+      <div className="ac-action-dock"><ActionBar run={run} busy={busy} act={act} {...(onDone ? { onDone } : {})} /></div>
+      {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={busy || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />
-      <div className="ac-grid">
-        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={busy} act={act} />)}
+      <div className="ac-compare-tools"><div className="ac-seg" aria-label="比较布局">{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: '并排比较', A: '专注 A', B: '专注 B' }[v]}</button>)}</div><div className="ac-seg" aria-label="预览尺寸"><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>桌面 1280</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>手机 390</button></div><span className="ac-meta">相同视口 · 按可用宽度缩放</span></div>
+      <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
+        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={busy} act={act} device={device} hidden={layout !== 'side' && layout !== c.label} />)}
       </div>
-      <ActionBar run={run} busy={busy} act={act} {...(onDone ? { onDone } : {})} />
     </>
   )
   if (!compact) return body
@@ -732,32 +868,14 @@ function ToolView(props: { sessionId?: string; phase?: string; block?: unknown }
   return <RunView runId={found} compact {...(sid ? { onExpand: () => setOpen(sid, found) } : {})} />
 }
 
-/** The A|B mode switch in the composer: puts `/ab ` in front of the draft, or takes it away. */
+/** Both entry points open the same graphical setup. */
 function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement {
-  const [, force] = useState(0)
-  useEffect(() => {
-    const shell = inputShell(sessionId)
-    const unsubscribe = shell?.state?.subscribe?.(() => force((n) => n + 1))
-    return () => { unsubscribe?.() }
-  }, [sessionId])
-  const text = inputShell(sessionId)?.projection?.clipboardText ?? ''
-  const on = AB_PREFIX.test(text)
-  const toggle = (): void => {
-    const done = setAbDraft(sessionId, on ? text.replace(AB_PREFIX, '') : `/ab ${text}`)
-    if (!done) setOpen(sessionId, undefined, 'guide')
-  }
-  return (
-    <>
-      <Styles />
-      <button className={`ac-mode-btn${on ? ' on' : ''}`} onClick={toggle} aria-pressed={on}
-        title={on ? '已切到 A|B 对比：发送后会做两版、真跑、验收，再由你选择。再点一次取消' : 'A|B 对比：这条需求做两版，真跑、验收、盲选，再采用到项目'}>A|B</button>
-    </>
-  )
+  return <><Styles /><button className="ac-mode-btn" onClick={() => setOpen(sessionId, undefined, 'start')} title="选择项目、模型和生成时间，开始比较" aria-label="新建 A|B 比较">A|B</button></>
 }
 
 function History({ data, open }: { data?: ListResult; open: (r: Run) => void }): React.ReactElement {
   if (data === undefined) return <div className="ac-empty"><span className="ac-spin" /></div>
-  if (data.runs.length === 0 && data.legacy.length === 0) return <div className="ac-empty">还没有比较记录。点输入框左下角的 A|B，或输入 /ab 加上你的需求，就能在对话里开始第一次比较。</div>
+  if (data.runs.length === 0 && data.legacy.length === 0) return <div className="ac-empty">还没有比较记录。选择「新建比较」，开始第一次真实比较。</div>
   return (
     <div className="ac-history">
       {data.runs.map((r) => (
@@ -778,99 +896,83 @@ function History({ data, open }: { data?: ListResult; open: (r: Run) => void }):
   )
 }
 
-function Guide({ sessionId, isolation }: { sessionId: string; isolation?: 'own-root' | 'shared-root' }): React.ReactElement {
-  const [note, setNote] = useState<string>()
-  const put = (line: string): void => {
-    if (setAbDraft(sessionId, line)) setOpen(undefined)
-    else setNote(`没能直接放进输入框，请手动输入：${line}`)
-  }
-  return (
-    <div className="ac-guide">
-      <div>
-        <h2 className="ac-h1">同一需求，两版真跑</h2>
-        <p className="ac-lead">两个 Agent 各在自己的隔离副本里做一版，构建后真的跑起来，按同一套验收逐条检查。你在对话里试用两版、做出选择，再安全地采用到项目；整个过程都记在这个对话里，之后可以直接接着改。</p>
-      </div>
-      <div>
-        <h3>怎么用</h3>
-        <ol>
-          <li>点输入框左下角的 <b>A|B</b>（或直接输入 <code>/ab</code>），写下需求，发送。</li>
-          <li>对话里会出现 A|B 卡片：两个小窗口分别是两版真实运行的页面，并显示验收进度与结论。</li>
-          <li>两边都试一下，选一版；选完立即揭晓策略和模型。</li>
-          <li>点「采用到工作区」：先在你当前项目的副本里预演，验收通过才写入；不提交、不动 index，随时可撤销。</li>
-          <li>采用结果会记入对话，直接接着提下一项需求即可。</li>
-        </ol>
-      </div>
-      <div>
-        <h3>可选参数</h3>
-        <ul>
-          <li><code>--minutes 60</code>：每版最长生成时间（默认 30 分钟）；到时还没完成，也会验收它已写的改动。</li>
-          <li><code>--models 服务/模型,服务/模型</code>：两个模型各做一版，用同一份要求。</li>
-          <li><code>--example</code>：在一个新建的示例商店仓库里试跑内置案例，不碰你的项目。</li>
-        </ul>
-      </div>
-      <div className="ac-case">
-        <div><b>先用内置案例试一次</b><span>新建一个独立的示例仓库，要求两版都做出搜索、组合筛选、清空和手机适配，并逐条自动验收。</span></div>
-        <button className="ac-btn primary" onClick={() => put('/ab --example')}>放进输入框</button>
-      </div>
-      <div>
-        <h3>用两个模型比较</h3>
-        <ModelPicker sessionId={sessionId} onPick={(m) => put(`/ab --models ${m} `)} />
-      </div>
-      {note && <div className="ac-error" style={{ margin: 0 }}>{note}</div>}
-      <div className="ac-note">
-        <span>需要：Git 仓库 · Vite 项目</span>
-        <span>{isolation === 'shared-root' ? '隔离：副本在仓库内，越界写入只能事后发现' : '隔离：每个候选只能写自己的副本'}</span>
-        <span>采用前先预演；不提交、不动 index</span>
-      </div>
-    </div>
-  )
+function Guide(): React.ReactElement {
+  return <div className="ac-guide">
+    <div><span className="ac-eyebrow">从比较到交付</span><h2 className="ac-h1">体验真实结果，做出开发决策。</h2><p className="ac-lead">适合存在多种可行方案的界面、布局与交互任务。已有明确答案的小修复通常用一个 Agent 更直接。</p></div>
+    <ol className="ac-guide-steps">
+      <li><b>新建比较</b><p>选择当前 Git 项目或独立示例，填写需求。默认使用当前模型和两种策略，也可以选择两个已配置的模型；生成上限直接在界面设置。</p></li>
+      <li><b>体验两版</b><p>独立生成后运行安装、检查与构建。桌面和手机预览使用统一尺寸，可以并排观察或专注体验其中一版。</p></li>
+      <li><b>选择并审查</b><p>选择后揭晓模型和策略。查看代码改动、程序检查与未验证的部分；一次偏好选择不代表模型的整体排名。</p></li>
+      <li><b>采用结果</b><p>采用前检查目标是否变化；必要时在临时副本中预演。工作区采用不自动提交；另存分支会明确创建一个提交。</p></li>
+    </ol>
+    <div className="ac-note">支持范围：仓库根目录中的本地 Vite 前端。页面检查通过只代表配置的步骤通过，仍需实际体验需求和边界情况。</div>
+  </div>
 }
 
-/** The window behind the header button: history (with any run in full) and the guide. */
-function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; tab?: 'history' | 'guide' }): React.ReactElement {
-  const [view, setView] = useState<'history' | 'guide'>(tab ?? 'history')
+/** The workspace shares one task surface across setup, comparison, and history. */
+function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; tab?: Tab }): React.ReactElement {
+  const [view, setView] = useState<Tab>(runId ? 'history' : tab ?? 'start')
   const [selected, setSelected] = useState<string | undefined>(runId)
   const [list, setList] = useState<ListResult>()
   const [err, setErr] = useState<string>()
+  const sheet = useRef<HTMLDivElement>(null)
   const refreshList = useCallback(async () => {
     try { setList(await call<ListResult>('list', { sessionId })); setErr(undefined) } catch (e) { setErr((e as Error).message) }
   }, [sessionId])
   useEffect(() => { void refreshList() }, [refreshList])
-  useEffect(() => { setSelected(runId); if (runId) setView('history') }, [runId])
+  useEffect(() => { setSelected(runId); setView(runId ? 'history' : tab ?? 'start') }, [runId, tab])
   useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setOpen(undefined) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    const previous = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const element = sheet.current
+    if (!element) return
+    const siblings: Array<{ el: HTMLElement; inert: boolean }> = []
+    let node: HTMLElement = element.parentElement!
+    while (node.parentElement) {
+      for (const sibling of Array.from(node.parentElement.children)) {
+        if (sibling !== node && sibling instanceof HTMLElement) { siblings.push({ el: sibling, inert: sibling.inert }); sibling.inert = true }
+      }
+      node = node.parentElement
+      if (node === document.body) break
+    }
+    element.focus()
+    const focusables = (): HTMLElement[] => Array.from(element.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),summary,iframe,[tabindex="0"]')).filter((el) => el.getClientRects().length > 0 && !el.closest('[hidden]'))
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') { e.preventDefault(); setOpen(undefined) }
+      if (e.key === 'Tab') {
+        const items = focusables(), first = items[0], last = items.at(-1)
+        if (!first) { e.preventDefault(); element.focus() }
+        else if (e.shiftKey && (document.activeElement === first || document.activeElement === element)) { e.preventDefault(); last?.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
+    }
+    const onFocus = (e: FocusEvent): void => { if (e.target instanceof Node && !element.contains(e.target)) element.focus() }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('focusin', onFocus)
+    return () => {
+      document.removeEventListener('keydown', onKey); document.removeEventListener('focusin', onFocus)
+      for (const item of siblings) item.el.inert = item.inert
+      document.body.style.overflow = previousOverflow
+      if (previous?.isConnected) previous.focus()
+    }
   }, [])
   const current = list?.runs.find((r) => r.runId === selected)
+  const navigate = (next: Tab): void => { setView(next); setSelected(undefined); if (next === 'history') void refreshList() }
   return (
     <div className="ac-root">
-      <Styles />
-      <div className="ac-mask" onClick={() => setOpen(undefined)} />
-      <div className="ac-sheet" role="dialog" aria-modal="true" aria-label="AgentCompare">
-        <header className="ac-head">
-          <span className="ac-logo">A|B</span>
-          <span className="ac-title">AgentCompare</span>
-          {view === 'history' && selected ? <span className="ac-task" title={current?.task}>{current?.task ?? ''}</span> : <span className="ac-spacer" />}
-          <div className="ac-tabs" role="tablist">
-            <button className={`ac-tab${view === 'history' ? ' on' : ''}`} onClick={() => { setView('history'); setSelected(undefined); void refreshList() }} role="tab" aria-selected={view === 'history'}>历史记录</button>
-            <button className={`ac-tab${view === 'guide' ? ' on' : ''}`} onClick={() => setView('guide')} role="tab" aria-selected={view === 'guide'}>使用说明</button>
-          </div>
+      <Styles /><div className="ac-mask" onClick={() => setOpen(undefined)} />
+      <div ref={sheet} className="ac-sheet" role="dialog" aria-modal="true" aria-label="AgentCompare" tabIndex={-1}>
+        <header className="ac-head"><span className="ac-logo">A|B</span><span className="ac-title">AgentCompare</span><span className="ac-header-caption">跑过再选</span><span className="ac-spacer" />
+          <nav className="ac-tabs" aria-label="比较工作区">{(['start', 'history', 'guide'] as const).map((item) => <button key={item} className={`ac-tab${view === item && !selected ? ' on' : ''}`} aria-current={view === item && !selected ? 'page' : undefined} onClick={() => navigate(item)}>{{ start: '新建比较', history: '历史记录', guide: '使用指南' }[item]}</button>)}</nav>
           <button className="ac-icon-btn" onClick={() => setOpen(undefined)} aria-label="关闭（Esc）" title="关闭（Esc）"><IconClose /></button>
         </header>
-        {err && <div className="ac-error" style={{ marginTop: 12 }}>{err}</div>}
-        <div className="ac-body">
-          {view === 'guide' ? (
-            <Guide sessionId={sessionId} {...(list?.isolation ? { isolation: list.isolation } : {})} />
-          ) : selected ? (
-            <>
-              <button className="ac-btn sm ac-back" onClick={() => { setSelected(undefined); void refreshList() }}>← 返回历史记录</button>
-              <RunView runId={selected} {...(current ? { initial: current } : {})} onDone={() => { setSelected(undefined); void refreshList() }} />
-            </>
-          ) : (
-            <History data={list} open={(r) => setSelected(r.runId)} />
-          )}
-        </div>
+        {err && <div className="ac-error" role="alert">{err}<button className="ac-text-btn" onClick={() => { void refreshList() }}>重试</button></div>}
+        <div className="ac-body">{selected ? <>
+          <div className="ac-run-heading"><button className="ac-text-btn" onClick={() => navigate('history')}>← 所有记录</button><span className="ac-task" title={current?.task}>{current?.task ?? '比较结果'}</span><span className="ac-meta">{selected}</span></div>
+          <RunView key={selected} runId={selected} {...(current ? { initial: current } : {})} onDone={() => navigate('start')} />
+        </> : view === 'start' ? <Start sessionId={sessionId} onStarted={(r) => { setList((old) => ({ runs: [r, ...(old?.runs ?? [])], legacy: old?.legacy ?? [], isolation: r.isolation })); setSelected(r.runId) }} />
+          : view === 'guide' ? <Guide /> : <History data={list} open={(r) => setSelected(r.runId)} />}</div>
       </div>
     </div>
   )
@@ -880,14 +982,14 @@ function HeaderButton({ sessionId }: { sessionId: string }): React.ReactElement 
   return (
     <>
       <Styles />
-      <button className="ac-header-btn" title="AgentCompare：历史记录与使用说明" aria-label="打开 AgentCompare 历史记录与使用说明" onClick={() => setOpen(sessionId)}>A|B</button>
+      <button className="ac-header-btn" title="AgentCompare：新建比较与查看结果" aria-label="打开 AgentCompare 工作区" onClick={() => setOpen(sessionId)}>A|B</button>
     </>
   )
 }
 
 function Overlay(): React.ReactElement | null {
   const open = useOpen()
-  return open === undefined ? null : <Sheet sessionId={open.sessionId} {...(open.runId ? { runId: open.runId } : {})} {...(open.tab ? { tab: open.tab } : {})} />
+  return open === undefined ? null : <Sheet key={open.sessionId} sessionId={open.sessionId} {...(open.runId ? { runId: open.runId } : {})} {...(open.tab ? { tab: open.tab } : {})} />
 }
 
 /**

@@ -21,6 +21,8 @@ import {
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
 } from '../core/index.ts'
 import { commandResultText, memoryNote, milestoneOf, parseAbInput } from './conversation.ts'
+import { inspectProject } from '../core/project.ts'
+import { repoRoot } from '../core/git.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -485,6 +487,21 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     return typeof o.model === 'string' && o.model !== '' ? { ...(typeof o.provider === 'string' ? { provider: o.provider } : {}), model: o.model } : undefined
   }
   const api: Record<string, Handler> = {
+    async setup(b) {
+      const agent = agentFor(b)
+      let project: { path: string; supported: boolean; reason?: string } | undefined
+      const cwd = agent.session.header.cwd
+      if (cwd) {
+        try {
+          const root = await repoRoot(cwd)
+          const info = await inspectProject(root)
+          project = { path: root, supported: info.kind === 'vite', ...(info.reason ? { reason: info.reason } : {}) }
+        } catch {
+          project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
+        }
+      }
+      return { current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
+    },
     async list(b) {
       const all = await store.listAll()
       const sid = typeof b.sessionId === 'string' ? b.sessionId : undefined
@@ -513,7 +530,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       if (mode === 'cross-model' && (pair[0] === undefined || pair[1] === undefined)) throw new HttpError(400, '请选择两个模型')
       const routes: [AgentRoute, AgentRoute] = mode === 'cross-model' ? [pair[0]!, pair[1]!] : [currentRoute(agent), currentRoute(agent)]
       const follows = typeof b.follows === 'string' && /^[0-9a-f]{8}$/.test(b.follows) ? b.follows : undefined
-      const minutes = typeof b.generationMinutes === 'number' && b.generationMinutes >= 5 && b.generationMinutes <= 120 ? b.generationMinutes : undefined
+      if (b.generationMinutes !== undefined && (typeof b.generationMinutes !== 'number' || !Number.isFinite(b.generationMinutes) || b.generationMinutes < 5 || b.generationMinutes > 120)) throw new HttpError(400, '每版生成上限需要在 5 到 120 分钟之间')
+      const minutes = b.generationMinutes as number | undefined
       const repo = b.example === true ? await createExampleRepo(store.examplesDir) : await repoFor(agent, signal)
       const r = await comparer.start({
         repo,
