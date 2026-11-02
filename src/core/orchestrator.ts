@@ -197,7 +197,13 @@ export class Comparer {
 
   private async drive(lr: LiveRun): Promise<void> {
     const record = lr.record
-    await Promise.all(record.candidates.map((c) => this.driveCandidate(lr, c)))
+    const preparation = record.candidates.map(() => {
+      let complete!: () => void
+      const ready = new Promise<void>(resolve => { complete = resolve })
+      return { complete, ready }
+    })
+    const allPrepared = Promise.all(preparation.map(p => p.ready)).then(() => {})
+    await Promise.all(record.candidates.map((c, i) => this.driveCandidate(lr, c, preparation[i]!.complete, allPrepared)))
     if (record.state === 'running') {
       record.state = 'judging'
       record.checksFavoured = favoured(record.candidates)
@@ -205,7 +211,7 @@ export class Comparer {
     await this.persist(record)
   }
 
-  private async driveCandidate(lr: LiveRun, c: Candidate): Promise<void> {
+  private async driveCandidate(lr: LiveRun, c: Candidate, prepared: () => void, allPrepared: Promise<void>): Promise<void> {
     const record = lr.record
     const ctl = new AbortController()
     lr.perCandidate.set(c.label, ctl)
@@ -228,6 +234,10 @@ export class Comparer {
       // Recorded before the copy exists, so a crash right after creation still leaves a provable owner.
       await this.persist(record)
       await addOwnedWorktree(repo, dir, record.baseline.snapshotCommit, { runId: record.runId, label: c.label, token: c.ownerToken })
+      prepared()
+      // Candidate tools may invoke Git too. Finish both copies' shared Git
+      // metadata before either candidate can run a command in its copy.
+      await allPrepared
       signal.throwIfAborted()
 
       await enter('generating')
@@ -275,6 +285,9 @@ export class Comparer {
       await this.stopPreview(lr, c.label)
       delete c.preview
       await this.persist(record)
+    } finally {
+      // A failed preparation must not leave the other candidate waiting.
+      prepared()
     }
   }
 
