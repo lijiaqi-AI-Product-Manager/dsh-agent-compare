@@ -31,7 +31,7 @@ try {
       return
     }
     await page.getByRole('dialog', { name: 'AgentCompare' }).waitFor()
-    if (['history', 'history-many', 'history-old'].includes(state)) await page.locator('.ac-history[aria-busy="false"]').waitFor()
+    if (['history', 'history-many', 'history-old', 'history-damaged'].includes(state)) await page.locator('.ac-history[aria-busy="false"]').waitFor()
     else if (state !== 'guide') await page.getByRole('region', { name: '候选 A', exact: true }).waitFor()
   }
   const requests = (method) => page.evaluate(m => window.__requests.filter(r => r.method === m), method)
@@ -306,7 +306,22 @@ try {
   await page.waitForFunction(count => window.__requests.filter(request => request.method === 'list').length > count, failedLists)
   await page.getByText('记录读取失败，原始文件仍保留。', { exact: true }).waitFor()
   check(await page.getByText('记录读取失败，原始文件仍保留。', { exact: true }).count() === 1, 'history errors must explain retention and keep a working retry')
-  for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'revealed', 'recovery', 'history']) {
+  await open('history-damaged')
+  await page.getByRole('alert').filter({ hasText: '有 1 条记录无法安全载入' }).waitFor()
+  const problem = page.locator('.ac-hrow-unavailable')
+  check(await problem.getByText('JSON 内容不完整或格式错误', { exact: true }).count() === 1 && await problem.getByRole('button').count() === 0, 'unavailable history must explain its reason and provide no file or process actions')
+  await page.getByRole('checkbox', { name: '只看需处理', exact: true }).check()
+  await page.getByText('1–1 / 1 条', { exact: true }).waitFor()
+  check(await page.locator('.ac-hrow').count() === 1 && (await requests('list')).at(-1).body.onlyUnavailable === true, 'the issue filter must locate retained unavailable records without removing them')
+  await page.setViewportSize({ width: 390, height: 844 })
+  const issueText = await problem.getByText('JSON 内容不完整或格式错误', { exact: true }).boundingBox(), historyPane = await page.locator('.ac-body').boundingBox()
+  check(issueText && historyPane && issueText.y >= historyPane.y && issueText.y + issueText.height <= Math.min(844, historyPane.y + historyPane.height), 'an unavailable record reason must be readable inside the phone history viewport')
+  await page.screenshot({ path: path.join(output, 'history-unavailable-phone.png') })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.getByRole('checkbox', { name: '只看需处理', exact: true }).uncheck()
+  await page.getByText('1–4 / 4 条', { exact: true }).waitFor()
+  check(await page.locator('.ac-hrow').count() === 4, 'valid and older history must remain accessible after leaving the issue filter')
+  for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'revealed', 'recovery', 'history', 'history-damaged']) {
     await open(state, `&theme=${theme}`)
     await page.addScriptTag({ path: 'node_modules/axe-core/axe.min.js' })
     const result = await page.evaluate(async () => window.axe.run(document.querySelector('[role="dialog"]') ?? document.querySelector('.ac-composer-settings'), { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] } }))

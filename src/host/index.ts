@@ -17,7 +17,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import {
-  Comparer, publicView, RunStore, defaultHome, createExampleRepo, EXAMPLE_TASK, DEFAULT_GENERATION_MS,
+  Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, EXAMPLE_TASK, DEFAULT_GENERATION_MS,
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
 } from '../core/index.ts'
 import { commandResultText, parseAbInput } from './conversation.ts'
@@ -47,7 +47,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.8'
+const VERSION = '0.2.0-alpha.9'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -625,7 +625,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         const body = await readBody(req)
         json(res, 200, { ok: true, value: await handler(body, ctl.signal) })
       } catch (error) {
-        const status = error instanceof HttpError ? error.status : error instanceof HistoryQueryError ? 400 : (error as Error).name === 'BusyError' ? 409 : 500
+        const status = error instanceof HttpError ? error.status : error instanceof HistoryQueryError ? 400 : error instanceof RecordUnavailableError || (error as Error).name === 'BusyError' ? 409 : 500
         json(res, status, { ok: false, error: (error as Error).message })
       }
     },

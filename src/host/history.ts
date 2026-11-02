@@ -9,6 +9,8 @@ export interface HistoryMeta {
   readonly offset: number
   readonly limit: number
   readonly hasNext: boolean
+  readonly onlyUnavailable: boolean
+  readonly unavailable: number
 }
 
 export class HistoryQueryError extends Error {
@@ -26,13 +28,17 @@ export async function historyPage(store: RunStore, input: Record<string, unknown
   if (scope === 'session' && !sessionId) throw new HistoryQueryError('查看当前对话需要对话编号')
   if (input.search !== undefined && (typeof input.search !== 'string' || input.search.length > 200)) throw new HistoryQueryError('搜索内容不能超过 200 个字符')
   if (input.offset !== undefined && (typeof input.offset !== 'number' || !Number.isSafeInteger(input.offset) || input.offset < 0)) throw new HistoryQueryError('记录页位置无效')
+  if (input.onlyUnavailable !== undefined && typeof input.onlyUnavailable !== 'boolean') throw new HistoryQueryError('需处理记录筛选无效')
+  const onlyUnavailable = input.onlyUnavailable === true
   const query = (input.search as string | undefined)?.trim() ?? '', needle = folded(query), limit = 30
   const all = await store.listAll()
-  const rows: Array<RunRecord | LegacySummary> = [
+  const matched: Array<RunRecord | LegacySummary> = [
     ...all.current.filter(record => scope === 'all' || record.sessionId === sessionId),
     // Old schemas have no trustworthy session association.
     ...(scope === 'all' ? all.legacy : []),
   ].filter(record => !needle || folded([record.task, record.runId, ...('legacy' in record ? [] : [record.baseline.repoRoot])].join('\n')).includes(needle))
+  const problems = matched.filter((record): record is LegacySummary => 'legacy' in record && record.unavailable === true)
+  const rows = onlyUnavailable ? problems : matched
   rows.sort((a, b) => b.createdAt - a.createdAt || (a.runId === b.runId ? 0 : a.runId < b.runId ? 1 : -1))
   const lastPage = Math.floor(Math.max(0, rows.length - 1) / limit) * limit
   const offset = Math.min(input.offset as number | undefined ?? 0, lastPage)
@@ -40,6 +46,6 @@ export async function historyPage(store: RunStore, input: Record<string, unknown
   return {
     runs: page.filter((record): record is RunRecord => !('legacy' in record)),
     legacy: page.filter((record): record is LegacySummary => 'legacy' in record),
-    history: { version: 1, scope, query, total: rows.length, offset, limit, hasNext: offset + limit < rows.length },
+    history: { version: 1, scope, query, total: rows.length, offset, limit, hasNext: offset + limit < rows.length, onlyUnavailable, unavailable: problems.length },
   }
 }

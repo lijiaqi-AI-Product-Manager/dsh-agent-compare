@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.9 — 2026-11-03
+
+- Validate stored records before recovery, rendering or actions. Retain malformed, unsupported, oversized and unreadable entries as read-only history with an explanation and a dedicated filter.
+- Refuse updates over damaged or removed records, bound UTF-8 reads and writes to 16 MiB, and publish flushed temporary files without replacing existing new-record names. Reject unsafe record and lock identifiers.
+- Retry record reads when atomic replacement or an in-place change occurs during inspection; unaffected comparisons remain available.
+
 ## 0.2.0-alpha.8 — 2026-11-03
 
 - Browse retained comparisons across conversations, search tasks, repositories or run identifiers, and navigate all pages. Keep inline cards scoped to their own conversation and disclose an older backend that needs restarting.
