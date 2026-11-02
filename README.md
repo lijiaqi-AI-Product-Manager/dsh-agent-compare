@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each confined to its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.3, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.4, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -73,20 +73,24 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.3.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.4.tgz
 ```
 
-After restarting DSH, click **A|B** in the composer or header to open the workspace:
+After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
 
-1. Choose the current repository or a separate example shop.
-2. Describe the task. Reuse the current model with two strategies, or select two configured models.
-3. Select a per-candidate generation limit (5–120 minutes) and start directly. No command flags; the conversation draft is preserved.
-4. Try both applications in matching desktop (1280px) or phone (390px) viewports. Compare side by side or focus on A/B. Views scale to fit; ordinary browser tabs share browser site data.
-5. Choose, reveal, and inspect the source changes. Adoption first shows the target repository and preflight result; a separate confirmation writes the result. Recovery actions stay at the top.
+1. A settings strip opens above the existing input. Choose one model with two strategies, or select two configured models. The default reuses the current model.
+2. Select a per-candidate generation limit (5–120 minutes). Settings are retained for this conversation across reopening.
+3. Write the task in the original composer and send. No flags to type. Mode switching changes only its command chip, preserving the draft, references, and attachments. Unsupported attachment submissions are refused by the host while retaining the originals.
+4. The conversation renders a persistent A|B card with two **live, interactive applications**. In a new conversation without a chat timeline, the same record appears above the composer. Adaptive views support direct interaction; matching desktop/phone sizes and focused A/B views are available. Expand the card for closer inspection.
+5. Choose, reveal, and review source changes. Adoption displays its target repository and preflight result before a separate confirmation writes anything. Recovery actions stay at the top. **Continue conversation** exits comparison mode and focuses the original composer, retaining the record.
 
-History, live status, and guidance share one workspace. Compact conversation cards show progress and checks; expand a card to interact with the applications.
+The settings strip's example button creates a separate shop repository and starts directly in the same conversation, preserving an unrelated draft. Example adoption targets that example repository.
 
-`/ab <task>` remains an optional shortcut. Models, time limits, and the example are available through the interface.
+The header's **comparison records** button opens history, guidance, and the example. Stopped previews show explicit status and available screenshots; retained copies can be reopened.
+
+Submissions use the host command executor and session log. Every surface reads the same persisted run by id. Model-facing notes describe the result, choice, adoption, or undo; unavailable conversations and failed injections are retried with history/inbox deduplication. Notes identify the target repository, including when an example differs from the original project.
+
+`/ab <task>` remains an optional shortcut. Common settings are graphical controls above the composer.
 
 A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); the conversation shows the same A|B card.
 
@@ -143,14 +147,16 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 ## Verified (2026-11-02, Windows 11, Node 24.22, Git 2.53)
 
-- 76 automated tests, including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
+- 84 automated tests, including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
 - Adoption regressions preserve edits made during rehearsal or journal persistence, stop on concurrent HEAD/index changes, guard replacements and deletions, preserve ignored files at addition paths, and roll back only attempted paths. Retrying after resolving an overlap still supports adoption and undo.
+- 75 browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation rendering and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. Eight light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
 - `node scripts/smoke.mjs`: the built-in case with scripted agents on real Vite 6 and system Edge. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
 
 - Real model (DSH 0.2.1-rc.3 desktop, deepseek-flash, built-in case): both candidate session headers record their own copy as `cwd`, with `sandbox/mode` `workspace-write` and `approval/policy` `never`; `pwsh` runs inside the candidates (the 0.1 `SetNamedSecurityInfoW` error is gone); token usage comes from the session logs. Neither candidate declared completion within 30 minutes. One had written its whole change, and the shared acceptance run on its copy afterwards passed the frozen install, typecheck, build and 12/12 page steps — which is why 0.2.0-alpha.2 verifies written work when the time limit is reached.
 
 - A full real-model round (DSH 0.2.1-rc.3 desktop, deepseek-flash, one model with two strategies, 60-minute limit): each candidate generated for about 42 minutes, using about 2.64M and 2.94M tokens; both passed typecheck, build and page acceptance; B was picked and adopted into the working tree (`src/App.tsx`, `src/styles.css`), uncommitted, with index and HEAD unchanged.
 - In-conversation runs (DSH 0.2.1-rc.3 runtime, test profile): `/ab` appears in the command menu; the composer's A|B button turns the draft into `/ab …`, which is executed as the command; the session log records `command/run` (`ab` and its arguments) and `command/done` (with the run id); when generation finishes, a note describing the result is queued into that conversation for the model's next step; the host accepted every registration (composer button, command card, tool card, header button).
+- Packed-plugin interface checks (DSH 0.2.1-rc.3 Web UI, isolated profile): graphical submission through the resident composer, two real Vite previews with search and clear interaction, choice, adoption review and working-tree writes, persisted result notes in the next-step inbox, reload recovery of the adopted record, and return to ordinary conversation. This check used fixed scripted candidates, without a model request.
 
 ## Not verified yet
 

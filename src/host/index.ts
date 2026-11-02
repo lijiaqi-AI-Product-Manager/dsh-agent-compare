@@ -20,9 +20,12 @@ import {
   Comparer, publicView, RunStore, defaultHome, createExampleRepo, EXAMPLE_TASK, DEFAULT_GENERATION_MS,
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
 } from '../core/index.ts'
-import { commandResultText, memoryNote, milestoneOf, parseAbInput } from './conversation.ts'
+import { commandResultText, parseAbInput } from './conversation.ts'
 import { inspectProject } from '../core/project.ts'
 import { repoRoot } from '../core/git.ts'
+import { defaultPreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
+import { ConversationMemory } from './memory.ts'
+import { observedRoute, selectedRoute } from './routes.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -42,7 +45,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.3'
+const VERSION = '0.2.0-alpha.4'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -53,6 +56,7 @@ interface SessionLike {
   readonly seq: number
   append(type: string, data: unknown): void
   snapshotEvents(from: number): readonly SessionEvent[]
+  requestHeader?(): { config?: AgentRoute; adapterDefaults?: { reasoningEffort?: boolean } } | undefined
 }
 interface AgentLike {
   readonly id?: string
@@ -100,15 +104,17 @@ function isDelegated(agent: AgentLike): boolean {
 
 /** Sum of the usage the provider reported on each assistant message, or unknown when none did. */
 export function usageFromEvents(events: readonly SessionEvent[]): Usage {
-  let seen = false
-  const sum = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0 }
-  for (const e of events) {
-    const u = e.type === 'assistant/message' ? e.data?.usage : undefined
-    if (u === undefined || u === null || typeof u !== 'object') continue
-    seen = true
-    for (const k of Object.keys(sum) as Array<keyof typeof sum>) if (typeof u[k] === 'number') sum[k] += u[k]
+  const messages = events.filter(e => e.type === 'assistant/message')
+  const valid = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
+  const usages = messages.map(e => {
+    const u = e.data?.usage ?? {}
+    return { ...u, totalTokens: valid(u.totalTokens) ? u.totalTokens : valid(u.inputTokens) && valid(u.outputTokens) ? u.inputTokens + u.outputTokens : undefined }
+  })
+  const sum: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; totalTokens?: number } = {}
+  for (const key of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'totalTokens'] as const) {
+    if (usages.length && usages.every(u => valid(u[key]))) sum[key] = usages.reduce((total, u) => total + u[key], 0)
   }
-  return seen ? { kind: 'reported', ...sum } : { kind: 'unknown', reason: 'the session reported no token usage' }
+  return Object.keys(sum).length ? { kind: 'reported', ...sum } : { kind: 'unknown', reason: 'the session reported no complete token totals' }
 }
 
 /** Last non-empty assistant message text, as DSH's own subagent result selects it. */
@@ -175,7 +181,7 @@ export class IsolatedSessionRunner implements AgentRunner {
     const parent = req.hostContext as AgentLike | undefined
     if (parent === undefined) throw new Error('没有父会话：请在对话中发起比较')
     const createUserMessage = await this.userMessage()
-    const route = req.route.model !== undefined ? req.route : (parent.options ?? {})
+    const route = req.route.model !== undefined ? req.route : selectedRoute(parent)
     const agentOptions = route.provider !== undefined && route.model !== undefined
       ? { provider: route.provider, model: route.model, ...(route.reasoningEffort === undefined ? {} : { reasoningEffort: route.reasoningEffort }) }
       : undefined
@@ -233,7 +239,7 @@ export class IsolatedSessionRunner implements AgentRunner {
       }
       const events = child.session.snapshotEvents(start)
       const summary = finalText(events)
-      const actual = child.options
+      const actual = observedRoute(child)
       return {
         stopReason: req.signal.aborted ? 'aborted' : stopReasonOf(events),
         childId: child.session.id,
@@ -323,28 +329,17 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   } else throw new Error('agent-compare needs ctx.agents (or ctx.subagents) to run candidates')
 
   const store = new RunStore(config.home ?? defaultHome())
+  const preferences = new PreferencesStore(store, defaultPreferences(config.generationMinutes ?? 30))
   // Each milestone of a run becomes one model-facing note in its conversation,
   // so the conversation remembers what was compared, chosen and adopted.
-  const noted = new Map<string, string>()
-  const userMessage = async (): Promise<((m: unknown) => unknown) | undefined> => {
-    try { return ((await import('@deepseek-ai/dsh-llm' as string)) as { createUserMessage: (m: unknown) => unknown }).createUserMessage } catch { return undefined }
-  }
-  const remember = (r: RunRecord): void => {
-    const key = milestoneOf(r)
-    if (key === undefined || r.sessionId === undefined || noted.get(r.runId) === key) return
-    noted.set(r.runId, key)
-    const text = memoryNote(r)
-    const agent = agents?.list().find((a) => a.session.id === r.sessionId)
-    if (text === undefined || agent?.inject === undefined) return
-    void userMessage().then((create) => {
-      if (create === undefined) return
-      try {
-        agent.inject!(create({ content: [{ type: 'text', text }], source: { kind: 'agent-compare' } }))
-      } catch (error) {
-        ctx.logger.warn(`agent-compare: could not record run ${r.runId} in its conversation: ${(error as Error).message}`)
-      }
-    })
-  }
+  const memory = new ConversationMemory({
+    findAgent: (sessionId) => agents?.list().find(a => a.session.id === sessionId),
+    createMessage: async () => {
+      try { return ((await import('@deepseek-ai/dsh-llm' as string)) as { createUserMessage: (m: unknown) => unknown }).createUserMessage } catch { return undefined }
+    },
+    warn: message => ctx.logger.warn(message),
+  })
+  const remember = (record: RunRecord): void => { void memory.remember(record) }
   const comparer = new Comparer({
     store,
     runner,
@@ -353,24 +348,33 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     maxActiveRuns: config.maxActiveRuns ?? 1,
     onUpdate: remember,
   })
-  // Milestones reached before this host started were already noted then.
-  for (const r of await store.list()) {
-    const key = milestoneOf(r)
-    if (key !== undefined) noted.set(r.runId, key)
+  const reconcileMemory = async (): Promise<void> => {
+    const latest = new Map<string, RunRecord>()
+    for (const record of await store.list()) {
+      if (!record.sessionId) continue
+      const previous = latest.get(record.sessionId)
+      if (!previous || record.updatedAt > previous.updatedAt) latest.set(record.sessionId, record)
+    }
+    await Promise.all([...latest.values()].map(record => memory.remember(record)))
   }
+  ctx.effect(() => {
+    const timer = setInterval(() => { void reconcileMemory().catch(error => ctx.logger.warn(`agent-compare: conversation retry failed: ${(error as Error).message}`)) }, 5000)
+    timer.unref()
+    void reconcileMemory().catch(error => ctx.logger.warn(`agent-compare: conversation restore failed: ${(error as Error).message}`))
+    return () => clearInterval(timer)
+  }, 'agent-compare: reconcile conversation memory')
   ctx.effect(() => () => { void comparer.dispose() }, 'agent-compare: stop previews and candidates')
   const recovered = await comparer.recover()
   if (recovered.length > 0) ctx.logger.info(`agent-compare: settled ${recovered.length} unfinished run(s) after restart`)
 
   const repoFor = async (agent: AgentLike, signal: AbortSignal): Promise<string> => {
-    const wd = ctx.get('workingDirectory') as WorkingDirectory | undefined
+    const wd = (agent.ctx.get('workingDirectory') ?? ctx.get('workingDirectory')) as WorkingDirectory | undefined
     if (wd === undefined) throw new Error('workingDirectory 服务不可用，无法确定项目目录')
     return wd.ensure(agent, signal)
   }
   /** Freeze the parent's current route so a mid-run model switch cannot split the pair. */
   const currentRoute = (agent: AgentLike): AgentRoute => {
-    const o = agent.options ?? {}
-    return { ...(o.provider === undefined ? {} : { provider: o.provider }), ...(o.model === undefined ? {} : { model: o.model }), ...(o.reasoningEffort === undefined ? {} : { reasoningEffort: o.reasoningEffort }) }
+    return selectedRoute(agent)
   }
   const guard = (agent: AgentLike): void => {
     if (isDelegated(agent)) throw new HttpError(403, '候选或子 Agent 不能再发起比较')
@@ -437,12 +441,19 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     sub.effect(() => commands.register({
       name: 'ab',
       description: 'A|B 对比：同一需求做两版，真跑、验收、盲选，再采用到项目',
-      input: { hint: '<需求>  可选 --minutes 30 · --models 服务/模型,服务/模型 · --example' },
+      input: { hint: '写下需求；模型、时长和示例在输入框上方选择' },
       handler: async ({ commandId, agent, rawInput, signal }: CommandInvocation): Promise<CommandResult> => {
         if (isDelegated(agent)) return { kind: 'error', text: '候选或子 Agent 不能再发起比较' }
         let input: ReturnType<typeof parseAbInput>
-        try { input = parseAbInput(rawInput) } catch (error) { return { kind: 'error', text: (error as Error).message } }
-        if (!input.example && input.task === '') return { kind: 'error', text: '用法：/ab <需求>，例如：/ab 给商品列表加上搜索框和分类筛选，手机上也要好用' }
+        try {
+          const ui = parseUiSubmission(rawInput)
+          const saved = ui?.preferences ?? await preferences.load(agent.session.id)
+          input = ui ? { task: ui.task, example: ui.example } : parseAbInput(rawInput)
+          input = { ...input, minutes: input.minutes ?? saved.generationMinutes, ...(input.models === undefined && saved.mode === 'cross-model' ? { models: saved.models } : {}) }
+          if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请在输入框上方选择两个完整的模型配置')
+          if (!input.models && !currentRoute(agent).model) throw new Error('当前对话尚未选择模型，请先在输入框右下角选择模型。')
+        } catch (error) { return { kind: 'error', text: (error as Error).message } }
+        if (!input.example && input.task === '') return { kind: 'error', text: '请在输入框中写下要比较的需求，或点击「试跑示例」。' }
         try {
           const r = await comparer.start({
             repo: input.example ? await createExampleRepo(store.examplesDir) : await repoFor(agent, signal),
@@ -487,6 +498,10 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     return typeof o.model === 'string' && o.model !== '' ? { ...(typeof o.provider === 'string' ? { provider: o.provider } : {}), model: o.model } : undefined
   }
   const api: Record<string, Handler> = {
+    async preferences(b) {
+      const agent = agentFor(b)
+      return b.value === undefined ? preferences.load(agent.session.id) : preferences.save(agent.session.id, b.value)
+    },
     async setup(b) {
       const agent = agentFor(b)
       let project: { path: string; supported: boolean; reason?: string } | undefined
@@ -514,10 +529,16 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     async get(b) { return view(runIdOf(b)) },
     async models(b) {
       const agent = agentFor(b)
-      const llm = ctx.get('llm') as LlmService | undefined
+      const controller = (agent.ctx.get('sessionController') ?? ctx.get('sessionController')) as { modelCatalog(): Promise<{ groups: Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>; failures: Array<{ name: string; message: string }> }> } | undefined
+      if (controller) {
+        const catalog = await controller.modelCatalog()
+        if (!catalog.groups.length && catalog.failures.length) throw new HttpError(503, `模型列表读取失败：${catalog.failures.map(p => p.name).join('、')}；可以返回同一模型模式或稍后重试。`)
+        return { current: currentRoute(agent), models: catalog.groups.flatMap(p => p.models.map(m => ({ provider: p.id, providerName: p.name, id: m.id, name: m.name }))) }
+      }
+      const llm = (agent.ctx.get('llm') ?? ctx.get('llm')) as LlmService | undefined
       const models: Array<{ provider: string; providerName: string; id: string; name: string }> = []
       for (const p of llm?.listProviders() ?? []) {
-        const listed = await llm!.listModels(p.id).catch(() => [])
+        const listed = await llm!.listModels(p.id)
         for (const m of listed) models.push({ provider: p.id, providerName: p.name ?? p.id, id: m.id, name: m.name })
       }
       return { current: currentRoute(agent), models }

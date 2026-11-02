@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { commandResultText, memoryNote, milestoneOf, parseAbInput, runIdInText } from '../src/host/conversation.ts'
 import { RUN_SCHEMA, type RunRecord } from '../src/core/types.ts'
+import { ConversationMemory } from '../src/host/memory.ts'
 
 describe('/ab input', () => {
   it('keeps the task verbatim and reads flags anywhere', () => {
@@ -49,7 +50,7 @@ describe('conversation memory notes', () => {
     expect(memoryNote(run({ state: 'revealed', choice: { pick: 'A', at: 1 } }))).toMatch(/picked A \(strategy: 稳妥 · Conservative; model: m\)\. It is not adopted yet/)
     const adopted = run({ state: 'adopted', choice: { pick: 'A', at: 1 }, adoption: { label: 'A', mode: 'worktree', state: 'adopted', startedAt: 5, writtenPaths: ['src/App.tsx', 'src/styles.css'] } })
     expect(milestoneOf(adopted)).toBe('adoption:worktree:adopted:5')
-    expect(memoryNote(adopted)).toMatch(/now in the user's working tree, uncommitted\. Files written: src\/App\.tsx, src\/styles\.css/)
+    expect(memoryNote(adopted)).toMatch(/now in the target repository's working tree, uncommitted\. Files written: src\/App\.tsx, src\/styles\.css/)
     const reverted = run({ state: 'revealed', choice: { pick: 'A', at: 1 }, adoption: { label: 'A', mode: 'worktree', state: 'reverted', startedAt: 5, writtenPaths: ['src/App.tsx'] } })
     expect(memoryNote(reverted)).toMatch(/was undone/)
     expect(milestoneOf(reverted)).not.toBe(milestoneOf(adopted))
@@ -57,5 +58,37 @@ describe('conversation memory notes', () => {
   it('has nothing to say while candidates are still running', () => {
     expect(milestoneOf(run({ state: 'running' }))).toBeUndefined()
     expect(memoryNote(run({ state: 'running' }))).toBeUndefined()
+  })
+
+  it('retries an offline conversation and a failed injection, preserving target identity', async () => {
+    const queued: unknown[] = [], warnings: string[] = []
+    let online = false, fail = true
+    const agent = { session: { snapshotEvents: () => [] }, inbox: { nextTurn: queued, nextStep: [] }, inject: (m: unknown) => { if (fail) throw new Error('busy'); queued.push(m) } }
+    const memory = new ConversationMemory({ findAgent: () => online ? agent : undefined, createMessage: async () => m => m, warn: m => warnings.push(m) })
+    const record = run({})
+    await memory.remember(record)
+    expect(queued).toHaveLength(0)
+    online = true
+    await memory.remember(record)
+    expect(warnings).toHaveLength(1)
+    fail = false
+    await memory.remember(record)
+    await memory.remember(record)
+    expect(queued).toHaveLength(1)
+    expect(JSON.stringify(queued)).toContain('Target repository: /r')
+  })
+
+  it('deduplicates after restart and retries an inbox entry lost before it became history', async () => {
+    const events: Array<{ type: string; data: unknown }> = [], queued: unknown[] = []
+    const agent = { session: { snapshotEvents: () => events }, inbox: { nextTurn: [], nextStep: queued }, inject: (m: unknown) => { queued.push(m) } }
+    const dependencies = { findAgent: () => agent, createMessage: async () => (m: unknown) => m, warn: () => {} }
+    const memory = new ConversationMemory(dependencies)
+    await memory.remember(run({}))
+    queued.length = 0
+    await memory.remember(run({}))
+    expect(queued).toHaveLength(1)
+    events.push({ type: 'user/message', data: { message: queued.shift() } })
+    await new ConversationMemory(dependencies).remember(run({}))
+    expect(queued).toHaveLength(0)
   })
 })

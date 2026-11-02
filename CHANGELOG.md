@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-alpha.4 — 2026-11-02
 
-- Replace the composer command toggle with a graphical workspace. Select the project or separate example, configured models, and generation limit; start directly without rewriting the conversation draft.
-- Add matching desktop/phone preview sizes, focused A/B views, source patch review, and a separate adoption preflight confirmation. Keep recovery actions visible at the top.
-- Contain keyboard focus in the dialog, restore focus on close, and support narrow windows, both themes, and reduced motion. Add browser interaction checks using labelled sample runs.
-- Show the target repository during adoption review and preserve unknown token totals. Settled generation durations no longer grow while a result waits for a choice.
+- Add a settings strip above the conversation composer: comparison mode, configured models, generation limit, and a one-click example. Preserve the draft and structured references when entering or leaving A|B mode; retain controls per conversation across reopening.
+- Start through the host's session command executor and display both live applications inside the conversation. Keep the header dedicated to history, guidance, and the example. Add adaptive and matching desktop/phone preview sizes, focused A/B views, source patch review, and a separate adoption preflight confirmation.
+- Keep recovery actions visible at the top, contain dialog focus, restore focus on close, and support narrow windows, both themes, and reduced motion. Add browser interaction and WCAG checks using labelled sample runs.
+- Render the same result above the composer before a blank session has a chat timeline. Prevent the host's flex layout from clipping its controls, retain applications while collapsing the card, and return to ordinary conversation after adoption.
+- Retry model-facing notes when a conversation is unavailable or injection fails, deduplicate against history and inbox, and identify the actual target repository for follow-up work.
+- Preserve unknown token totals. Settled execution durations no longer grow while a result waits for a choice.
 
 - Revalidate checkout content, HEAD and staged entries after adoption rehearsal and before each write or deletion, including changes made while its journal is saved. A changed target stops adoption before the pending path is touched.
 - Journal each pending path and limit rollback to paths whose writes were attempted. Preserve new ignored files at addition paths and later edits to replacement or deletion paths.
