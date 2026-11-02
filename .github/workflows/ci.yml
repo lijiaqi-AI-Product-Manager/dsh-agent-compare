@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
+          check-latest: true
           cache: npm
       - run: git config --global user.email ci@example.invalid && git config --global user.name ci
       - run: npm install --global npm@12.2.1 --ignore-scripts
@@ -45,6 +46,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
+          check-latest: true
           cache: npm
       - run: npm install --global npm@12.2.1 --ignore-scripts
       - run: npm ci
@@ -67,6 +69,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
+          check-latest: true
           cache: npm
       - run: npm install --global npm@12.2.1 --ignore-scripts
       - run: npm ci
@@ -81,6 +84,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
+          check-latest: true
           cache: npm
       - run: npm install --global npm@12.2.1 --ignore-scripts
       - run: npm ci --ignore-scripts

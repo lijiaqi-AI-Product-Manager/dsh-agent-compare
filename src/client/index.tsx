@@ -64,11 +64,12 @@ interface Run {
   leftovers?: string[]
 }
 interface Legacy { runId: string; task: string; createdAt: number; state: string; legacy: true }
-interface ListResult { runs: Run[]; legacy: Legacy[]; isolation: 'own-root' | 'shared-root' }
+interface HistoryMeta { version: 1; scope: 'all' | 'session'; query: string; total: number; offset: number; limit: number; hasNext: boolean }
+interface ListResult { runs: Run[]; legacy: Legacy[]; isolation: 'own-root' | 'shared-root'; history?: HistoryMeta }
 interface ModelItem { provider: string; providerName: string; id: string; name: string }
-async function call<T>(method: string, body: Record<string, unknown>): Promise<T> {
+async function call<T>(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const url = new URL(`agent-compare/api/${method}`, document.baseURI.replace(/[?#].*$/, '').replace(/[^/]*$/, ''))
-  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(signal ? { signal } : {}) })
   const env = (await res.json()) as { ok: boolean; value?: T; error?: string }
   if (!env.ok) throw new Error(env.error ?? `HTTP ${res.status}`)
   return env.value as T
@@ -367,8 +368,12 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-history{max-width:860px;width:100%;margin:0 auto;padding:20px 24px;display:flex;flex-direction:column;gap:8px}
 .ac-hrow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:var(--ac-r-md);border:1px solid var(--ac-border);background:var(--ac-bg);text-align:left;font:inherit;color:inherit;cursor:pointer}
 .ac-hrow:hover{background:var(--ac-hover)}
-.ac-hrow.legacy{cursor:default;opacity:.7}
+.ac-hrow.legacy,.ac-hrow.legacy:hover{cursor:default;background:var(--ac-l1)}
 .ac-hrow span.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-history-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--ac-border)}
+.ac-history-controls label{display:flex;flex-direction:column;gap:6px;color:var(--ac-fg2);font-size:12px}.ac-history-controls select,.ac-history-controls input{height:36px;box-sizing:border-box;border:1px solid var(--ac-border-strong);border-radius:8px;background:var(--ac-bg);color:var(--ac-fg);font:inherit;padding:0 10px;min-width:0}
+.ac-history-search{display:flex;align-items:end;gap:8px;flex:1;min-width:200px}.ac-history-search label{flex:1;min-width:0}.ac-history-search input{width:100%}.ac-history-status,.ac-history-pages{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--ac-fg2);font-size:12px}.ac-history-status{min-height:24px}.ac-history-pages{justify-content:space-between;padding-top:12px;border-top:1px solid var(--ac-border)}.ac-hrow-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}.ac-hrow-copy .ac-meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ac-history .ac-empty{height:auto;min-height:180px;padding:24px;text-align:center}
+@media(max-width:600px){.ac-history{padding:16px 12px}.ac-history-controls>label,.ac-history-search{width:100%}.ac-history-search{min-width:0;flex-basis:100%}.ac-hrow{padding:12px;gap:8px;flex-wrap:wrap}.ac-hrow>.ac-meta{margin-left:auto}.ac-history-pages>.ac-row{width:100%;justify-content:space-between}}
 .ac-header-btn{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 7px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2,rgba(15,17,21,.12));background:transparent;color:var(--dsw-alias-label-secondary,#4b5260);font:600 11px/1 var(--dsw-font-family,inherit);letter-spacing:.03em;cursor:pointer}
 .ac-header-btn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(15,17,21,.05));color:var(--dsw-alias-label-primary,#0f1115)}
 .ac-header-tools{display:flex;align-items:center;gap:6px;-webkit-app-region:no-drag}.ac-header-tools-hero{position:fixed;top:var(--ac-header-top,max(6px,env(titlebar-area-height,0px)));right:var(--ac-header-right,56px);z-index:20;max-width:calc(100vw - 80px)}
@@ -968,26 +973,43 @@ function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement 
   }
   return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={mode.loading} aria-pressed={enabled} title={enabled ? 'A|B 对比模式已开启，点此退出' : '开启 A|B 对比模式，在主对话里运行两版'} aria-label="A|B 对比模式">A|B</button></>
 }
-function History({ data, open }: { data?: ListResult; open: (r: Run) => void }): React.ReactElement {
-  if (data === undefined) return <div className="ac-empty"><span className="ac-spin" /></div>
-  if (data.runs.length === 0 && data.legacy.length === 0) return <div className="ac-empty">还没有比较记录。点输入框左下角的 A|B，在主对话里开始第一次真实比较。</div>
+function History({ data, open, busy, failed, scope, query, onScope, onSearch, onPage }: {
+  data?: ListResult; open: (r: Run) => void; busy: boolean; failed?: string
+  scope: 'all' | 'session'; query: string; onScope: (scope: 'all' | 'session') => void; onSearch: (query: string) => void; onPage: (offset: number) => void
+}): React.ReactElement {
+  const [draft, setDraft] = useState(query)
+  const region = useRef<HTMLElement | null>(null)
+  useEffect(() => setDraft(query), [query])
+  const meta = data?.history, outdated = data !== undefined && meta?.version !== 1
+  const rows = [...(data?.runs ?? []), ...(data?.legacy ?? [])].sort((a, b) => b.createdAt - a.createdAt || (a.runId === b.runId ? 0 : a.runId < b.runId ? 1 : -1))
   return (
-    <div className="ac-history">
-      {data.runs.map((r) => (
+    <section ref={region} className="ac-history" aria-label="比较记录列表" aria-busy={busy} tabIndex={-1}>
+      <div className="ac-history-controls">
+        <label>记录范围<select aria-label="记录范围" value={scope} disabled={outdated} onChange={event => onScope(event.target.value as 'all' | 'session')}><option value="all">全部对话</option><option value="session">当前对话</option></select></label>
+        <form className="ac-history-search" role="search" onSubmit={event => { event.preventDefault(); onSearch(draft) }}>
+          <label>查找记录<input type="search" aria-label="搜索比较记录" placeholder="需求、项目或运行编号" maxLength={200} value={draft} disabled={outdated} onChange={event => setDraft(event.target.value)} /></label>
+          <button className="ac-btn" type="submit" disabled={outdated}>搜索</button>
+          {(query || draft) && <button className="ac-text-btn" type="button" disabled={outdated} onClick={() => { setDraft(''); onSearch('') }}>清空搜索</button>}
+        </form>
+      </div>
+      <div className="ac-history-status" role="status">{busy ? <><span className="ac-spin" />正在读取记录…</> : failed ? '记录读取失败，原始文件仍保留。' : meta ? `${scope === 'all' ? '全部对话' : '当前对话'} · ${meta.total} 条${meta.query ? ` · 搜索“${meta.query}”` : ''}` : '已读取当前服务端提供的记录'}</div>
+      {outdated && <div className="ac-feedback" role="alert">服务端尚未更新。请重启 DSH 后使用全部对话、搜索与翻页；以下仍是旧服务端返回的记录。</div>}
+      {!busy && !failed && rows.length === 0 && <div className="ac-empty">{query ? '没有匹配的记录。换个关键词，或清空搜索查看已有比较。' : scope === 'session' ? '当前对话还没有比较。切换到“全部对话”可以查看以前的结果。' : '还没有比较记录。点输入框左下角的 A|B，在主对话里开始第一次真实比较。'}</div>}
+      {rows.map(r => 'legacy' in r ? (
+        <div key={r.runId} className="ac-hrow legacy" title="旧版本记录只读，原始文件保留">
+          <span className="ac-pill">旧版</span>
+          <span className="ac-hrow-copy"><span className="t">{r.task}</span><span className="ac-meta">{r.runId} · 只读</span></span>
+          <span className="ac-meta">{r.createdAt > 0 ? when(r.createdAt) : '时间未知'}</span>
+        </div>
+      ) : (
         <button key={r.runId} className="ac-hrow" onClick={() => open(r)}>
           <span className={`ac-pill ${r.state === 'adopted' ? 'ok' : ACTIVE.has(r.state) ? 'brand' : ''}`}>{STATE_TEXT[r.state] ?? r.state}</span>
-          <span className="t" title={r.task}>{r.task}</span>
+          <span className="ac-hrow-copy"><span className="t" title={r.task}>{r.task}</span><span className="ac-meta" title={r.baseline.repoRoot}>{r.baseline.repoRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? '项目未知'} · {r.runId}</span></span>
           <span className="ac-meta">{r.choice?.pick && r.choice.pick !== 'none' ? `选了 ${r.choice.pick} · ` : ''}{when(r.createdAt)}</span>
         </button>
       ))}
-      {data.legacy.map((r) => (
-        <div key={r.runId} className="ac-hrow legacy" title="旧版本留下的记录，只能查看">
-          <span className="ac-pill">旧版</span>
-          <span className="t">{r.task}</span>
-          <span className="ac-meta">{when(r.createdAt)}</span>
-        </div>
-      ))}
-    </div>
+      {meta && meta.total > 0 && <nav className="ac-history-pages" aria-label="记录翻页"><span>{meta.offset + 1}–{Math.min(meta.offset + meta.limit, meta.total)} / {meta.total} 条</span><div className="ac-row"><button className="ac-btn" disabled={busy || meta.offset === 0} onClick={() => { region.current?.focus(); region.current?.scrollIntoView({ block: 'start' }); onPage(Math.max(0, meta.offset - meta.limit)) }}>上一页</button><button className="ac-btn" disabled={busy || !meta.hasNext} onClick={() => { region.current?.focus(); region.current?.scrollIntoView({ block: 'start' }); onPage(meta.offset + meta.limit) }}>下一页</button></div></nav>}
+    </section>
   )
 }
 function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
@@ -1019,11 +1041,28 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
   const [selected, setSelected] = useState<string | undefined>(runId)
   const [list, setList] = useState<ListResult>()
   const [err, setErr] = useState<string>()
+  const [historyScope, setHistoryScope] = useState<'all' | 'session'>('all')
+  const [historyQuery, setHistoryQuery] = useState('')
+  const [historyOffset, setHistoryOffset] = useState(0)
+  const [historyBusy, setHistoryBusy] = useState(true)
+  const historyRequest = useRef(0)
+  const historyAbort = useRef<AbortController | undefined>(undefined)
   const sheet = useRef<HTMLDivElement>(null)
-  const refreshList = useCallback(async () => {
-    try { setList(await call<ListResult>('list', { sessionId })); setErr(undefined) } catch (e) { setErr((e as Error).message) }
-  }, [sessionId])
-  useEffect(() => { void refreshList() }, [refreshList])
+  const refreshList = useCallback(async (signal?: AbortSignal) => {
+    const request = ++historyRequest.current
+    historyAbort.current?.abort()
+    const controller = new AbortController()
+    historyAbort.current = controller
+    const active = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+    setHistoryBusy(true); setErr(undefined); setList(undefined)
+    try {
+      const data = await call<ListResult>('list', { sessionId, scope: historyScope, search: historyQuery, offset: historyOffset }, active)
+      if (!active.aborted && request === historyRequest.current) setList(data)
+    } catch (e) { if (!active.aborted && request === historyRequest.current) setErr((e as Error).message) }
+    finally { if (!active.aborted && request === historyRequest.current) setHistoryBusy(false) }
+  }, [sessionId, historyScope, historyQuery, historyOffset])
+  useEffect(() => { const controller = new AbortController(); void refreshList(controller.signal); return () => controller.abort() }, [refreshList])
+  useEffect(() => () => { historyAbort.current?.abort() }, [])
   useEffect(() => { setSelected(runId); setView(runId ? 'history' : tab ?? 'history') }, [runId, tab])
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
@@ -1077,9 +1116,9 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
         </header>
         {err && <div className="ac-error" role="alert">{err}<button className="ac-text-btn" onClick={() => { void refreshList() }}>重试</button></div>}
         <div className="ac-body">{selected ? <>
-          <div className="ac-run-heading"><button className="ac-text-btn" onClick={() => navigate('history')}>← 所有记录</button><span className="ac-task" title={current?.task}>{current?.task ?? '比较结果'}</span><span className="ac-meta">{selected}</span></div>
+          <div className="ac-run-heading"><button className="ac-text-btn" onClick={() => navigate('history')}>← 比较记录</button><span className="ac-task" title={current?.task}>{current?.task ?? '比较结果'}</span><span className="ac-meta">{selected}</span></div>
           <RunView key={selected} runId={selected} sessionId={sessionId} {...(current ? { initial: current } : {})} onDone={() => navigate('history')} />
-        </> : view === 'guide' ? <Guide sessionId={sessionId} /> : <History data={list} open={(r) => setSelected(r.runId)} />}</div>
+        </> : view === 'guide' ? <Guide sessionId={sessionId} /> : <History data={list} open={(r) => setSelected(r.runId)} busy={historyBusy} failed={err} scope={historyScope} query={historyQuery} onScope={scope => { setHistoryScope(scope); setHistoryOffset(0) }} onSearch={query => { const trimmed = query.trim(); if (trimmed === historyQuery && historyOffset === 0) void refreshList(); else { setHistoryQuery(trimmed); setHistoryOffset(0) } }} onPage={setHistoryOffset} />}</div>
       </div>
     </div>
   )
