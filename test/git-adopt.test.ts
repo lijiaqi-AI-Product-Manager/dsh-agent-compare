@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rm, symlink } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
@@ -226,6 +226,20 @@ describe('owned copies', () => {
     expect(existsSync(path.join(stray, 'x'))).toBe(true)
 
     expect(await removeOwnedWorktree(repo, wt, owner('A'))).toEqual({ removed: true })
+    expect(existsSync(wt)).toBe(false)
+  })
+
+  it('recognises its copy through another spelling of the same path (junction, symlink, 8.3 name)', async () => {
+    const repo = await initRepo()
+    const scratch = await tmp('ac-scratch')
+    const base = await baselineOf(repo, scratch)
+    const real = path.join(scratch, 'real')
+    await mkdir(real)
+    const wt = path.join(real, 'copy A')
+    await addOwnedWorktree(repo, wt, base.snapshotCommit, owner('A'))
+    const alias = path.join(scratch, 'alias')
+    await symlink(real, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    expect(await removeOwnedWorktree(repo, path.join(alias, 'copy A'), owner('A'))).toEqual({ removed: true })
     expect(existsSync(wt)).toBe(false)
   })
 

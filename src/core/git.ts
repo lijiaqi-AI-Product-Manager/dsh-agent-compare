@@ -1,5 +1,5 @@
 import { copyFile, mkdir, rm, writeFile, readFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { run, runOk } from './proc.ts'
@@ -108,8 +108,17 @@ export async function registeredWorktrees(repo: string): Promise<string[]> {
   return out.split('\0').filter((l) => l.startsWith('worktree ')).map((l) => path.resolve(l.slice('worktree '.length)))
 }
 
-const samePath = (a: string, b: string): boolean =>
-  process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b)
+/**
+ * One spelling per directory: the real path, so 8.3 short names
+ * (`C:\Users\RUNNER~1`), junctions and symlinks compare equal to what git reports.
+ */
+function canonicalPath(p: string): string {
+  let real = path.resolve(p)
+  try { real = realpathSync.native(real) } catch { /* gone or unreadable: compare as given */ }
+  return process.platform === 'win32' ? real.toLowerCase() : real
+}
+
+const samePath = (a: string, b: string): boolean => canonicalPath(a) === canonicalPath(b)
 
 /**
  * Delete a copy only when all of this holds: it is a registered worktree of
