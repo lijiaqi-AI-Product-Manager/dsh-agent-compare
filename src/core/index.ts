@@ -4,3 +4,4 @@ export { RunStore, defaultHome, repoKey, BusyError, StaleRecordError, type Legac
 export { DEFAULT_STRATEGIES, BALANCED, candidatePrompt } from './strategies.ts'
 export { inspectProject, defaultChecks, buildAcceptance, ACCEPTANCE_FILE } from './project.ts'
 export { createExampleRepo, EXAMPLE_TASK } from './example.ts'
+export type { PrepareProjectProcess, PreparedProjectProcess, ProjectProcessRequest } from './project-process.ts'

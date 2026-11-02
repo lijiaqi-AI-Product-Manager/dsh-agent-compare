@@ -148,7 +148,7 @@ describe('verdict', () => {
   const base = (over: Partial<Candidate>): Candidate => ({
     label: 'A', strategy: { id: 's', title: 's', instruction: '' }, route: {}, stage: 'ready', timings: {},
     candidateTree: 't', checkedTree: 't', drift: [], acceptanceTouched: [], preview: { url: 'u', port: 1, pid: 1, kind: 'build', cwd: '/' },
-    checks: [{ name: 'build', outcome: 'passed', durationMs: 1, tail: '' }, { name: 'browser', outcome: 'passed', durationMs: 1, tail: '' }],
+    checks: [{ name: 'build', outcome: 'passed', durationMs: 1, tail: '' }, { name: 'browser', outcome: 'passed', durationMs: 1, tail: '' }], execution: { enforcement: 'full' },
     ...over,
   })
   it('is eligible only when everything bound held', () => {
@@ -158,6 +158,10 @@ describe('verdict', () => {
     expect(verdictOf(base({ acceptanceTouched: ['tsconfig.json'] }), acceptance).eligible).toBe(false)
     expect(verdictOf(base({ preview: { url: 'u', port: 1, pid: 1, kind: 'dev', cwd: '/' } }), acceptance).eligible).toBe(false)
     expect(verdictOf(base({ checks: [{ name: 'build', outcome: 'failed', durationMs: 1, tail: '' }] }), acceptance).eligible).toBe(false)
+  })
+  it('shows partial and missing enforcement as limitations', () => {
+    expect(verdictOf(base({ execution: { enforcement: 'partial' } }), acceptance).warnings.join()).toMatch(/部分文件写入约束/)
+    expect(verdictOf(base({ execution: undefined }), acceptance).warnings.join()).toMatch(/没有完整的项目进程约束记录/)
   })
   it('a skipped page check blocks only when the acceptance scripted it', () => {
     const skipped = base({ checks: [{ name: 'build', outcome: 'passed', durationMs: 1, tail: '' }, { name: 'browser', outcome: 'skipped', durationMs: 0, tail: '', reason: 'no browser' }] })

@@ -11,7 +11,7 @@ import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions 
 import { RunStore, repoKey, StaleRecordError } from '../src/core/run-store.ts'
 import { git, registeredWorktrees } from '../src/core/git.ts'
 import { isAlive, ownsProcess } from '../src/core/proc.ts'
-import { fixtureRepo, tmp } from './fixture.ts'
+import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 
 type Edit = (dir: string, req: AgentRunRequest) => Promise<void>
 
@@ -35,10 +35,10 @@ function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editT
 }
 const defaultEdit: Edit = async (dir, req) => writeFile(path.join(dir, 'index.html'), `<h1>shop ${req.label}</h1>\n`)
 
-async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number; onUpdate?: ComparerOptions['onUpdate'] } = {}) {
+async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number; onUpdate?: ComparerOptions['onUpdate']; prepareProjectProcess?: ComparerOptions['prepareProjectProcess'] } = {}) {
   const repo = await fixtureRepo()
   const store = new RunStore(await tmp('ac-home'))
-  const comparer = new Comparer({ store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
+  const comparer = new Comparer({ prepareProjectProcess: opts.prepareProjectProcess ?? prepareFixtureProcess, store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
   const started = await comparer.start({ repo, task: 'make the shop nicer', assignment: 'fixed' })
   const done = (await comparer.wait(started.runId))!
   const failedPreparation = done.candidates.filter(c => c.error?.stage === 'preparing')
@@ -57,7 +57,7 @@ describe.concurrent('comparison run', () => {
     const repo = await fixtureRepo()
     const store = new RunStore(await tmp('ac-one-preparation-fails'))
     let foreign: string | undefined
-    const comparer = new Comparer({ store, runner: scripted({}), version: 'test', browserChecks: false, onUpdate: r => {
+    const comparer = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}), version: 'test', browserChecks: false, onUpdate: r => {
       const a = r.candidates[0]!
       if (!foreign && a.stage === 'preparing' && a.dir && a.ownerToken) {
         foreign = a.dir
@@ -90,7 +90,11 @@ describe.concurrent('comparison run', () => {
   }, T)
 
   it('runs both candidates to an eligible, previewed build; copies live outside the repository', async () => {
-    const { repo, comparer, runId, done } = await setup({})
+    const commands: Array<{ cwd: string; argv: readonly string[] }> = []
+    const { repo, comparer, runId, done } = await setup({}, { prepareProjectProcess: async request => {
+      commands.push(request)
+      return { ...await prepareFixtureProcess(request), enforcement: 'partial' }
+    } })
     expect(done.state).toBe('judging')
     expect(done.isolation).toBe('own-root')
     for (const c of done.candidates) {
@@ -99,6 +103,12 @@ describe.concurrent('comparison run', () => {
       expect(c.preview?.kind).toBe('build')
       expect(c.install?.frozen).toBe(true)
       expect(c.checkedTree).toBe(c.candidateTree)
+      expect(c.execution?.enforcement).toBe('partial')
+      expect(c.verdict?.warnings.join()).toMatch(/部分文件写入约束/)
+      const prepared = commands.filter(request => request.cwd === c.dir)
+      expect(prepared.some(request => request.argv[0] === 'npm' && request.argv[1] === 'ci')).toBe(true)
+      expect(prepared.some(request => request.argv[1] === 'run' && request.argv[2] === 'build')).toBe(true)
+      expect(prepared.some(request => request.argv.includes('preview'))).toBe(true)
       expect(path.relative(repo, c.dir!).startsWith('..')).toBe(true)
       const html = await (await fetch(c.preview!.url)).text()
       expect(html).toContain(`shop ${c.label}`)
@@ -126,6 +136,22 @@ describe.concurrent('comparison run', () => {
     const branched = await comparer.adopt(runId, 'branch')
     expect(branched.adoption?.branch).toBe(`agent-compare/${runId}-B`)
     await comparer.cleanup(runId)
+  }, T)
+
+  it('preserves completed installation and checks when the preview boundary fails', async () => {
+    const { comparer, runId, done } = await setup({}, { prepareProjectProcess: async request => {
+      if (request.argv.includes('preview')) throw new Error('preview deliberately unavailable')
+      return { ...await prepareFixtureProcess(request), enforcement: 'partial' }
+    } })
+    try {
+      for (const c of done.candidates) {
+        expect(c.stage).toBe('failed')
+        expect(c.error).toMatchObject({ stage: 'previewing', message: expect.stringContaining('preview deliberately unavailable') })
+        expect(c.install).toMatchObject({ outcome: 'passed', frozen: true })
+        expect(c.checks?.some(check => check.name === 'build' && check.outcome === 'passed')).toBe(true)
+        expect(c.execution?.enforcement).toBe('partial')
+      }
+    } finally { await comparer.cleanup(runId) }
   }, T)
 
   it('a failing check makes the candidate ineligible for the working tree', async () => {
@@ -200,7 +226,7 @@ describe.concurrent('comparison run', () => {
     b.error = { stage: 'generating', message: '超出生成时间预算（30 分钟），已停止这个候选' }
     b.timings = { preparing: b.timings.preparing!, generating: b.timings.generating! }
     await store.save(r)
-    const later = new Comparer({ store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
+    const later = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
     const started = await later.salvage(runId, 'B')
     expect(started.candidates[1]!.stage).toBe('sealing')
     const done = (await later.wait(runId))!
@@ -214,7 +240,7 @@ describe.concurrent('comparison run', () => {
   it('cancel shows stopping, then settles as cancelled', async () => {
     const repo = await fixtureRepo()
     const store = new RunStore(await tmp('ac-home'))
-    const comparer = new Comparer({ store, runner: scripted({}, { hang: 'B' }), version: 'test', browserChecks: false })
+    const comparer = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}, { hang: 'B' }), version: 'test', browserChecks: false })
     const r = await comparer.start({ repo, task: 't', assignment: 'fixed' })
     await new Promise((res) => setTimeout(res, 1500))
     const stopping = await comparer.cancel(r.runId, 'B')
@@ -229,13 +255,15 @@ describe.concurrent('adoption', () => {
   it('a preview stopped by a host restart can be opened again from its copy', async () => {
     const { store, comparer, runId, done } = await setup({})
     await comparer.dispose()
-    const after = new Comparer({ store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
+    const prepare = vi.fn(prepareFixtureProcess)
+    const after = new Comparer({ prepareProjectProcess: prepare, store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
     await after.recover()
     const recovered = (await store.load(runId))!
     expect(recovered.candidates[0]!.preview).toBeUndefined()
     expect(isAlive(done.candidates[0]!.preview!.pid)).toBe(false)
     const reopened = await after.reopenPreview(runId, 'A')
     const p = reopened.candidates[0]!.preview!
+    expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ cwd: reopened.candidates[0]!.dir, argv: expect.arrayContaining(['preview']) }))
     expect(p.kind).toBe('build')
     expect(await (await fetch(p.url)).text()).toContain('shop A')
     await after.cleanup(runId)
@@ -420,7 +448,7 @@ describe.concurrent('adoption', () => {
     r.state = 'adopting'
     r.adoption!.state = 'writing'
     await store.save(r)
-    const after = new Comparer({ store, runner: scripted({}), version: 'test' })
+    const after = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}), version: 'test' })
     expect(await after.recover()).toContain(runId)
     expect((await store.load(runId))!.state).toBe('recovery')
     await expect(after.revert(runId)).rejects.toThrow(/只有写入工作区的采用可以撤销/)
@@ -453,7 +481,7 @@ describe.concurrent('resource ownership', () => {
     for (const candidate of r.candidates) delete candidate.preview
     r.candidates[0]!.dir = fake
     await store.save(r)
-    const cleaned = (await new Comparer({ store, runner: scripted({}), version: 'test' }).cleanup(runId))!
+    const cleaned = (await new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}), version: 'test' }).cleanup(runId))!
     expect(existsSync(path.join(fake, 'keep', 'file.txt'))).toBe(true)
     expect(cleaned.leftovers?.[0]).toContain(fake)
     expect(existsSync(cleaned.candidates[1]!.dir!)).toBe(false)

@@ -7,7 +7,8 @@ import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdo
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
-import { commandHasMarkers, killTree, observeProcess, run, waitGone } from './proc.ts'
+import { commandHasMarkers, diagnosticText, killTree, observeProcess, waitGone } from './proc.ts'
+import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
 import { BusyError, newRunId, repoKey, RunStore } from './run-store.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
 import { RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
@@ -42,8 +43,8 @@ export interface AgentRunResult {
 /** The one seam to the agent host. DSH implements it with its own sessions; tests script it. */
 export interface AgentRunner {
   /**
-   * `own-root`: the agent's write boundary is `cwd` itself, enforced by the
-   * host before anything runs. `shared-root`: the agent can write wherever its
+   * `own-root`: the agent requests a host write boundary rooted in `cwd`,
+   * subject to host platform limitations. `shared-root`: the agent can write wherever its
    * parent can, so copies must live inside the repository and escapes are only
    * detected afterwards.
    */
@@ -82,6 +83,8 @@ export interface ComparerOptions {
   readonly maxActiveRuns?: number
   /** Per-candidate generation budget. Default 30 minutes. */
   readonly generationMs?: number
+  /** Required for executable project commands; the host supplies its write boundary. */
+  readonly prepareProjectProcess?: PrepareProjectProcess
 }
 
 interface LiveRun {
@@ -109,6 +112,7 @@ export class Comparer {
 
   /** Validate, snapshot the baseline, bind the acceptance, persist, then work in the background. */
   async start(input: StartInput): Promise<RunRecord> {
+    if (this.opts.prepareProjectProcess === undefined) throw new Error('项目命令没有可用的写入边界；请由宿主提供进程沙箱后开始比较')
     const task = input.task.trim()
     if (task === '') throw new Error('任务描述为空')
     const active = [...this.live.values()].filter((l) => l.record.state === 'running').length
@@ -318,9 +322,13 @@ export class Comparer {
     c.acceptanceTouched = acc.touched
     c.dependencyChange = acc.dependencyChange
 
-    const v = await this.verifyCopy(record.acceptance, dir, change.tree, path.join(artifacts, c.label), signal, enter)
+    const v = await this.verifyCopy(record.acceptance, dir, change.tree, path.join(artifacts, c.label), signal, enter, async evidence => {
+      Object.assign(c, evidence)
+      await this.persist(record)
+    })
     if (v.preview) lr.previews.set(c.label, v.preview.handle)
     c.install = v.install
+    c.execution = v.execution
     c.checks = v.checks
     c.checkedTree = v.checkedTree
     c.drift = v.drift
@@ -385,8 +393,9 @@ export class Comparer {
    * acceptance in `dir`, whose files must equal `sealedTree`. Used for each
    * candidate and for the adoption rehearsal.
    */
-  private async verifyCopy(acceptance: Acceptance, dir: string, sealedTree: string, shotBase: string, signal: AbortSignal, enter?: (s: CandidateStage) => Promise<void>): Promise<{
+  private async verifyCopy(acceptance: Acceptance, dir: string, sealedTree: string, shotBase: string, signal: AbortSignal, enter?: (s: CandidateStage) => Promise<void>, onEvidence?: (facts: Partial<Pick<Candidate, 'install' | 'checks' | 'execution'>>) => Promise<void>): Promise<{
     install: NonNullable<Candidate['install']>
+    execution: NonNullable<Candidate['execution']>
     checks: CheckResult[]
     checkedTree: string
     drift: string[]
@@ -394,6 +403,14 @@ export class Comparer {
     screenshot?: string
     mobileScreenshot?: string
   }> {
+    let enforcement: 'full' | 'partial' | 'unknown' = 'full'
+    const prepare: PrepareProjectProcess = async request => {
+      const prepared = await prepareProjectProcess(request, this.opts.prepareProjectProcess)
+      if (prepared.enforcement === undefined) enforcement = 'unknown'
+      else if (prepared.enforcement === 'partial' && enforcement !== 'unknown') enforcement = 'partial'
+      await onEvidence?.({ execution: { enforcement } })
+      return prepared
+    }
     await enter?.('installing')
     const checkedTree = await copyTree(dir)
     if (checkedTree !== sealedTree) throw new StageFailure('installing', '副本内容与封存的版本不一致，拒绝验收')
@@ -401,18 +418,20 @@ export class Comparer {
     if (info.kind === 'unsupported') throw new StageFailure('installing', info.reason ?? '改动后项目不再受支持')
     const inst = installArgv(info)
     const t0 = Date.now()
-    const r = await run(inst.argv, { cwd: dir, timeoutMs: 600_000, signal, env: { ...process.env, CI: '1' } })
+    const r = await runProjectProcess(inst.argv, { cwd: dir, timeoutMs: 600_000, signal, env: { CI: '1' } }, prepare)
+    const install: NonNullable<Candidate['install']> = { argv: inst.argv, frozen: inst.frozen, durationMs: Date.now() - t0, outcome: r.timedOut ? 'timeout' : r.aborted ? 'cancelled' : r.code === 0 ? 'passed' : 'failed' }
+    await onEvidence?.({ install })
     signal.throwIfAborted()
     if (r.code !== 0) {
-      const tail = (r.stderr || r.stdout).trim().slice(-800)
+      const tail = diagnosticText((r.stderr || r.stdout).trim(), 1200)
       throw new StageFailure('installing', inst.frozen
         ? `按锁文件 ${info.lockfile} 冻结安装失败。改了依赖就必须同时更新锁文件，AgentCompare 不会换成非冻结安装。\n${tail}`
         : `依赖安装失败：\n${tail}`)
     }
-    const install = { argv: inst.argv, frozen: inst.frozen, durationMs: Date.now() - t0 }
 
     await enter?.('verifying')
-    const checks = await runCommandChecks(dir, acceptance.checks, signal)
+    const checks = await runCommandChecks(dir, acceptance.checks, signal, prepare)
+    await onEvidence?.({ checks })
     signal.throwIfAborted()
     const buildOk = checks.find((k) => k.name === 'build')?.outcome === 'passed'
 
@@ -420,11 +439,11 @@ export class Comparer {
     let preview: { info: PreviewInfo; handle: Preview } | undefined
     try {
       const kind = buildOk ? 'build' : 'dev'
-      const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal })
+      const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal, prepareProjectProcess: prepare })
       preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: dir } }
     } catch (error) {
       if (signal.aborted) throw error
-      const log = error instanceof PreviewError ? `\n${error.log.slice(-800)}` : ''
+      const log = error instanceof PreviewError ? `\n${diagnosticText(error.log, 1500)}` : ''
       throw new StageFailure('previewing', `${(error as Error).message}${log}`)
     }
     let screenshot: string | undefined
@@ -440,7 +459,7 @@ export class Comparer {
       signal.throwIfAborted()
       // A project that does not ignore its build output would otherwise always "drift" by its own build.
       const drift = (await changedPaths(dir, sealedTree, await copyTree(dir))).filter((p) => !p.startsWith('dist/'))
-      return { install, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
+      return { install, execution: { enforcement }, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
     } catch (error) {
       await preview.handle.stop()
       throw error
@@ -511,7 +530,7 @@ export class Comparer {
       if (lr.previews.has(label) && c.preview !== undefined) return lr.record
       if (c.dir === undefined || !existsSync(c.dir)) throw new Error('这个候选的副本已经清理，只能查看截图')
       const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(c.dir, 'dist')) ? 'build' : 'dev'
-      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000 })
+      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, prepareProjectProcess: this.opts.prepareProjectProcess })
       lr.previews.set(label, handle)
       c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir }
       await this.save(lr.record)
@@ -948,6 +967,8 @@ function favoured(cands: readonly Candidate[]): RunRecord['checksFavoured'] {
 export function verdictOf(c: Candidate, acceptance: Acceptance): Verdict {
   const reasons: string[] = []
   const warnings: string[] = []
+  if (c.execution?.enforcement === 'partial') warnings.push('宿主报告部分文件写入约束，不能视为完整安全沙箱；文件读取和网络也不在此边界内')
+  else if (c.execution?.enforcement !== 'full') warnings.push('没有完整的项目进程约束记录，不能据此认定执行已隔离')
   const NAMES: Record<string, string> = { typecheck: '类型检查', lint: 'Lint', test: '测试', build: '构建', browser: '页面验收' }
   for (const k of c.checks ?? []) {
     if (k.outcome === 'failed' || k.outcome === 'timeout') reasons.push(`${NAMES[k.name] ?? k.name}${k.outcome === 'timeout' ? '超时' : '未通过'}`)
@@ -983,6 +1004,7 @@ export interface PublicCandidate {
   readonly previewUrl?: string
   readonly previewKind?: 'build' | 'dev'
   readonly checks?: Candidate['checks']
+  readonly execution?: Candidate['execution']
   readonly patchStats?: Candidate['patchStats']
   readonly touchedFiles?: string[]
   readonly timings: Candidate['timings']
@@ -1054,6 +1076,7 @@ export function publicView(r: RunRecord): PublicRun {
       ...(c.progress === undefined || c.stage !== 'generating' ? {} : { progress: c.progress }),
       ...(c.preview === undefined ? {} : { previewUrl: c.preview.url, previewKind: c.preview.kind }),
       ...(c.checks === undefined ? {} : { checks: c.checks }),
+      ...(c.execution === undefined ? {} : { execution: c.execution }),
       ...(c.patchStats === undefined ? {} : { patchStats: c.patchStats }),
       ...(c.touchedFiles === undefined ? {} : { touchedFiles: c.touchedFiles }),
       ...(c.error === undefined ? {} : { error: c.error }),

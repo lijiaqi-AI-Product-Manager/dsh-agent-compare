@@ -27,6 +27,7 @@ interface Cand {
   previewUrl?: string
   previewKind?: 'build' | 'dev'
   checks?: Check[]
+  execution?: { enforcement: 'full' | 'partial' | 'unknown' }
   patchStats?: { files: number; insertions: number; deletions: number; binary: number }
   timings: Partial<Record<Stage, { startedAt: number; endedAt?: number }>>
   error?: { stage: Stage; message: string }
@@ -604,6 +605,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: 
         {c.stage === 'generating' && c.progress && <Activity p={c.progress} />}
         <Checks checks={c.checks} />
         <details className="ac-details ac-evidence"><summary>检查依据与用量{c.verdict ? c.verdict.eligible ? ' · 已通过配置检查' : ' · 存在采用阻碍' : ''}</summary><Verdict c={c} />
+        {c.execution && <div className="ac-meta">项目命令：{c.execution.enforcement === 'full' ? '宿主报告完整文件写入约束' : c.execution.enforcement === 'partial' ? '宿主报告部分文件写入约束' : '约束完整性未知'}。不包含文件读取与网络隔离。</div>}
         {(c.patchStats || usage) && (
           <div className="ac-meta">
             {c.patchStats ? `${c.patchStats.files} 个文件 · +${c.patchStats.insertions} −${c.patchStats.deletions}${c.patchStats.binary ? ` · ${c.patchStats.binary} 个二进制` : ''}` : ''}

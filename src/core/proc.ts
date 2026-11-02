@@ -4,6 +4,14 @@ import path from 'node:path'
 
 const isWin = process.platform === 'win32'
 
+/** Keep the initial failure explanation as well as the final diagnostic lines. */
+export function diagnosticText(text: string, max = 1500): string {
+  if (text.length <= max) return text
+  const marker = '\n…\n'
+  const head = Math.ceil((max - marker.length) / 2)
+  return text.slice(0, head) + marker + text.slice(-(max - marker.length - head))
+}
+
 /** Keep at most `max` trailing characters of a growing log. */
 export class Tail {
   private buf = ''
@@ -14,6 +22,22 @@ export class Tail {
   }
   toString(): string {
     return this.buf.length > this.max ? this.buf.slice(-this.max) : this.buf
+  }
+}
+
+/** Bounded preview diagnostics retaining the first error instead of only its stack tail. */
+export class DiagnosticLog extends Tail {
+  private prefix = ''
+  private total = 0
+  constructor(private readonly limit = 6000) { super(limit) }
+  override push(chunk: string): void {
+    this.prefix = (this.prefix + chunk).slice(0, Math.ceil(this.limit / 2))
+    this.total += chunk.length
+    super.push(chunk)
+  }
+  override toString(): string {
+    const tail = super.toString()
+    return this.total <= this.limit ? tail : diagnosticText(this.prefix + tail, this.limit)
   }
 }
 

@@ -3,8 +3,8 @@
  *
  * - Each candidate runs in its own DSH session created with `ctx.agents.create`
  *   whose session `cwd` is the candidate's private copy. DSH's sandbox takes a
- *   session's write boundary from that `cwd`, so the candidate can write only
- *   inside its copy, enforced before it runs ("own-root"). When the host has no
+ *   session's requested write boundary from that `cwd` ("own-root"); its
+ *   actual enforcement includes the host's platform limitations. When the host has no
  *   agent factory, the `ctx.subagents` child path is used instead
  *   ("shared-root": copies inside the repository, escapes detected afterwards).
  * - Model-facing tools: `agent_compare_start`, `agent_compare_status`.
@@ -26,6 +26,7 @@ import { repoRoot } from '../core/git.ts'
 import { defaultPreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
 import { ConversationMemory } from './memory.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
+import { createProjectProcess, type ProjectSandbox } from './project-process.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -45,7 +46,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.6'
+const VERSION = '0.2.0-alpha.7'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -95,7 +96,7 @@ interface HostCtx {
 interface WorkingDirectory { ensure(agent: AgentLike, signal: AbortSignal): Promise<string> }
 interface LlmService { listProviders(): Array<{ id: string; name?: string }>; listModels(provider: string): Promise<Array<{ provider: string; id: string; name: string }>> }
 
-const DELEGATION_TEXT = 'You are a delegated candidate agent for AgentCompare: your permission scope was fixed when you were started and cannot be widened from inside this session — operations that require approval are rejected automatically. Your file writes are limited to your working directory. When the task needs access beyond that scope, do not retry the denied operation; state the limitation in your reply.'
+const DELEGATION_TEXT = 'You are a delegated candidate agent for AgentCompare: your permission scope was fixed when you were started and cannot be widened from inside this session — operations that require approval are rejected automatically. Work only in your working directory under the host write policy. When the task needs access beyond that scope, do not retry the denied operation; state the limitation in your reply.'
 
 /** A session started by AgentCompare (or any delegated child) must not start another comparison. */
 function isDelegated(agent: AgentLike): boolean {
@@ -351,6 +352,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     store,
     runner,
     version: VERSION,
+    prepareProjectProcess: createProjectProcess(() => ctx.get('sandbox') as ProjectSandbox | undefined),
     generationMs: (config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000) * 60_000,
     maxActiveRuns: config.maxActiveRuns ?? 1,
     onUpdate: remember,
@@ -522,7 +524,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
         }
       }
-      return { current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
+      return { hostVersion: VERSION, current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
     },
     async list(b) {
       const all = await store.listAll()

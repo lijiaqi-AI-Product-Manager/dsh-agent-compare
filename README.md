@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each confined to its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.6, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.7, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -20,7 +20,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 ## What it does for you
 
 - Both versions start from **the same baseline**, including uncommitted work, without touching your index or files.
-- Each candidate **can only write its own copy** — not your project, not the other candidate.
+- Each candidate requests the host's write policy rooted in its own copy; the host's enforcement limits are disclosed.
 - Two installs, two builds, two ports, **running at once**.
 - **One fixed, content-bound acceptance**: a candidate that edits the test script, configs or existing tests does not count as passing.
 - Adoption checks the result **together with what you changed meanwhile**, and stops when the checked target changes before a pending write.
@@ -30,7 +30,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 1. **Baseline** — snapshot the working tree through a private temporary index (uncommitted and untracked files included, ignored ones excluded).
 2. **Bound acceptance** — derive the checks from the baseline (`typecheck` / `lint` / `test` / `build` scripts plus a page check) and record the script bodies, content hashes of verification files (`tsconfig*`, Vite/Vitest config, lint config, existing tests, `.agent-compare.json`), the lockfile and runtime. A committed `.agent-compare.json` can add step-by-step interaction checks.
 3. **Owned copies** — one branchless `git worktree` per candidate under the plugin home (`~/.dsh/agent-compare/w/<run>/<A|B>`), with an owner mark in its git admin dir.
-4. **Candidate sessions** — each candidate is its own DSH session whose directory is its copy. DSH's sandbox takes a session's write boundary from that directory, so the candidate is confined **before it runs**; approvals are pinned to `never`. Each has a generation time limit (5 / 15 / 30 / 60 / 120 minutes in the interface, 30 by default). When it runs out, the agent is stopped and what it wrote is still sealed and verified; while it works, the card shows its steps, latest action and how long it has been quiet.
+4. **Candidate sessions** — each candidate is its own DSH session whose directory is its copy. The session requests `workspace-write` for that root before it runs; approvals are pinned to `never`. This uses the host's enforcement, including its platform limitations below. Each has a generation time limit (5 / 15 / 30 / 60 / 120 minutes in the interface, 30 by default). When it runs out, the agent is stopped and what it wrote is still sealed and verified; while it works, the card shows its steps, latest action and how long it has been quiet.
 5. **Seal** — the session is closed and the change frozen as a commit plus a full binary patch (SHA-256); `node_modules` is always excluded.
 6. **Verify** — copy equals the sealed tree → **frozen install** (a failure fails; there is no unlocked retry) → acceptance commands → serve the **build output** with `vite preview` → page acceptance in a fresh headless browser context (loads, no console errors, scripted steps, desktop and phone screenshots) → the copy still equals the sealed tree. When the build fails, only a dev-server preview is offered, marked "for observation only".
 7. **Verdict** — "adoptable" only when every check passed, no verification file was touched, and the checked tree is the sealed tree. Dependency changes, missing lockfiles and a missing system browser are shown as warnings.
@@ -50,15 +50,18 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 | Area | How | Limit |
 |---|---|---|
 | Candidate writes | The candidate session's directory is its copy; DSH's sandbox enforces it up front | DSH marks its Windows sandbox as partial; platform temp areas may be writable |
-| Your project | Compared with the baseline while candidates run and shown in the panel | Candidates cannot write there, so differences are your own edits; adoption checks for overlap |
+| Project commands | Installation, checks, initial preview and reopened preview use the host's `workspace-write` policy; ambient child variables use its canonical scrub | Missing confinement fails without an unconfined retry. Partial enforcement is recorded and shown; this is not read or network isolation |
+| Your project | Compared with the baseline while candidates run and shown in the panel | Differences are reported without attributing their source; adoption checks for overlap |
 | Concurrent editing | Rechecks the target after rehearsal and before each write, including after saving its journal | The repository lock coordinates plugin operations; it does not lock external editors. Pause edits during the brief write stage |
 | Acceptance | Script bodies, configs and test files are hash-bound; the copy is checked before and after | Requirements that cannot be checked automatically are left to you, never claimed as verified |
-| Dependencies | Always a frozen install when a lockfile exists | Projects without a lockfile get an unlocked install, with a warning |
-| Processes | A recorded preview is stopped only when its command line proves it is ours | Network and processes are **not** isolated; the preview servers are not sandboxed |
+| Dependencies | Always a frozen install when a lockfile exists; package caches stay inside each copy | Projects without a lockfile get an unlocked install, with a warning |
+| Processes | A recorded preview is stopped only when its command line proves it is ours; preview file writes use the same host policy | Network access and process visibility are **not** isolated |
 | Cleanup | Deletes only registered worktrees of that repository with a matching owner mark | Anything else is kept and listed |
 | Older records | Records from 0.1 are shown read-only | Nothing acts on their recorded paths or pids |
 
 If the host has no session factory (`ctx.agents.create`), AgentCompare falls back to the 0.1 subagent path (`isolation: shared-root`): copies live inside the repository under `.agents/worktrees`, and escapes are only detected afterwards. The panel and the run record state which one is in use.
+
+The current Windows host cannot create piped stdio in confined grandchildren. A narrowly scoped adapter lets the standard Vite CLI capture its optional `net use` path probe through temporary files under the same policy. Other commands that require nested pipes may still fail; they are not retried with wider permissions. File-read access and network access remain outside this boundary.
 
 ## Install
 
@@ -73,7 +76,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.6.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.7.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
@@ -151,9 +154,20 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 
 ## Verified (2026-11-02, Windows 11, Node 26.13, Git 2.53)
 
-- 84 automated tests, including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
+Current results are available in [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). The reproducible runtime check also exercised DSH 0.2.1-rc.5 with Node 26.13 and Vite 8.3.5 on Windows: adjacent writes denied, child environment scrubbed, frozen installation, typecheck/build, two preview starts and cancelled writes stopped. Windows correctly reported partial enforcement.
+
+To repeat that check using the official current host in a separate dependency directory:
+
+```bash
+npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@latest
+npm run test:runtime
+```
+
+The host dependency directory is ignored and excluded from the plugin package. This runtime check uses a controlled example and does not request a model.
+
+- Automated regressions (see the current CI results for the count), including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
 - Adoption regressions preserve edits made during rehearsal or journal persistence, stop on concurrent HEAD/index changes, guard replacements and deletions, preserve ignored files at addition paths, and roll back only attempted paths. Retrying after resolving an overlap still supports adoption and undo.
-- 86 browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation navigation and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. Eight light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
+- Browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation navigation and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. Eight light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
 - `node scripts/smoke.mjs`: the built-in case with scripted agents on React 19.3.1, Vite 8.3.5, and Playwright Chromium 156.0.8078.4. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
 - DSH 0.2.1-rc.5, isolated profile: the production command consumes a five-minute generation setting, creates two actual candidate sessions, serves both apps, and completes review and adoption. After reload and returning to normal conversation, a local scripted adapter observes the adopted result in the real main-session request. New and existing header controls remain available, with no page errors. No external model request is made in this check.
 - Development and example dependency audits report zero known advisories. Backend coverage is reported separately by `npm run test:coverage`; browser and native-host integration checks are separate layers and are not included in that percentage.

@@ -77,7 +77,11 @@ const repo = await createExampleRepo(path.join(home, 'examples'))
 await writeFile(path.join(repo, 'NOTES.md'), 'my uncommitted notes\n')
 
 const t0 = Date.now()
-const comparer = new Comparer({ store: new RunStore(home), runner, version: 'smoke', previewTimeoutMs: 90_000 })
+// This script executes only its own trusted fixture. Host confinement is
+// checked separately inside a real supported host, not claimed by this smoke.
+const comparer = new Comparer({ store: new RunStore(home), runner, version: 'smoke', previewTimeoutMs: 90_000,
+  prepareProjectProcess: async ({ argv, env }) => ({ argv, env: { ...process.env, ...env } }),
+})
 const started = await comparer.start({ repo, task: EXAMPLE_TASK, assignment: 'fixed' })
 console.log(`run ${started.runId}: isolation ${started.isolation}, acceptance ${started.acceptance.source} (${started.acceptance.checks.commands.map((c) => c.name).join('+')}+browser, ${started.acceptance.checks.browser?.steps?.length ?? 0} steps)`)
 const done = await comparer.wait(started.runId)
