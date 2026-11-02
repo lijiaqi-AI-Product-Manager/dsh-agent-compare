@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Close admission before shutdown, drain accepted starts and journaled writes, cancel rehearsal, await both candidates after persistence failures, and save stopped preview addresses. Host unloading now awaits cleanup.
+
 - Reserve comparison capacity before repository preparation, transfer the slot without double-counting, and release failed startup entries. Create new records without replacing existing history, and pin baseline references only after the record is accepted.
 
 ## 0.2.0-alpha.7 — 2026-11-03

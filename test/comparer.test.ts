@@ -240,27 +240,44 @@ describe.concurrent('comparison run', () => {
   it('cancel shows stopping, then settles as cancelled', async () => {
     const repo = await fixtureRepo()
     const store = new RunStore(await tmp('ac-home'))
-    const comparer = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}, { hang: 'B' }), version: 'test', browserChecks: false })
+    const delegate = scripted({}, { hang: 'B' })
+    let entered!: () => void, release!: () => void
+    const generating = new Promise<void>(resolve => { entered = resolve })
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const runner: AgentRunner = { isolation: 'own-root', async run(request) {
+      if (request.label !== 'B') return delegate.run(request)
+      entered()
+      const result = await delegate.run(request)
+      // Cancellation is requested, but this candidate has not acknowledged
+      // its final exit. Keep "stopping" until that acknowledgement arrives.
+      await gate
+      return result
+    } }
+    const comparer = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner, version: 'test', browserChecks: false })
     const r = await comparer.start({ repo, task: 't', assignment: 'fixed' })
-    await new Promise((res) => setTimeout(res, 1500))
-    const stopping = await comparer.cancel(r.runId, 'B')
-    expect(stopping?.candidates[1]!.stage).toBe('stopping')
-    const done = (await comparer.wait(r.runId))!
-    expect(done.candidates[1]!.stage).toBe('cancelled')
-    await comparer.cleanup(r.runId)
+    try {
+      await generating
+      const stopping = await comparer.cancel(r.runId, 'B')
+      expect(stopping?.candidates[1]!.stage).toBe('stopping')
+      release()
+      const done = (await comparer.wait(r.runId))!
+      expect(done.candidates[1]!.stage).toBe('cancelled')
+    } finally { release(); await comparer.cleanup(r.runId) }
   }, T)
 })
 
 describe.concurrent('adoption', () => {
   it('a preview stopped by a host restart can be opened again from its copy', async () => {
     const { store, comparer, runId, done } = await setup({})
+    const previous = done.candidates[0]!.preview!
     await comparer.dispose()
     const prepare = vi.fn(prepareFixtureProcess)
     const after = new Comparer({ prepareProjectProcess: prepare, store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
     await after.recover()
     const recovered = (await store.load(runId))!
     expect(recovered.candidates[0]!.preview).toBeUndefined()
-    expect(isAlive(done.candidates[0]!.preview!.pid)).toBe(false)
+    expect(await ownsProcess(previous.pid, [path.join(previous.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${previous.port}`])).toBe(false)
+    await expect(fetch(previous.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
     const reopened = await after.reopenPreview(runId, 'A')
     const p = reopened.candidates[0]!.preview!
     expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ cwd: reopened.candidates[0]!.dir, argv: expect.arrayContaining(['preview']) }))
@@ -494,6 +511,8 @@ describe.concurrent('resource ownership', () => {
     const b = (await store.load(runId))!
     await store.save(a)
     await expect(store.save(b)).rejects.toBeInstanceOf(StaleRecordError)
-    await comparer.dispose()
+    // Stopping a preview must not overwrite a revision saved by another writer.
+    await expect(comparer.dispose()).rejects.toMatchObject({ errors: [expect.any(StaleRecordError)] })
+    expect(await store.load(runId)).toEqual(a)
   }, T)
 })
