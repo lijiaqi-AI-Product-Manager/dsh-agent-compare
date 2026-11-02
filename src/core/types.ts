@@ -52,7 +52,7 @@ export interface AgentRoute {
 
 /** Token usage as the provider reported it, or an explicit unknown. */
 export type Usage =
-  | { readonly kind: 'reported'; readonly inputTokens?: number; readonly outputTokens?: number; readonly cacheReadTokens?: number; readonly totalTokens?: number }
+  | { readonly kind: 'reported'; readonly inputTokens?: number; readonly outputTokens?: number; readonly cacheReadTokens?: number; readonly cacheWriteTokens?: number; readonly totalTokens?: number }
   | { readonly kind: 'unknown'; readonly reason: string }
 
 export interface CheckCommand {

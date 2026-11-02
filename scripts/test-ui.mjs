@@ -171,6 +171,14 @@ try {
   check((await requests('cleanup')).length === 1 && (await requests('revert')).length === 0, 'retrying resource cleanup must not undo adoption')
   check(await page.getByRole('button', { name: '撤销采用', exact: true }).isVisible(), 'resource cleanup must leave the adoption record available')
 
+  await open('partial')
+  for (const label of ['A', 'B']) await page.getByRole('region', { name: `候选 ${label}`, exact: true }).locator('.ac-evidence > summary').click()
+  const partialUsage = await page.getByRole('region', { name: '候选 A', exact: true }).locator('.ac-evidence').innerText()
+  check(partialUsage.includes('总用量未知') && partialUsage.includes('未缓存输入 10') && partialUsage.includes('输出 2'), 'partial counters must not turn into a fabricated total')
+  check(partialUsage.includes('缓存读取 100') && partialUsage.includes('缓存写入 50'), 'both cache counters must remain visible in the evidence')
+  check(!partialUsage.includes(' tokens'), 'missing totals must never be displayed as an inferred or zero total')
+  check((await page.getByRole('region', { name: '候选 B', exact: true }).locator('.ac-evidence').innerText()).includes('用量未知'), 'absent provider usage must stay unknown')
+
   await open('judging')
   await page.locator('iframe').nth(1).waitFor()
   const frames = page.frames().filter(f => f !== page.mainFrame())

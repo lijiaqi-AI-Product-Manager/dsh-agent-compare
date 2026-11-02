@@ -31,7 +31,7 @@ interface Cand {
   timings: Partial<Record<Stage, { startedAt: number; endedAt?: number }>>
   error?: { stage: Stage; message: string }
   verdict?: { eligible: boolean; reasons: string[]; warnings: string[] }
-  usage?: { kind: 'reported'; totalTokens?: number; inputTokens?: number; outputTokens?: number } | { kind: 'unknown'; reason: string }
+  usage?: { kind: 'reported'; totalTokens?: number; inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number } | { kind: 'unknown'; reason: string }
   hasScreenshot?: boolean
   hasMobileScreenshot?: boolean
   generation?: { ended: 'completed' | 'budget' | 'agent-stopped'; stopReason?: string }
@@ -579,7 +579,11 @@ function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): Rea
   </details>
 }
 function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; hidden?: boolean }): React.ReactElement {
-  const usage = c.usage?.kind !== 'reported' ? '用量未知' : c.usage.totalTokens !== undefined ? `${c.usage.totalTokens.toLocaleString()} tokens` : `总用量未知${c.usage.inputTokens === undefined ? '' : ` · 输入 ${c.usage.inputTokens.toLocaleString()}`}${c.usage.outputTokens === undefined ? '' : ` · 输出 ${c.usage.outputTokens.toLocaleString()}`}`
+  const usage = c.usage?.kind !== 'reported' ? '用量未知' : [
+    c.usage.totalTokens === undefined ? '总用量未知' : `${c.usage.totalTokens.toLocaleString()} tokens`,
+    ...([['inputTokens', '未缓存输入'], ['outputTokens', '输出'], ['cacheReadTokens', '缓存读取'], ['cacheWriteTokens', '缓存写入']] as const)
+      .flatMap(([key, label]) => c.usage?.kind === 'reported' && c.usage[key] !== undefined ? [`${label} ${c.usage[key].toLocaleString()}`] : []),
+  ].join(' · ')
   const live = c.previewUrl !== undefined && !['failed', 'cancelled', 'interrupted'].includes(c.stage)
   const step = busyStage(c.stage) && c.stage !== 'stopping' ? PIPELINE.findIndex((p) => p.stage === c.stage) + 1 : 0
   const model = revealed ? routeText(c.actualRoute ?? c.route) : ''
