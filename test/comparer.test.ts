@@ -240,14 +240,29 @@ describe.concurrent('comparison run', () => {
   it('cancel shows stopping, then settles as cancelled', async () => {
     const repo = await fixtureRepo()
     const store = new RunStore(await tmp('ac-home'))
-    const comparer = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}, { hang: 'B' }), version: 'test', browserChecks: false })
+    const delegate = scripted({}, { hang: 'B' })
+    let entered!: () => void, release!: () => void
+    const generating = new Promise<void>(resolve => { entered = resolve })
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const runner: AgentRunner = { isolation: 'own-root', async run(request) {
+      if (request.label !== 'B') return delegate.run(request)
+      entered()
+      const result = await delegate.run(request)
+      // Cancellation is requested, but this candidate has not acknowledged
+      // its final exit. Keep "stopping" until that acknowledgement arrives.
+      await gate
+      return result
+    } }
+    const comparer = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner, version: 'test', browserChecks: false })
     const r = await comparer.start({ repo, task: 't', assignment: 'fixed' })
-    await new Promise((res) => setTimeout(res, 1500))
-    const stopping = await comparer.cancel(r.runId, 'B')
-    expect(stopping?.candidates[1]!.stage).toBe('stopping')
-    const done = (await comparer.wait(r.runId))!
-    expect(done.candidates[1]!.stage).toBe('cancelled')
-    await comparer.cleanup(r.runId)
+    try {
+      await generating
+      const stopping = await comparer.cancel(r.runId, 'B')
+      expect(stopping?.candidates[1]!.stage).toBe('stopping')
+      release()
+      const done = (await comparer.wait(r.runId))!
+      expect(done.candidates[1]!.stage).toBe('cancelled')
+    } finally { release(); await comparer.cleanup(r.runId) }
   }, T)
 })
 
