@@ -439,7 +439,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-inline .ac-compare-tools{display:flex;padding:12px 12px 0}.ac-inline .ac-preview-stage{display:flex;min-height:0}.ac-inline .ac-browser{height:auto;min-height:0}.ac-inline .ac-card-head{min-height:102px;padding:12px;gap:6px}.ac-inline .ac-card{min-height:0}.ac-inline .ac-action-dock{position:static}.ac-inline .ac-url{display:flex}.ac-inline .ac-lights{display:none}
 .ac-composer-settings{flex:none;border:1px solid var(--ac-border-strong);border-radius:12px;padding:12px 14px;background:var(--ac-bg);display:flex;flex-direction:column;gap:10px;margin:0 0 8px}
 .ac-conversation-run{flex:none;width:100%;border:1px solid var(--ac-border-strong);background:var(--ac-bg);border-radius:12px;margin:0 0 10px;overflow:hidden}
-.ac-conversation-run-head{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--ac-border);font-size:12px}.ac-conversation-run-scroll{max-height:min(580px,45vh);overflow:auto;overscroll-behavior:contain}.ac-conversation-run .ac-inline{margin:0;border:0;border-radius:0;overflow:visible}.ac-conversation-run .ac-action-dock{position:sticky;top:0}.ac-preview-label{font-weight:700;color:var(--ac-fg);font-size:12px}
+.ac-conversation-run-head{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--ac-border);font-size:12px}.ac-conversation-run-scroll{max-height:min(760px,60vh);max-height:clamp(170px,calc(100dvh - 360px),760px);overflow:auto;overscroll-behavior:contain}.ac-conversation-run .ac-inline{margin:0;border:0;border-radius:0;overflow:visible}.ac-conversation-run .ac-action-dock{position:sticky;top:0}.ac-preview-label{font-weight:700;color:var(--ac-fg);font-size:12px}
 .ac-settings-head{display:flex;align-items:center;gap:10px}.ac-settings-head>div{display:flex;flex:1;flex-wrap:wrap;gap:4px 12px;align-items:center}.ac-settings-head b{font-size:13px}.ac-settings-head span:not(.ac-logo){color:var(--ac-fg2);font-size:12px}
 .ac-settings-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.ac-settings-row>.ac-seg button{font-size:12px;height:28px;padding:0 10px}.ac-settings-row>.ac-btn{margin-left:auto}.ac-settings-foot{font-size:11px;color:var(--ac-fg2)}.ac-settings-project{overflow-wrap:anywhere}.ac-composer-settings .ac-models{max-width:100%}.ac-composer-settings .ac-models select{min-width:0;width:100%}.ac-composer-settings .ac-feedback{padding:8px;font-size:12px}
 @media(max-width:600px){.ac-composer-settings{padding:10px}.ac-settings-head>div{display:block}.ac-settings-head>div>span{display:block;margin-top:3px}.ac-settings-row{gap:8px}.ac-settings-row>.ac-seg{flex-basis:100%;width:100%}.ac-settings-row>.ac-seg button{flex:1;min-height:36px}.ac-settings-row>.ac-btn{height:36px}.ac-composer-settings .ac-models{grid-template-columns:minmax(0,1fr)}.ac-inline .ac-inline-head{flex-wrap:wrap}.ac-inline .ac-inline-head .ac-task{min-width:50%}}
@@ -459,11 +459,12 @@ const IconExternal = (): React.ReactElement => (
   <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1h2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
 )
 function StagePill({ c }: { c: Cand }): React.ReactElement {
-  const kind = c.stage === 'ready' ? 'ok' : c.stage === 'failed' || c.stage === 'interrupted' ? 'err' : busyStage(c.stage) ? 'brand' : ''
+  const kind = c.stage === 'ready' ? c.verdict?.eligible ? 'ok' : c.verdict ? 'err' : '' : c.stage === 'failed' || c.stage === 'interrupted' ? 'err' : busyStage(c.stage) ? 'brand' : ''
+  const title = c.stage === 'ready' ? `可预览 · ${c.verdict ? c.verdict.eligible ? '检查通过' : '未通过检查' : '检查状态未知'}` : STAGE_TEXT[c.stage]
   return (
     <span className={`ac-pill ${kind}`}>
       {busyStage(c.stage) ? <span className="ac-spin" /> : <span className="ac-dot" />}
-      {STAGE_TEXT[c.stage]}
+      {title}
     </span>
   )
 }
@@ -554,7 +555,7 @@ type PreviewDevice = 'adaptive' | 'desktop' | 'phone'
 function LivePreview({ c, device }: { c: Cand; device: PreviewDevice }): React.ReactElement {
   const holder = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
-  const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: 280 } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
+  const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: 320 } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
   useEffect(() => {
     const el = holder.current
     if (!el) return
@@ -723,8 +724,8 @@ function ComposerDock({ sessionId, session }: { sessionId: string; session?: { b
   useEffect(() => { setCollapsed(false) }, [runId])
   return <>
     {blank && runId && <section className="ac-root ac-conversation-run" aria-label="本对话的 A|B 结果"><Styles />
-      <div className="ac-conversation-run-head"><b>本次比较</b><span className="ac-meta">{runId}</span><span className="ac-spacer" /><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>记录与使用指南</button><button className="ac-text-btn" onClick={() => setCollapsed(value => !value)}>{collapsed ? '展开结果' : '收起结果'}</button></div>
-      <div className="ac-conversation-run-scroll" hidden={collapsed}><RunView key={runId} runId={runId} sessionId={sessionId} compact {...(latest?.runId === runId ? { initial: latest } : {})} onExpand={() => setOpen(sessionId, runId)} /></div>
+      {collapsed && <div className="ac-conversation-run-head"><b>本次比较</b><span className="ac-meta">{runId}</span><span className="ac-spacer" /><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>记录与使用指南</button><button className="ac-text-btn" onClick={() => setCollapsed(false)}>展开结果</button></div>}
+      <div className="ac-conversation-run-scroll" hidden={collapsed}><RunView key={runId} runId={runId} sessionId={sessionId} compact {...(latest?.runId === runId ? { initial: latest } : {})} onExpand={() => setOpen(sessionId, runId)} onCollapse={() => setCollapsed(true)} /></div>
     </section>}
     {blank && error && <div className="ac-root"><div className="ac-feedback" role="alert">读取比较记录失败：{error}</div></div>}
     <ComposerSettings sessionId={sessionId} session={session} />
@@ -858,7 +859,7 @@ function Banners({ run }: { run: Run }): React.ReactElement {
  * One comparison, live: candidate cards, banners and the action bar. Used
  * both inside the conversation (compact) and in the large window.
  */
-function RunView({ runId, sessionId, initial, compact, onDone, onExpand }: { runId: string; sessionId?: string; initial?: Run; compact?: boolean; onDone?: () => void; onExpand?: () => void }): React.ReactElement {
+function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onCollapse }: { runId: string; sessionId?: string; initial?: Run; compact?: boolean; onDone?: () => void; onExpand?: () => void; onCollapse?: () => void }): React.ReactElement {
   const [run, setRun] = useState<Run | undefined>(initial)
   const [err, setErr] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -918,6 +919,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand }: { run
         <span className="ac-task" title={run.task}>{run.task}</span>
         <span className={`ac-pill ${run.state === 'adopted' ? 'ok' : ACTIVE.has(run.state) ? 'brand' : ''}`}>{STATE_TEXT[run.state] ?? run.state}</span>
         {onExpand && <button className="ac-btn sm" onClick={onExpand}>大窗口查看</button>}
+        {onCollapse && <button className="ac-text-btn" onClick={onCollapse}>收起结果</button>}
       </div>
       {body}
     </div>
@@ -1057,6 +1059,7 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
       focusComposerOnClose = undefined
       if (composer) inputShell(composer)?.focus?.()
       else if (previous?.isConnected) previous.focus()
+      else (document.querySelector<HTMLElement>('[aria-label="打开 AgentCompare 比较记录"]') ?? document.querySelector<HTMLElement>('.ac-mode-btn:not(:disabled)'))?.focus()
     }
   }, [])
   const current = list?.runs.find((r) => r.runId === selected)

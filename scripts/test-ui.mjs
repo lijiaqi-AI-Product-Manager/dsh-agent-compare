@@ -114,6 +114,14 @@ try {
   check((await requests('list')).at(-1).body.sessionId === 's1', 'blank-session history must address its own session')
   await page.keyboard.press('Escape')
   check(await records.evaluate(el => el === document.activeElement), 'closing blank-session history must restore its trigger focus')
+  await records.click()
+  await page.getByRole('dialog', { name: 'AgentCompare', exact: true }).waitFor()
+  await page.evaluate(() => window.__switchHeader('s3', false))
+  await page.locator('#btn .ac-header-tools').waitFor()
+  await page.keyboard.press('Escape')
+  check(await records.evaluate(el => el === document.activeElement), 'closing after the original header unmounts must focus the current navigation control')
+  await page.evaluate(() => window.__switchHeader('s1', true))
+  await page.locator('.ac-header-tools-hero').waitFor()
   await guide.click()
   await page.getByRole('button', { name: '回到输入框，开启 A|B', exact: true }).waitFor()
   check(await page.getByRole('button', { name: '使用指南与演示', exact: true }).getAttribute('aria-current') === 'page', 'the tutorial control must open guidance directly')
@@ -148,6 +156,14 @@ try {
   await page.locator('.ac-conversation-run iframe').nth(1).waitFor()
   check(await page.locator('#chat .ac-inline').count() === 0, 'the fixture must exercise a blank session without a Chat timeline')
   check(await page.getByRole('dialog').count() === 0 && await page.locator('.ac-conversation-run iframe').count() === 2, 'a blank conversation must show both applications directly')
+  await page.setViewportSize({ width: 1440, height: 1100 })
+  check(await page.locator('.ac-conversation-run iframe').first().evaluate(frame => {
+    const view = frame.getBoundingClientRect(), scroll = frame.closest('.ac-conversation-run-scroll').getBoundingClientRect()
+    const visible = Math.max(0, Math.min(view.bottom, scroll.bottom) - Math.max(view.top, scroll.top))
+    return visible >= 300 && view.height >= 320
+  }), 'a desktop conversation must expose useful application content below its controls')
+  await page.screenshot({ path: path.join(output, 'blank-preview-space.png') })
+  await page.setViewportSize({ width: 1440, height: 900 })
   check(await page.locator('.ac-conversation-run').evaluate(el => {
     const host = document.getElementById('settings')
     host.style.cssText = 'display:flex;flex-direction:column;height:300px'
@@ -180,6 +196,8 @@ try {
   check((await page.getByRole('region', { name: '候选 B', exact: true }).locator('.ac-evidence').innerText()).includes('用量未知'), 'absent provider usage must stay unknown')
 
   await open('judging')
+  check(await page.getByRole('region', { name: '候选 A', exact: true }).getByText('可预览 · 检查通过', { exact: true }).isVisible(), 'preview availability and successful acceptance must be stated separately')
+  check(await page.getByRole('region', { name: '候选 B', exact: true }).getByText('可预览 · 未通过检查', { exact: true }).isVisible(), 'a running application with failed acceptance must not display a successful-check status')
   await page.locator('iframe').nth(1).waitFor()
   const frames = page.frames().filter(f => f !== page.mainFrame())
   await Promise.all(frames.map(f => f.waitForLoadState('domcontentloaded')))
