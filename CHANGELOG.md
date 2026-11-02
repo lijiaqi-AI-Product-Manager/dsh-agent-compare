@@ -4,6 +4,7 @@
 
 - Await the owned preview process exit, escalate commands that ignore a graceful stop, and retain incomplete resource cleanup for retry.
 - Keep a durably completed adoption intact if cleanup fails. Show remaining resources and a cleanup retry without undoing the selected result.
+- Preserve missing provider token totals as unknown. Aggregate uncached input, output, cache reads, and cache writes separately; reject contradictory or unsafe totals and show the available counters in comparison evidence.
 
 ## 0.2.0-alpha.6 — 2026-11-02
 
