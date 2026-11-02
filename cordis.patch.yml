@@ -1,0 +1,9 @@
+# dsh-agent-compare bundle patch.
+#
+# `dsh plugin --profile <name> add dsh-agent-compare` appends this package to
+# `dsh.profile.bundles`; the profile boot merges this single row, which mounts
+# the Host half (tools, /agent-compare/api routes). The Client half is served
+# through package.json `dsh.client`.
+- insert:
+    - id: agent-compare
+      name: 'dsh-agent-compare'
