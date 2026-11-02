@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
@@ -54,6 +54,16 @@ describe('run store', () => {
     await expect(store.save(stale)).rejects.toBeInstanceOf(StaleRecordError)
     await store.save(r)
     expect((await store.load('0a1b2c3d'))?.rev).toBe(2)
+  })
+
+  it('never replaces an existing legacy or unreadable file with a new record', async () => {
+    const store = new RunStore(await tmp('ac-existing-record'))
+    await mkdir(store.runsDir, { recursive: true })
+    for (const raw of ['{"schema":"agent-compare.run/v1","task":"keep old history"}', '{unreadable history']) {
+      await writeFile(store.file('0a1b2c3d'), raw)
+      await expect(store.save(record('0a1b2c3d'))).rejects.toBeInstanceOf(StaleRecordError)
+      expect(await readFile(store.file('0a1b2c3d'), 'utf8')).toBe(raw)
+    }
   })
 
   it('treats older-schema records as read-only history', async () => {

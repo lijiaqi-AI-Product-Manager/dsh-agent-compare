@@ -9,7 +9,7 @@ import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from 
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
 import { commandHasMarkers, diagnosticText, killTree, observeProcess, waitGone } from './proc.ts'
 import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
-import { BusyError, newRunId, repoKey, RunStore } from './run-store.ts'
+import { BusyError, newRunId, repoKey, RunStore, StaleRecordError } from './run-store.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
 import { RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
 
@@ -105,8 +105,10 @@ export class Comparer {
   readonly store: RunStore
   private readonly live = new Map<string, LiveRun>()
   private readonly queues = new Map<string, Promise<unknown>>()
+  private readonly startReservations = new Set<object>()
 
   constructor(private readonly opts: ComparerOptions) {
+    if (!Number.isSafeInteger(opts.maxActiveRuns ?? 1) || (opts.maxActiveRuns ?? 1) < 1) throw new Error('maxActiveRuns 必须是正整数')
     this.store = opts.store ?? new RunStore()
   }
 
@@ -116,7 +118,14 @@ export class Comparer {
     const task = input.task.trim()
     if (task === '') throw new Error('任务描述为空')
     const active = [...this.live.values()].filter((l) => l.record.state === 'running').length
-    if (active >= (this.opts.maxActiveRuns ?? 1)) throw new BusyError('已有一轮比较正在生成，请等它结束或停止后再开始新的一轮')
+    if (active + this.startReservations.size >= (this.opts.maxActiveRuns ?? 1)) throw new BusyError('已有一轮比较正在准备或生成，请等它结束或停止后再开始新的一轮')
+    const reservation = {}
+    this.startReservations.add(reservation)
+    try { return await this.prepareStart(input, task, reservation) }
+    finally { this.startReservations.delete(reservation) }
+  }
+
+  private async prepareStart(input: StartInput, task: string, reservation: object): Promise<RunRecord> {
     const root = await repoRoot(input.repo)
     const info = await inspectProject(root)
     if (info.kind === 'unsupported') throw new Error(info.reason ?? 'unsupported project')
@@ -144,7 +153,6 @@ export class Comparer {
     const dirty = head === undefined ? true : tree !== (await treeOf(root, head))
     const acceptance = await buildAcceptance(root, tree, info, input.checks)
     const snapshotCommit = await commitTree(root, tree, [head], `agent-compare baseline ${runId}`)
-    await pinRef(root, `refs/agent-compare/${runId}/base`, snapshotCommit)
 
     const order: [number, number] = input.assignment === 'fixed' || Math.random() < 0.5 ? [0, 1] : [1, 0]
     const mk = (label: CandidateLabel, i: number): Candidate => ({ label, strategy: strategies[i]!, route: routes[i]!, stage: 'queued', timings: {} })
@@ -168,10 +176,30 @@ export class Comparer {
       updatedAt: Date.now(),
     }
     const lr: LiveRun = { record, hostContext: input.hostContext, controller: new AbortController(), perCandidate: new Map(), previews: new Map(), done: Promise.resolve() }
+    // An identifier collision must not displace a live run or its previews.
+    if (this.live.has(runId)) throw new StaleRecordError(runId)
+    // No await between releasing the reservation and publishing the live slot.
+    this.startReservations.delete(reservation)
     this.live.set(runId, lr)
-    await this.persist(record)
-    lr.done = this.drive(lr).catch(() => {})
-    return record
+    try {
+      // Creation refuses an existing record before any baseline ref can change.
+      await this.persist(record)
+      await pinRef(root, `refs/agent-compare/${runId}/base`, snapshotCommit)
+      lr.done = this.drive(lr).catch(() => {})
+      return record
+    } catch (error) {
+      if (this.live.get(runId) === lr) this.live.delete(runId)
+      if (record.rev > 0) {
+        record.state = 'interrupted'
+        for (const c of record.candidates) {
+          c.stage = 'interrupted'
+          c.error = { stage: 'preparing', message: `比较未启动：${String((error as Error).message ?? error).slice(0, 1500)}` }
+        }
+        // Preserve the original error if storage is itself unavailable.
+        await this.serial(runId, () => this.store.save(record)).catch(() => {})
+      }
+      throw error
+    }
   }
 
   /** Resolve once every candidate has settled (ready, failed or cancelled). */

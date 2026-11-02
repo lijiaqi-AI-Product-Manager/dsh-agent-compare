@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { link, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createHash, randomBytes } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import os from 'node:os'
@@ -81,16 +81,25 @@ export class RunStore {
    * in between). On success `record.rev` is the new revision.
    */
   async save(record: RunRecord): Promise<void> {
+    if (!/^[0-9a-f]{8}$/.test(record.runId) || !Number.isSafeInteger(record.rev) || record.rev < 0) throw new Error('invalid run identifier or revision')
     await this.withLock(`save-${record.runId}`, async () => {
       const stored = await this.readRaw(record.runId)
       const storedRev = typeof stored?.rev === 'number' ? stored.rev : 0
-      if (stored !== undefined && storedRev !== record.rev) throw new StaleRecordError(record.runId)
+      if (stored !== undefined && (record.rev === 0 || storedRev !== record.rev)) throw new StaleRecordError(record.runId)
       const next = { ...record, rev: record.rev + 1, updatedAt: Date.now() }
       await mkdir(this.runsDir, { recursive: true })
       const target = this.file(record.runId)
       const tmp = `${target}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`
       await writeFile(tmp, JSON.stringify(next, null, 2), 'utf8')
-      await renameWithRetry(tmp, target)
+      if (record.rev === 0) {
+        // Link a completely written inode into a NEW name. Unlike replacement
+        // rename, this atomically refuses even an unreadable existing record.
+        try { await link(tmp, target) }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new StaleRecordError(record.runId)
+          throw error
+        } finally { await rm(tmp, { force: true }).catch(() => {}) }
+      } else await renameWithRetry(tmp, target)
       record.rev = next.rev
       record.updatedAt = next.updatedAt
     }, { waitMs: 5_000 })

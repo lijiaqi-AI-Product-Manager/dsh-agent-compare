@@ -9,6 +9,9 @@ export default defineConfig({
     // files separate so OS identity queries can run on shared two-core runners.
     fileParallelism: false,
     maxConcurrency: 2,
+    // Tests create their own mocks. Automatic clearing can erase another
+    // concurrent test's still-active boundary observation in Vitest 5.
+    clearMocks: false,
     coverage: {
       provider: 'v8',
       include: ['src/core/**/*.ts', 'src/host/**/*.ts'],
