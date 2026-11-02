@@ -63,8 +63,8 @@ interface Run {
   outsideChanges?: string[]
   leftovers?: string[]
 }
-interface Legacy { runId: string; task: string; createdAt: number; state: string; legacy: true }
-interface HistoryMeta { version: 1; scope: 'all' | 'session'; query: string; total: number; offset: number; limit: number; hasNext: boolean }
+interface Legacy { runId: string; task: string; createdAt: number; state: string; legacy: true; unavailable?: true; reason?: string }
+interface HistoryMeta { version: 1; scope: 'all' | 'session'; query: string; total: number; offset: number; limit: number; hasNext: boolean; onlyUnavailable?: boolean; unavailable?: number }
 interface ListResult { runs: Run[]; legacy: Legacy[]; isolation: 'own-root' | 'shared-root'; history?: HistoryMeta }
 interface ModelItem { provider: string; providerName: string; id: string; name: string }
 async function call<T>(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
@@ -369,6 +369,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-hrow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:var(--ac-r-md);border:1px solid var(--ac-border);background:var(--ac-bg);text-align:left;font:inherit;color:inherit;cursor:pointer}
 .ac-hrow:hover{background:var(--ac-hover)}
 .ac-hrow.legacy,.ac-hrow.legacy:hover{cursor:default;background:var(--ac-l1)}
+.ac-hrow.ac-hrow-unavailable{border-color:var(--ac-warn)}.ac-history-issue-filter{display:flex;align-items:center;gap:8px;color:var(--ac-fg2);font-size:12px}.ac-history-issue-filter input{width:16px;height:16px;accent-color:var(--ac-brand)}.ac-history-problem{font-size:12px;line-height:1.6;color:var(--ac-fg2);overflow-wrap:anywhere}
 .ac-hrow span.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ac-history-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--ac-border)}
 .ac-history-controls label{display:flex;flex-direction:column;gap:6px;color:var(--ac-fg2);font-size:12px}.ac-history-controls select,.ac-history-controls input{height:36px;box-sizing:border-box;border:1px solid var(--ac-border-strong);border-radius:8px;background:var(--ac-bg);color:var(--ac-fg);font:inherit;padding:0 10px;min-width:0}
@@ -973,9 +974,10 @@ function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement 
   }
   return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={mode.loading} aria-pressed={enabled} title={enabled ? 'A|B 对比模式已开启，点此退出' : '开启 A|B 对比模式，在主对话里运行两版'} aria-label="A|B 对比模式">A|B</button></>
 }
-function History({ data, open, busy, failed, scope, query, onScope, onSearch, onPage }: {
+function History({ data, open, busy, failed, scope, query, onScope, onSearch, onPage, onlyUnavailable, problemSupported, onUnavailable }: {
   data?: ListResult; open: (r: Run) => void; busy: boolean; failed?: string
   scope: 'all' | 'session'; query: string; onScope: (scope: 'all' | 'session') => void; onSearch: (query: string) => void; onPage: (offset: number) => void
+  onlyUnavailable: boolean; problemSupported: boolean; onUnavailable: (only: boolean) => void
 }): React.ReactElement {
   const [draft, setDraft] = useState(query)
   const region = useRef<HTMLElement | null>(null)
@@ -992,13 +994,15 @@ function History({ data, open, busy, failed, scope, query, onScope, onSearch, on
           {(query || draft) && <button className="ac-text-btn" type="button" disabled={outdated} onClick={() => { setDraft(''); onSearch('') }}>清空搜索</button>}
         </form>
       </div>
+      {problemSupported && <label className="ac-history-issue-filter"><input type="checkbox" checked={onlyUnavailable} onChange={event => onUnavailable(event.target.checked)} />只看需处理</label>}
       <div className="ac-history-status" role="status">{busy ? <><span className="ac-spin" />正在读取记录…</> : failed ? '记录读取失败，原始文件仍保留。' : meta ? `${scope === 'all' ? '全部对话' : '当前对话'} · ${meta.total} 条${meta.query ? ` · 搜索“${meta.query}”` : ''}` : '已读取当前服务端提供的记录'}</div>
       {outdated && <div className="ac-feedback" role="alert">服务端尚未更新。请重启 DSH 后使用全部对话、搜索与翻页；以下仍是旧服务端返回的记录。</div>}
-      {!busy && !failed && rows.length === 0 && <div className="ac-empty">{query ? '没有匹配的记录。换个关键词，或清空搜索查看已有比较。' : scope === 'session' ? '当前对话还没有比较。切换到“全部对话”可以查看以前的结果。' : '还没有比较记录。点输入框左下角的 A|B，在主对话里开始第一次真实比较。'}</div>}
+      {!!meta?.unavailable && <div className="ac-feedback" role="alert">有 {meta.unavailable} 条记录无法安全载入。这些记录保持只读，原始文件已保留；可勾选“只看需处理”查看原因。</div>}
+      {!busy && !failed && rows.length === 0 && <div className="ac-empty">{query ? '没有匹配的记录。换个关键词，或清空搜索查看已有比较。' : onlyUnavailable ? '没有需处理的记录。取消筛选可以查看其它比较。' : scope === 'session' ? '当前对话还没有比较。切换到“全部对话”可以查看以前的结果。' : '还没有比较记录。点输入框左下角的 A|B，在主对话里开始第一次真实比较。'}</div>}
       {rows.map(r => 'legacy' in r ? (
-        <div key={r.runId} className="ac-hrow legacy" title="旧版本记录只读，原始文件保留">
-          <span className="ac-pill">旧版</span>
-          <span className="ac-hrow-copy"><span className="t">{r.task}</span><span className="ac-meta">{r.runId} · 只读</span></span>
+        <div key={r.runId} className={`ac-hrow legacy${r.unavailable ? ' ac-hrow-unavailable' : ''}`} title={r.unavailable ? '无法安全载入，原始记录保留' : '旧版本记录只读，原始文件保留'}>
+          <span className="ac-pill">{r.unavailable ? '需处理' : '旧版'}</span>
+          <span className="ac-hrow-copy"><span className="t">{r.task}</span><span className="ac-meta">{r.runId} · 只读</span>{r.reason && <span className="ac-history-problem">{r.reason}</span>}</span>
           <span className="ac-meta">{r.createdAt > 0 ? when(r.createdAt) : '时间未知'}</span>
         </div>
       ) : (
@@ -1045,6 +1049,8 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
   const [historyQuery, setHistoryQuery] = useState('')
   const [historyOffset, setHistoryOffset] = useState(0)
   const [historyBusy, setHistoryBusy] = useState(true)
+  const [onlyUnavailable, setOnlyUnavailable] = useState(false)
+  const [problemSupported, setProblemSupported] = useState(false)
   const historyRequest = useRef(0)
   const historyAbort = useRef<AbortController | undefined>(undefined)
   const sheet = useRef<HTMLDivElement>(null)
@@ -1056,11 +1062,11 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
     const active = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
     setHistoryBusy(true); setErr(undefined); setList(undefined)
     try {
-      const data = await call<ListResult>('list', { sessionId, scope: historyScope, search: historyQuery, offset: historyOffset }, active)
-      if (!active.aborted && request === historyRequest.current) setList(data)
+      const data = await call<ListResult>('list', { sessionId, scope: historyScope, search: historyQuery, offset: historyOffset, onlyUnavailable }, active)
+      if (!active.aborted && request === historyRequest.current) { setList(data); setProblemSupported(typeof data.history?.onlyUnavailable === 'boolean') }
     } catch (e) { if (!active.aborted && request === historyRequest.current) setErr((e as Error).message) }
     finally { if (!active.aborted && request === historyRequest.current) setHistoryBusy(false) }
-  }, [sessionId, historyScope, historyQuery, historyOffset])
+  }, [sessionId, historyScope, historyQuery, historyOffset, onlyUnavailable])
   useEffect(() => { const controller = new AbortController(); void refreshList(controller.signal); return () => controller.abort() }, [refreshList])
   useEffect(() => () => { historyAbort.current?.abort() }, [])
   useEffect(() => { setSelected(runId); setView(runId ? 'history' : tab ?? 'history') }, [runId, tab])
@@ -1118,7 +1124,7 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
         <div className="ac-body">{selected ? <>
           <div className="ac-run-heading"><button className="ac-text-btn" onClick={() => navigate('history')}>← 比较记录</button><span className="ac-task" title={current?.task}>{current?.task ?? '比较结果'}</span><span className="ac-meta">{selected}</span></div>
           <RunView key={selected} runId={selected} sessionId={sessionId} {...(current ? { initial: current } : {})} onDone={() => navigate('history')} />
-        </> : view === 'guide' ? <Guide sessionId={sessionId} /> : <History data={list} open={(r) => setSelected(r.runId)} busy={historyBusy} failed={err} scope={historyScope} query={historyQuery} onScope={scope => { setHistoryScope(scope); setHistoryOffset(0) }} onSearch={query => { const trimmed = query.trim(); if (trimmed === historyQuery && historyOffset === 0) void refreshList(); else { setHistoryQuery(trimmed); setHistoryOffset(0) } }} onPage={setHistoryOffset} />}</div>
+        </> : view === 'guide' ? <Guide sessionId={sessionId} /> : <History data={list} open={(r) => setSelected(r.runId)} busy={historyBusy} failed={err} scope={historyScope} query={historyQuery} onScope={scope => { setHistoryScope(scope); setHistoryOffset(0) }} onSearch={query => { const trimmed = query.trim(); if (trimmed === historyQuery && historyOffset === 0) void refreshList(); else { setHistoryQuery(trimmed); setHistoryOffset(0) } }} onPage={setHistoryOffset} onlyUnavailable={onlyUnavailable} problemSupported={problemSupported} onUnavailable={only => { setOnlyUnavailable(only); setHistoryOffset(0) }} />}</div>
       </div>
     </div>
   )

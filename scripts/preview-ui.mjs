@@ -73,7 +73,7 @@ ${theme === 'dark' ? ':root{--dsw-alias-bg-base:#1b1d22;--dsw-alias-bg-layer-1:#
 <main class="harness-main"><div id="chat" class="harness-chat"></div><div class="harness-composer"><div id="settings"></div><div class="harness-input"><label for="draft" class="harness-label">需求</label><textarea id="draft" aria-label="需求"></textarea><div class="harness-tools"><div id="mode"></div><button class="harness-send" id="send">发送</button></div><p id="notice" role="status"></p></div></div></main><div id="overlay"></div>
 <script>
 const runs = ${JSON.stringify((states[state] ?? []).map(record => ({ ...record, sessionId: 's1' })))};
-const history = ${JSON.stringify(retainedHistory(state))}, legacy = ${JSON.stringify(legacy)};
+const history = ${JSON.stringify(retainedHistory(state))}, legacy = ${JSON.stringify(state === 'history-damaged' ? [...legacy, { runId: '33333333', task: '读取中断的比较记录', createdAt: 0, state: 'unavailable', legacy: true, unavailable: true, reason: 'JSON 内容不完整或格式错误' }] : legacy)};
 const templateRun = ${JSON.stringify({ ...base, state: 'judging', candidates: [A, B] })};
 const models = [{ provider:'deepseek', providerName:'DeepSeek', id:'deepseek-chat', name:'DeepSeek V3' }, { provider:'deepseek', providerName:'DeepSeek', id:'deepseek-reasoner', name:'DeepSeek R1' }];
 window.__requests = []; window.__commands = []; window.__edits = []; window.__commandAcks = [];
@@ -82,9 +82,11 @@ function listHistory(body) {
   const scope = body.scope ?? (body.sessionId ? 'session' : 'all');
   const query = (body.search ?? '').trim();
   const folded = value => value.normalize('NFKC').toLowerCase();
-  const rows = [...runs,...history,...legacy].filter(record => (scope === 'all' || record.sessionId === body.sessionId) && folded([record.task,record.runId,record.baseline?.repoRoot ?? ''].join(' ')).includes(folded(query))).sort((a,b) => b.createdAt-a.createdAt || b.runId.localeCompare(a.runId));
+  let rows = [...runs,...history,...legacy].filter(record => (scope === 'all' || record.sessionId === body.sessionId) && folded([record.task,record.runId,record.baseline?.repoRoot ?? ''].join(' ')).includes(folded(query))).sort((a,b) => b.createdAt-a.createdAt || b.runId.localeCompare(a.runId));
+  const unavailable=rows.filter(record=>record.unavailable).length;
+  if(body.onlyUnavailable)rows=rows.filter(record=>record.unavailable);
   const offset = Math.min(body.offset ?? 0,Math.floor(Math.max(0,rows.length-1)/30)*30), selected = rows.slice(offset,offset+30);
-  return {runs:selected.filter(record=>!record.legacy),legacy:selected.filter(record=>record.legacy),isolation:'own-root',...${JSON.stringify(state === 'history-old')}?{}:{history:{version:1,scope,query,total:rows.length,offset,limit:30,hasNext:offset+30<rows.length}}};
+  return {runs:selected.filter(record=>!record.legacy),legacy:selected.filter(record=>record.legacy),isolation:'own-root',...${JSON.stringify(state === 'history-old')}?{}:{history:{version:1,scope,query,total:rows.length,offset,limit:30,hasNext:offset+30<rows.length,onlyUnavailable:body.onlyUnavailable===true,unavailable}}};
 }
 window.fetch = async (url, init) => {
   const m = String(url).match(/agent-compare\\/api\\/(\\w+)/);
@@ -146,7 +148,7 @@ window.__ModuleLoader__ = {load:({factory})=>{
   else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) setTimeout(()=>{
     document.querySelector('.ac-header-btn').focus();document.querySelector('.ac-header-btn').click();
     if(${JSON.stringify(state==='guide')})setTimeout(()=>[...document.querySelectorAll('.ac-tab')].at(-1).click(),100);
-    else if(${JSON.stringify(!['history', 'history-many', 'history-old'].includes(state))})setTimeout(()=>document.querySelector('.ac-hrow')?.click(),200);
+    else if(${JSON.stringify(!['history', 'history-many', 'history-old', 'history-damaged'].includes(state))})setTimeout(()=>document.querySelector('.ac-hrow')?.click(),200);
   },50);
 }};
 </script><script src="/lib/client.js"></script></body></html>`

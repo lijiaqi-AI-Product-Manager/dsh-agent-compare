@@ -61,8 +61,22 @@ describe('retained history navigation', () => {
 
   it('rejects malformed scope, session, search and page arguments before storage access', async () => {
     const store = new RunStore(await tmp('ac-history-invalid'))
-    for (const query of [{ scope: 'other' }, { scope: 'session' }, { sessionId: [] }, { search: 'x'.repeat(201) }, { search: {} }, { offset: -1 }, { offset: 0.5 }, { offset: Infinity }]) {
+    for (const query of [{ scope: 'other' }, { scope: 'session' }, { sessionId: [] }, { search: 'x'.repeat(201) }, { search: {} }, { offset: -1 }, { offset: 0.5 }, { offset: Infinity }, { onlyUnavailable: 'yes' }]) {
       await expect(historyPage(store, query)).rejects.toBeInstanceOf(HistoryQueryError)
     }
+  })
+
+  it('keeps unavailable records discoverable with a dedicated read-only filter', async () => {
+    const store = new RunStore(await tmp('ac-history-problems'))
+    await store.save(record(1))
+    await writeFile(store.file('ffffffff'), '{incomplete history')
+    const all = await historyPage(store, { scope: 'all' })
+    expect(all.history).toMatchObject({ total: 2, unavailable: 1, onlyUnavailable: false })
+    const problems = await historyPage(store, { scope: 'all', onlyUnavailable: true })
+    expect(problems.runs).toEqual([])
+    expect(problems.legacy[0]).toMatchObject({ runId: 'ffffffff', unavailable: true, legacy: true })
+    expect(problems.history).toMatchObject({ total: 1, unavailable: 1, onlyUnavailable: true })
+    expect((await historyPage(store, { sessionId: 's1', onlyUnavailable: true })).history.total).toBe(0)
+    expect(await readFile(store.file('ffffffff'), 'utf8')).toBe('{incomplete history')
   })
 })
