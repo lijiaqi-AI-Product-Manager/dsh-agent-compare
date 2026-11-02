@@ -801,7 +801,8 @@ export class Comparer {
         if (lr?.previews.has(c.label)) await this.stopPreview(lr, c.label)
         else if (c.preview !== undefined) await stopOwnedPreview(c.preview)
       } catch (error) {
-        leftovers.push(`候选 ${c.label} 预览未停止：${(error as Error).message}`)
+        const retained = c.dir ?? c.preview?.cwd
+        leftovers.push(`候选 ${c.label} 预览未停止：${(error as Error).message}${retained ? `；保留副本：${retained}` : ''}`)
         // Retain its address and copy so a later cleanup can retry.
         continue
       }

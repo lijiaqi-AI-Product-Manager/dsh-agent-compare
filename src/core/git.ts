@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm, writeFile, readFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
@@ -51,17 +51,18 @@ export async function commitTree(repo: string, tree: string, parents: readonly (
  */
 export async function snapshotTree(repo: string, scratchDir: string, extraExcludes: readonly string[] = []): Promise<string> {
   await mkdir(scratchDir, { recursive: true })
-  const tmpIndex = path.join(scratchDir, `index-${process.pid}-${Date.now()}`)
-  const realIndex = path.resolve(repo, (await git(repo, ['rev-parse', '--git-path', 'index'])).trim())
+  const allocation = await mkdtemp(path.join(scratchDir, 'index-'))
+  const tmpIndex = path.join(allocation, 'index')
   const env = { GIT_INDEX_FILE: tmpIndex }
   try {
+    const realIndex = path.resolve(repo, (await git(repo, ['rev-parse', '--git-path', 'index'])).trim())
     if (existsSync(realIndex)) await copyFile(realIndex, tmpIndex)
     else if (await headCommit(repo)) await git(repo, ['read-tree', 'HEAD'], env)
     const pathspec = ['--', '.', ...extraExcludes]
     await git(repo, ['add', '-A', ...pathspec], env)
     return (await git(repo, ['write-tree'], env)).trim()
   } finally {
-    await rm(tmpIndex, { force: true })
+    await rm(allocation, { recursive: true, force: true })
   }
 }
 
