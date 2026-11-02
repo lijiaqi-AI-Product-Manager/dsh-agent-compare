@@ -4,7 +4,7 @@
  * failure path that earlier versions got wrong.
  */
 import { describe, expect, it, vi } from 'vitest'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions } from '../src/core/orchestrator.ts'
@@ -53,6 +53,42 @@ async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; ed
 const T = 300_000
 
 describe.concurrent('comparison run', () => {
+  it('continues the peer when one preparation fails and preserves an unowned directory', async () => {
+    const repo = await fixtureRepo()
+    const store = new RunStore(await tmp('ac-one-preparation-fails'))
+    let foreign: string | undefined
+    const comparer = new Comparer({ store, runner: scripted({}), version: 'test', browserChecks: false, onUpdate: r => {
+      const a = r.candidates[0]!
+      if (!foreign && a.stage === 'preparing' && a.dir && a.ownerToken) {
+        foreign = a.dir
+        mkdirSync(a.dir, { recursive: true })
+        writeFileSync(path.join(a.dir, 'foreign.txt'), 'keep this directory\n')
+      }
+    } })
+    const started = await comparer.start({ repo, task: 'make the shop nicer', assignment: 'fixed' })
+    try {
+      const result = (await comparer.wait(started.runId))!
+      expect(result.candidates[0]).toMatchObject({ stage: 'failed', error: { stage: 'preparing' } })
+      expect(result.candidates[1]!.stage).toBe('ready')
+    } finally { await comparer.cleanup(started.runId) }
+    expect(foreign).toBeDefined()
+    expect(await readFile(path.join(foreign!, 'foreign.txt'), 'utf8')).toBe('keep this directory\n')
+  }, T)
+
+  it('finishes both worktree preparations before either candidate starts generation', async () => {
+    let observed = 0
+    const edit: Edit = async (dir, req) => {
+      for (const label of ['A', 'B']) expect(existsSync(path.join(path.dirname(dir), label, '.git'))).toBe(true)
+      observed++
+      await defaultEdit(dir, req)
+    }
+    const { comparer, runId, done } = await setup({ A: edit, B: edit })
+    try {
+      expect(observed).toBe(2)
+      expect(done.candidates.every(c => c.stage === 'ready')).toBe(true)
+    } finally { await comparer.cleanup(runId) }
+  }, T)
+
   it('runs both candidates to an eligible, previewed build; copies live outside the repository', async () => {
     const { repo, comparer, runId, done } = await setup({})
     expect(done.state).toBe('judging')

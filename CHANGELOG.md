@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Serialize worktree administration within each Git common directory, including across processes, so one candidate cannot inspect another candidate's incomplete worktree metadata. Candidate generation remains parallel.
 - Distinguish unavailable process identity from a stopped process. Keep preview ownership and cleanup records through recovery until inspection succeeds; bound integration-test resource concurrency.
 - Validate repository acceptance definitions before generation. Bind verification helpers, all package-script definitions and added verification configuration; support explicit protected baseline files.
 - Await the owned preview process exit, escalate commands that ignore a graceful stop, and retain incomplete resource cleanup for retry.

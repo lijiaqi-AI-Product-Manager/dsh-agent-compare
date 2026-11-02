@@ -3,6 +3,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { run, runOk } from './proc.ts'
+import { RunStore } from './run-store.ts'
 
 /** Largest patch accepted for one candidate. Bigger changes are refused, never truncated. */
 export const MAX_PATCH_CHARS = 32 * 1024 * 1024
@@ -92,6 +93,10 @@ const OWNER_FILE = 'agent-compare-owner.json'
  * writable by an agent confined to the copy.
  */
 export async function addOwnedWorktree(repo: string, dir: string, commit: string, owner: OwnerMark): Promise<void> {
+  return withWorktreeAdministration(repo, () => addOwnedWorktreeUnlocked(repo, dir, commit, owner))
+}
+
+async function addOwnedWorktreeUnlocked(repo: string, dir: string, commit: string, owner: OwnerMark): Promise<void> {
   if (existsSync(dir)) throw new Error(`refusing to create a copy over an existing path: ${dir}`)
   await mkdir(path.dirname(dir), { recursive: true })
   await git(repo, ['worktree', 'add', '--detach', dir, commit])
@@ -126,6 +131,10 @@ const samePath = (a: string, b: string): boolean => canonicalPath(a) === canonic
  * else is left in place and reported.
  */
 export async function removeOwnedWorktree(repo: string, dir: string, owner: OwnerMark): Promise<{ removed: boolean; reason?: string }> {
+  return withWorktreeAdministration(repo, () => removeOwnedWorktreeUnlocked(repo, dir, owner))
+}
+
+async function removeOwnedWorktreeUnlocked(repo: string, dir: string, owner: OwnerMark): Promise<{ removed: boolean; reason?: string }> {
   if (!existsSync(dir)) {
     await gitTry(repo, ['worktree', 'prune'])
     return { removed: true }
@@ -144,6 +153,15 @@ export async function removeOwnedWorktree(repo: string, dir: string, owner: Owne
   if (existsSync(dir)) await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
   await gitTry(repo, ['worktree', 'prune'])
   return { removed: !existsSync(dir) }
+}
+
+/** Git scans sibling worktree metadata during add/prune. A sibling must not be
+ * visible half-initialized. Lock the trusted common directory, including when
+ * separate plugin homes or linked checkouts reach the same repository. */
+async function withWorktreeAdministration<T>(repo: string, operation: () => Promise<T>): Promise<T> {
+  const common = path.resolve(repo, (await git(repo, ['rev-parse', '--git-common-dir'])).trim())
+  const locks = new RunStore(path.join(canonicalPath(common), 'agent-compare-administration'))
+  return locks.withLock('worktrees', operation, { waitMs: 60_000, busyMessage: '这个仓库的工作区管理操作仍在进行，请稍后重试' })
 }
 
 /**
