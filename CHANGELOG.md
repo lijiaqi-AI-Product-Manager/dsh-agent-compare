@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0-alpha.2 — 2026-11-02
+
+From the first real-model run on DSH desktop (Windows 11): both candidates hit the 30-minute budget and everything they wrote was discarded, although one of them had already delivered every requirement (its copy later passed all 12 acceptance steps).
+
+- **Work is never discarded at the budget.** When the budget runs out or the agent stops abnormally, the agent is stopped and what it wrote is sealed and verified like any other candidate. The acceptance decides eligibility; the verdict notes that generation was cut short.
+- **Salvage.** A candidate that failed while generating (including under the previous version) and whose copy still exists can be verified from the panel ("验收已写的改动").
+- **Live activity.** While generating, each card shows the number of model steps, the latest tool call, tokens so far, and how long the agent has been quiet, so a slow run reads as slow rather than stuck.
+- **Time limit per comparison** (15 / 30 / 60 / 90 minutes) next to the task box.
+- **Both candidates failed:** the panel says so and offers the next step instead of asking to choose.
+- Copy paths are compared by their real path, so 8.3 short names, junctions and symlinks no longer stop cleanup from recognising its own copies.
+
 ## 0.2.0-alpha.1 — 2026-11-02
 
 Reworked around trustworthy delivery: isolation before execution, acceptance bound to content, adoption as a rehearsed and recoverable transaction, and resources with provable owners.

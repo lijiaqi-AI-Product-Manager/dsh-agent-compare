@@ -34,7 +34,11 @@ const states = {
   history: [],
   running: [{ ...base, state: 'running', candidates: [
     { label: 'A', stage: 'verifying', timings: { preparing: t(50, 49), generating: t(49, 12), sealing: t(12, 11), installing: t(11, 6), verifying: t(6) } },
-    { label: 'B', stage: 'generating', timings: { preparing: t(50, 49), generating: t(49) } },
+    { label: 'B', stage: 'generating', timings: { preparing: t(50, 49), generating: t(49) }, progress: { steps: 5, lastAction: 'write src\\App.tsx', lastActivityAt: now - 150_000, tokens: 61240 } },
+  ] }],
+  allfailed: [{ ...base, state: 'judging', checksFavoured: 'none', candidates: [
+    { label: 'A', stage: 'failed', timings: { preparing: t(1890, 1889), generating: t(1889, 2) }, usage: { kind: 'reported', totalTokens: 233363 }, salvageable: false, generation: { ended: 'budget' }, error: { stage: 'sealing', message: '超出生成时间预算（30 分钟）时还没有改动任何文件。' } },
+    { label: 'B', stage: 'failed', timings: { preparing: t(1910, 1909), generating: t(1909, 2) }, usage: { kind: 'reported', totalTokens: 257649 }, salvageable: true, error: { stage: 'generating', message: '超出生成时间预算（30 分钟），已停止这个候选' } },
   ] }],
   failed: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, { label: 'B', stage: 'failed', timings: { preparing: t(60, 59), generating: t(59, 20), sealing: t(20, 19), installing: t(19, 10) }, error: { stage: 'installing', message: '按锁文件 package-lock.json 冻结安装失败。改了依赖就必须同时更新锁文件，AgentCompare 不会换成非冻结安装。\nnpm ERR! `npm ci` can only install packages when your package.json and package-lock.json are in sync.' } }] }],
   judging: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, B] }],
