@@ -804,7 +804,7 @@ function ActionBar({ run, busy, act, onDone, onContinue }: { run: Run; busy: boo
     default:
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text">{run.state === 'interrupted' ? '这次比较因宿主重启而中断。' : '这次比较已结束。'}{run.leftovers?.length ? ` 有 ${run.leftovers.length} 个目录无法确认归属，没有删除。` : ''}</span>
+          <span className="ac-bar-text">{run.state === 'interrupted' ? '这次比较因宿主重启而中断。' : '这次比较已结束。'}</span>
           {run.state === 'interrupted' && <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>清理</button>}
         </div>
       )
@@ -896,6 +896,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand }: { run
     <>
       {err && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err}</div>}
       <div className="ac-action-dock"><ActionBar run={run} busy={busy} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
+      {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>重试清理</button></div></section>}
       {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={busy || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />
       <div className="ac-compare-tools"><div className="ac-seg" aria-label="比较布局">{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: '并排比较', A: '专注 A', B: '专注 B' }[v]}</button>)}</div><div className="ac-seg" aria-label="预览尺寸"><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>适应窗口</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>桌面 1280</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>手机 390</button></div><span className="ac-meta">{device === 'adaptive' ? '直接在对话中操作真实页面' : '相同视口 · 按可用宽度缩放'}</span></div>

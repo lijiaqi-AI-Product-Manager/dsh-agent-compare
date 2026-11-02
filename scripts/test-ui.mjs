@@ -163,6 +163,14 @@ try {
   check(await page.locator('.ac-conversation-run iframe').count() === 2, 'blank-session results must reopen from persisted run records')
   await page.screenshot({ path: path.join(output, 'blank-conversation.png') })
 
+  await open('cleanup')
+  await page.getByRole('status', { name: '资源清理状态', exact: true }).waitFor()
+  check((await page.getByRole('status', { name: '资源清理状态', exact: true }).innerText()).includes('采用已完成'), 'cleanup failure must preserve the completed adoption in the interface')
+  await page.getByRole('button', { name: '重试清理', exact: true }).click()
+  await page.getByRole('status', { name: '资源清理状态', exact: true }).waitFor({ state: 'hidden' })
+  check((await requests('cleanup')).length === 1 && (await requests('revert')).length === 0, 'retrying resource cleanup must not undo adoption')
+  check(await page.getByRole('button', { name: '撤销采用', exact: true }).isVisible(), 'resource cleanup must leave the adoption record available')
+
   await open('judging')
   await page.locator('iframe').nth(1).waitFor()
   const frames = page.frames().filter(f => f !== page.mainFrame())

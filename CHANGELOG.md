@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Await the owned preview process exit, escalate commands that ignore a graceful stop, and retain incomplete resource cleanup for retry.
+- Keep a durably completed adoption intact if cleanup fails. Show remaining resources and a cleanup retry without undoing the selected result.
+
 ## 0.2.0-alpha.6 — 2026-11-02
 
 - Update the development baseline to Node 26.13, npm 12.2, TypeScript 7, React 19.3, Vitest 5, and the current Playwright-supported Chromium. Update the executable example to Vite 8.3.5.

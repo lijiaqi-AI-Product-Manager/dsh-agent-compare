@@ -64,6 +64,8 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
       env: { ...process.env, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' },
     })
     const log = new Tail(6000)
+    let closed = false
+    const exit = new Promise<void>((resolve) => child.once('close', () => { closed = true; resolve() }))
     child.stdout?.setEncoding('utf8').on('data', (d: string) => log.push(d))
     child.stderr?.setEncoding('utf8').on('data', (d: string) => log.push(d))
     const outcome = await waitReady(child, root, timeoutMs, opts.signal)
@@ -71,7 +73,15 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
       const pid = child.pid
       // A configured `base` moves the app below the root; Vite prints the real entry URL.
       const printed = new RegExp(`http://127\\.0\\.0\\.1:${port}/[^\\s]*`).exec(log.toString())?.[0]
-      return { url: printed ?? root, port, pid, log, stop: () => killTree(pid) }
+      let stopping: Promise<void> | undefined
+      return { url: printed ?? root, port, pid, log, stop: () => closed ? Promise.resolve() : stopping ??= (async () => {
+        await killTree(pid)
+        if (!closed) child.kill('SIGKILL')
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+          await Promise.race([exit, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`预览进程 ${pid} 未在终止后退出`)), 5000) })])
+        } finally { if (timer) clearTimeout(timer) }
+      })().catch((error) => { stopping = undefined; throw error }) }
     }
     await killTree(child.pid)
     lastError = new PreviewError(outcome === 'exited' ? '预览服务在响应前退出' : outcome === 'aborted' ? 'cancelled' : `预览服务 ${Math.round(timeoutMs / 1000)} 秒内没有响应`, log.toString())
@@ -98,6 +108,7 @@ function waitReady(child: ChildProcess, url: string, timeoutMs: number, signal?:
     signal?.addEventListener('abort', onAbort, { once: true })
     const timer = setTimeout(() => finish('timeout'), timeoutMs)
     child.once('exit', () => finish('exited'))
+    child.once('error', () => finish('exited'))
     const poll = async (): Promise<void> => {
       while (!done) {
         if (await httpReady(url, ctl.signal)) return finish('ready')
