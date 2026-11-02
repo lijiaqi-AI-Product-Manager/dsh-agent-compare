@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Revalidate checkout content, HEAD and staged entries after adoption rehearsal and before each write or deletion, including changes made while its journal is saved. A changed target stops adoption before the pending path is touched.
+- Journal each pending path and limit rollback to paths whose writes were attempted. Preserve new ignored files at addition paths and later edits to replacement or deletion paths.
+- The smoke run now changes notes after the baseline and requires the combined checkout to be rehearsed before adoption.
+
 ## 0.2.0-alpha.3 — 2026-11-02
 
 Comparisons now run inside the conversation, and the conversation keeps the record.

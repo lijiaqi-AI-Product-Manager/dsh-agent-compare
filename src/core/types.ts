@@ -234,6 +234,7 @@ export interface Adoption {
   headBefore?: string
   stagedBefore?: string
   rehearsal?: { reused: boolean; tree: string; checks?: CheckResult[]; dir?: string; ownerToken?: string }
+  /** Paths journaled before each write; paths not yet reached are excluded. */
   writtenPaths?: string[]
   branch?: string
   message?: string

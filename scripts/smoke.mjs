@@ -73,7 +73,7 @@ const runner = {
 
 const home = await mkdtemp(path.join(os.tmpdir(), 'ac smoke home '))
 const repo = await createExampleRepo(path.join(home, 'examples'))
-// An uncommitted user edit that must survive adoption untouched (and forces a rehearsal).
+// Include uncommitted notes in the baseline, then edit them again before adoption.
 await writeFile(path.join(repo, 'NOTES.md'), 'my uncommitted notes\n')
 
 const t0 = Date.now()
@@ -100,12 +100,15 @@ if (a.verdict?.eligible !== true) throw new Error(`A should pass the acceptance:
 const browserRan = b.checks?.some((k) => k.name === 'browser' && k.outcome !== 'skipped')
 if (browserRan && b.verdict?.eligible !== false) throw new Error('B forgot the clear button; the acceptance must not pass it')
 
+const currentNotes = 'my uncommitted notes\nupdated after the baseline\n'
+await writeFile(path.join(repo, 'NOTES.md'), currentNotes)
 await comparer.choose(started.runId, 'A')
 const adopted = await comparer.adopt(started.runId, 'worktree')
 console.log(`  adoption: ${adopted.adoption?.state} (rehearsed: ${adopted.adoption?.rehearsal?.reused === false}) - ${adopted.adoption?.message}`)
 if (adopted.adoption?.state !== 'adopted') throw new Error('adoption did not complete')
+if (adopted.adoption.rehearsal?.reused !== false) throw new Error('the changed checkout was not rehearsed')
 const notes = await readFile(path.join(repo, 'NOTES.md'), 'utf8')
-if (notes !== 'my uncommitted notes\n') throw new Error('user edit was not preserved')
+if (notes !== currentNotes) throw new Error('user edit was not preserved')
 const status = await git(repo, ['status', '--porcelain'])
 console.log(`  target status after adoption:\n${status.trimEnd().split('\n').map((l) => '    ' + l).join('\n')}`)
 if (!keep) await comparer.cleanup(started.runId)

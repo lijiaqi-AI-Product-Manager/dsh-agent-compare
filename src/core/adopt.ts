@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { rm } from 'node:fs/promises'
+import { lstat, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { changedPaths, commitTree, git, gitTry, headCommit, overlayTree, snapshotTree, stagedFingerprint, treeOf, ALWAYS_EXCLUDED } from './git.ts'
 import type { Baseline } from './types.ts'
@@ -31,6 +31,16 @@ export async function targetState(repo: string, scratchDir: string): Promise<Tar
   }
 }
 
+/** Locations that changed since a target was checked, including Git state. */
+export async function targetChanges(repo: string, scratchDir: string, expected: TargetState): Promise<string[]> {
+  const now = await targetState(repo, scratchDir)
+  return [
+    ...(now.tree === expected.tree ? [] : await changedPaths(repo, expected.tree, now.tree)),
+    ...(now.head === expected.head ? [] : ['HEAD']),
+    ...(now.staged === expected.staged ? [] : ['index']),
+  ]
+}
+
 export type Preflight =
   | { readonly ok: true; readonly targetChanged: boolean; readonly target: TargetState; readonly expectedTree: string }
   | { readonly ok: false; readonly reason: 'overlap'; readonly overlapping: string[]; readonly target: TargetState }
@@ -60,17 +70,55 @@ export async function pinPreAdopt(repo: string, target: TargetState): Promise<st
 }
 
 /**
- * Write the candidate's version of every touched path into the working tree.
+ * Write the candidate's version of every touched path into the working tree,
+ * checking the expected checkout again before every write or deletion.
  * Index and HEAD stay as they are; nothing is committed. `git restore
  * --worktree` is used instead of `git apply` so the repository's own eol and
  * filter settings decide the bytes on disk.
  */
-export async function writeCandidate(repo: string, candidateCommit: string, nameStatus: readonly NameStatus[]): Promise<void> {
-  const writes = nameStatus.filter((n) => n.status !== 'D').map((n) => n.path)
-  for (const chunk of chunks(writes, 100)) {
-    await git(repo, ['restore', `--source=${candidateCommit}`, '--worktree', '--', ...chunk.map(literal)])
+export async function writeCandidate(repo: string, candidateCommit: string, nameStatus: readonly NameStatus[], guard: {
+  readonly expected: TargetState
+  readonly scratchDir: string
+  /** Persist the next write's intent before checking its preconditions. */
+  readonly beforeWrite?: (paths: readonly string[]) => Promise<void>
+}): Promise<string[]> {
+  const attempted: string[] = []
+  let expected = guard.expected
+  const operations = [...nameStatus.filter((n) => n.status !== 'D'), ...nameStatus.filter((n) => n.status === 'D')]
+  try {
+    for (const operation of operations) {
+      const nextTree = await overlayTree(repo, guard.scratchDir, expected.tree, candidateCommit, [operation])
+      await guard.beforeWrite?.([...attempted, operation.path])
+      const changed = await targetChanges(repo, guard.scratchDir, expected)
+      if (changed.length > 0) throw new CandidateWriteError('采用期间项目发生了变化', attempted, changed)
+      // Ignored, untracked files are absent from snapshots but still belong to the user.
+      if (await gitTry(repo, ['cat-file', '-e', `${expected.tree}:${operation.path}`]) === undefined) {
+        const present = await lstat(path.join(repo, operation.path)).then(() => true, (error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return false
+          throw error
+        })
+        if (present) throw new CandidateWriteError('待写入的位置出现了新文件', attempted, [operation.path])
+      }
+      attempted.push(operation.path)
+      if (operation.status === 'D') await rm(path.join(repo, operation.path), { force: true })
+      else await git(repo, ['restore', `--source=${candidateCommit}`, '--worktree', '--', literal(operation.path)])
+      expected = { ...expected, tree: nextTree }
+    }
+    return attempted
+  } catch (error) {
+    if (error instanceof CandidateWriteError) throw error
+    throw new CandidateWriteError((error as Error).message, attempted)
   }
-  for (const n of nameStatus) if (n.status === 'D') await rm(path.join(repo, n.path), { force: true })
+}
+
+/** Only these paths may have been written; later paths must never be rolled back. */
+export class CandidateWriteError extends Error {
+  readonly attemptedPaths: string[]
+  constructor(message: string, attemptedPaths: readonly string[], readonly changedLocations?: readonly string[]) {
+    super(message)
+    this.name = 'CandidateWriteError'
+    this.attemptedPaths = [...attemptedPaths]
+  }
 }
 
 export interface WriteCheck {

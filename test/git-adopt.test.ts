@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, commitTree, ensureWorktreePool, git, headCommit, overlayTree, registeredWorktrees, removeOwnedWorktree, snapshotTree, treeOf } from '../src/core/git.ts'
-import { adoptAsBranch, checkWritten, pinPreAdopt, preflight, undoAdoption, writeCandidate, type AdoptInput } from '../src/core/adopt.ts'
+import { adoptAsBranch, CandidateWriteError, checkWritten, pinPreAdopt, preflight, undoAdoption, writeCandidate, type AdoptInput } from '../src/core/adopt.ts'
 import type { Baseline } from '../src/core/types.ts'
 import { tmp } from './fixture.ts'
 
@@ -54,7 +54,7 @@ async function adoptDirect(input: AdoptInput) {
   const pf = await preflight(input)
   if (!pf.ok) throw new Error(`overlap: ${pf.overlapping.join(', ')}`)
   const pre = await pinPreAdopt(input.baseline.repoRoot, pf.target)
-  await writeCandidate(input.baseline.repoRoot, input.candidateCommit, input.nameStatus)
+  await writeCandidate(input.baseline.repoRoot, input.candidateCommit, input.nameStatus, { expected: pf.target, scratchDir: input.scratchDir })
   const chk = await checkWritten(input.baseline.repoRoot, input.scratchDir, { expectedTree: pf.expectedTree, candidateCommit: input.candidateCommit, touched: input.nameStatus.map((n) => n.path), before: pf.target })
   return { pre, pf, chk }
 }
@@ -166,11 +166,82 @@ describe('adoption primitives', () => {
   it('reports files changed by someone else during the write', async () => {
     const pf = await preflight(input())
     if (!pf.ok) throw new Error('unexpected overlap')
-    await writeCandidate(repo, cand.change.commit, cand.change.nameStatus)
+    await writeCandidate(repo, cand.change.commit, cand.change.nameStatus, { expected: pf.target, scratchDir: scratch })
     await writeFile(path.join(repo, 'keep.txt'), 'edited meanwhile\n')
     const chk = await checkWritten(repo, scratch, { expectedTree: pf.expectedTree, candidateCommit: cand.change.commit, touched: cand.change.nameStatus.map((n) => n.path), before: pf.target })
     expect(chk.mismatched).toEqual([])
     expect(chk.concurrent).toEqual(['keep.txt'])
+  })
+
+  it.each(['HEAD', 'index'] as const)('refuses a write when %s changes after preflight', async (location) => {
+    const pf = await preflight(input())
+    if (!pf.ok) throw new Error('unexpected overlap')
+    let staged: string | undefined
+    let head: string | undefined
+    const operation = writeCandidate(repo, cand.change.commit, cand.change.nameStatus, {
+      expected: pf.target,
+      scratchDir: scratch,
+      beforeWrite: async () => {
+        if (location === 'HEAD') await git(repo, ['commit', '--allow-empty', '-q', '-m', 'other work'])
+        else {
+          await writeFile(path.join(repo, 'keep.txt'), 'staged separately\n')
+          await git(repo, ['add', 'keep.txt'])
+          await writeFile(path.join(repo, 'keep.txt'), 'keep\n')
+        }
+        staged = await git(repo, ['ls-files', '-s', '-z'])
+        head = await headCommit(repo)
+      },
+    })
+    await expect(operation).rejects.toMatchObject({ attemptedPaths: [], changedLocations: [location] })
+    expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\n')
+    expect(await git(repo, ['ls-files', '-s', '-z'])).toBe(staged)
+    expect(await headCommit(repo)).toBe(head)
+  })
+
+  it.each(['a.txt', 'src/old.ts'])('preserves a later edit before replacing or deleting %s', async (editedPath) => {
+    const pf = await preflight(input())
+    if (!pf.ok) throw new Error('unexpected overlap')
+    let failure: CandidateWriteError | undefined
+    try {
+      await writeCandidate(repo, cand.change.commit, cand.change.nameStatus, {
+        expected: pf.target,
+        scratchDir: scratch,
+        beforeWrite: async (paths) => {
+          if (paths.at(-1) === editedPath) await writeFile(path.join(repo, editedPath), 'new user edit\n')
+        },
+      })
+    } catch (error) {
+      if (!(error instanceof CandidateWriteError)) throw error
+      failure = error
+    }
+    expect(failure?.changedLocations).toContain(editedPath)
+    expect(failure?.attemptedPaths).not.toContain(editedPath)
+    const undo = await undoAdoption(repo, scratch, { preAdoptCommit: await pinPreAdopt(repo, pf.target), candidateCommit: cand.change.commit, touched: failure!.attemptedPaths })
+    expect(undo.conflicts).toEqual([])
+    expect(await readFile(path.join(repo, editedPath), 'utf8')).toBe('new user edit\n')
+  })
+
+  it('preserves an ignored, untracked file that appears at an addition path', async () => {
+    await writeFile(path.join(repo, '.git', 'info', 'exclude'), 'logo.png\n')
+    const pf = await preflight(input())
+    if (!pf.ok) throw new Error('unexpected overlap')
+    const mine = Buffer.from([0, 1, 4, 9])
+    let failure: CandidateWriteError | undefined
+    try {
+      await writeCandidate(repo, cand.change.commit, cand.change.nameStatus, {
+        expected: pf.target,
+        scratchDir: scratch,
+        beforeWrite: async (paths) => {
+          if (paths.at(-1) === 'logo.png') await writeFile(path.join(repo, 'logo.png'), mine)
+        },
+      })
+    } catch (error) {
+      if (!(error instanceof CandidateWriteError)) throw error
+      failure = error
+    }
+    expect(failure?.changedLocations).toEqual(['logo.png'])
+    expect(failure?.attemptedPaths).not.toContain('logo.png')
+    expect(await readFile(path.join(repo, 'logo.png'))).toEqual(mine)
   })
 
   it('undo restores what we wrote and leaves later edits alone, listing them', async () => {
@@ -189,7 +260,7 @@ describe('adoption primitives', () => {
     if (!pf.ok) throw new Error('unexpected overlap')
     const pre = await pinPreAdopt(repo, pf.target)
     // Only the first path was written before the "crash".
-    await writeCandidate(repo, cand.change.commit, cand.change.nameStatus.slice(0, 1))
+    await writeCandidate(repo, cand.change.commit, cand.change.nameStatus.slice(0, 1), { expected: pf.target, scratchDir: scratch })
     const undo = await undoAdoption(repo, scratch, { preAdoptCommit: pre, candidateCommit: cand.change.commit, touched: cand.change.nameStatus.map((n) => n.path) })
     expect(undo.conflicts).toEqual([])
     expect((await git(repo, ['status', '--porcelain'])).trim()).toBe('')
