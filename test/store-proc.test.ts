@@ -135,6 +135,7 @@ describe('unknown process identity', () => {
       expect(blocked?.state).toBe('adopted')
       expect(blocked?.candidates[0]?.preview?.pid).toBe(process.pid)
       expect(blocked?.leftovers?.join()).toContain('inspection busy')
+      expect(blocked?.leftovers?.join()).toContain(store.home)
       inspection.mockResolvedValue({ state: 'gone' })
       const cleared = await comparer.cleanup(r.runId)
       expect(cleared?.candidates[0]?.preview).toBeUndefined()
