@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Distinguish unavailable process identity from a stopped process. Keep preview ownership and cleanup records through recovery until inspection succeeds; bound integration-test resource concurrency.
+- Validate repository acceptance definitions before generation. Bind verification helpers, all package-script definitions and added verification configuration; support explicit protected baseline files.
 - Await the owned preview process exit, escalate commands that ignore a graceful stop, and retain incomplete resource cleanup for retry.
 - Keep a durably completed adoption intact if cleanup fails. Show remaining resources and a cleanup retry without undoing the selected result.
 - Preserve missing provider token totals as unknown. Aggregate uncached input, output, cache reads, and cache writes separately; reject contradictory or unsafe totals and show the available counters in comparison evidence.

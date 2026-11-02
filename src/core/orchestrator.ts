@@ -138,9 +138,9 @@ export class Comparer {
     const head = await headCommit(root)
     const tree = await snapshotTree(root, scratch, ALWAYS_EXCLUDED)
     const dirty = head === undefined ? true : tree !== (await treeOf(root, head))
+    const acceptance = await buildAcceptance(root, tree, info, input.checks)
     const snapshotCommit = await commitTree(root, tree, [head], `agent-compare baseline ${runId}`)
     await pinRef(root, `refs/agent-compare/${runId}/base`, snapshotCommit)
-    const acceptance = await buildAcceptance(root, tree, info, input.checks)
 
     const order: [number, number] = input.assignment === 'fixed' || Math.random() < 0.5 ? [0, 1] : [1, 0]
     const mk = (label: CandidateLabel, i: number): Candidate => ({ label, strategy: strategies[i]!, route: routes[i]!, stage: 'queued', timings: {} })
