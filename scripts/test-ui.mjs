@@ -304,6 +304,7 @@ try {
   const failedLists = (await requests('list')).length
   await page.getByRole('button', { name: '重试', exact: true }).click()
   await page.waitForFunction(count => window.__requests.filter(request => request.method === 'list').length > count, failedLists)
+  await page.getByText('记录读取失败，原始文件仍保留。', { exact: true }).waitFor()
   check(await page.getByText('记录读取失败，原始文件仍保留。', { exact: true }).count() === 1, 'history errors must explain retention and keep a working retry')
   for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'revealed', 'recovery', 'history']) {
     await open(state, `&theme=${theme}`)
