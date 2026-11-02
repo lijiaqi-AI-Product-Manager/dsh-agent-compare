@@ -195,6 +195,10 @@ try {
   check(!partialUsage.includes(' tokens'), 'missing totals must never be displayed as an inferred or zero total')
   check((await page.getByRole('region', { name: '候选 B', exact: true }).locator('.ac-evidence').innerText()).includes('用量未知'), 'absent provider usage must stay unknown')
 
+  await open('unverified')
+  const unverified = page.getByRole('region', { name: '候选 A', exact: true })
+  check(await unverified.getByText('可预览 · 部分检查未运行', { exact: true }).isVisible() && await unverified.locator('.ac-card-head .ac-pill.ok').count() === 0, 'skipped checks must stay explicit without a successful-check badge')
+
   await open('judging')
   check(await page.getByRole('region', { name: '候选 A', exact: true }).getByText('可预览 · 检查通过', { exact: true }).isVisible(), 'preview availability and successful acceptance must be stated separately')
   check(await page.getByRole('region', { name: '候选 B', exact: true }).getByText('可预览 · 未通过检查', { exact: true }).isVisible(), 'a running application with failed acceptance must not display a successful-check status')

@@ -459,8 +459,9 @@ const IconExternal = (): React.ReactElement => (
   <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1h2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
 )
 function StagePill({ c }: { c: Cand }): React.ReactElement {
-  const kind = c.stage === 'ready' ? c.verdict?.eligible ? 'ok' : c.verdict ? 'err' : '' : c.stage === 'failed' || c.stage === 'interrupted' ? 'err' : busyStage(c.stage) ? 'brand' : ''
-  const title = c.stage === 'ready' ? `可预览 · ${c.verdict ? c.verdict.eligible ? '检查通过' : '未通过检查' : '检查状态未知'}` : STAGE_TEXT[c.stage]
+  const complete = Boolean(c.checks?.length && c.checks.every(check => check.outcome === 'passed'))
+  const kind = c.stage === 'ready' ? c.verdict?.eligible ? complete ? 'ok' : '' : c.verdict ? 'err' : '' : c.stage === 'failed' || c.stage === 'interrupted' ? 'err' : busyStage(c.stage) ? 'brand' : ''
+  const title = c.stage === 'ready' ? `可预览 · ${c.verdict ? c.verdict.eligible ? complete ? '检查通过' : '部分检查未运行' : '未通过检查' : '检查状态未知'}` : STAGE_TEXT[c.stage]
   return (
     <span className={`ac-pill ${kind}`}>
       {busyStage(c.stage) ? <span className="ac-spin" /> : <span className="ac-dot" />}
