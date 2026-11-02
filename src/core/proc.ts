@@ -167,10 +167,22 @@ export async function killTree(pid: number | undefined): Promise<void> {
     })
     return
   }
+  let target = -pid
+  try { process.kill(target, 'SIGTERM') } catch {
+    target = pid
+    try { process.kill(target, 'SIGTERM') } catch { return }
+  }
+  // Commands can ignore TERM. Bound the grace period, then terminate
+  // the original process group so cancellation cannot wait forever on its pipes.
+  const until = Date.now() + 500
+  while (Date.now() < until) {
+    try { process.kill(target, 0) } catch { return }
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
   try {
-    process.kill(-pid, 'SIGTERM')
+    process.kill(target, 'SIGKILL')
   } catch {
-    try { process.kill(pid, 'SIGTERM') } catch { /* already gone */ }
+    // The original process or group has already gone.
   }
 }
 
@@ -208,7 +220,18 @@ export async function ownsProcess(pid: number, markers: readonly string[]): Prom
   const line = await processCommandLine(pid)
   if (line === undefined) return false
   const norm = (s: string): string => (isWin ? s.replace(/\//g, '\\').toLowerCase() : s)
-  return markers.every((m) => norm(line).includes(norm(m)))
+  const command = norm(line)
+  return markers.length > 0 && markers.every((m) => {
+    const marker = norm(m)
+    if (!marker) return false
+    let at = command.indexOf(marker)
+    while (at >= 0) {
+      const end = at + marker.length
+      if ((at === 0 || /[\s"']/.test(command[at - 1]!)) && (end === command.length || /[\s"']/.test(command[end]!))) return true
+      at = command.indexOf(marker, at + 1)
+    }
+    return false
+  })
 }
 
 /** Wait until `pid` has exited; false when it is still alive after `timeoutMs`. */

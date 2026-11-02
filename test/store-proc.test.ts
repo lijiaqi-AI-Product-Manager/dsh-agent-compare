@@ -163,10 +163,13 @@ describe('process helpers', () => {
 
   it('recognises its own process by command line and nothing else', async () => {
     const marker = `ac-marker-${process.pid}-${Date.now()}`
-    const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', marker], { stdio: 'ignore' })
+    const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', marker, '--port', '1234'], { stdio: 'ignore' })
     try {
       await new Promise((r) => setTimeout(r, 300))
       expect(await ownsProcess(child.pid!, [marker])).toBe(true)
+      expect(await ownsProcess(child.pid!, [marker, '--port 1234'])).toBe(true)
+      expect(await ownsProcess(child.pid!, [marker, '--port 123'])).toBe(false)
+      expect(await ownsProcess(child.pid!, [marker.slice(0, -1)])).toBe(false)
       expect(await ownsProcess(child.pid!, [marker, '--port 1'])).toBe(false)
       expect(await ownsProcess(process.pid, [marker])).toBe(false)
       expect(await ownsProcess(999_999_999, [marker])).toBe(false)

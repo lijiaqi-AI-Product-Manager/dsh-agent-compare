@@ -3,14 +3,14 @@
  * preview processes and adoption, with a scripted agent. Each test pins one
  * failure path that earlier versions got wrong.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { existsSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions } from '../src/core/orchestrator.ts'
 import { RunStore, repoKey, StaleRecordError } from '../src/core/run-store.ts'
 import { git, registeredWorktrees } from '../src/core/git.ts'
-import { isAlive } from '../src/core/proc.ts'
+import { isAlive, ownsProcess } from '../src/core/proc.ts'
 import { fixtureRepo, tmp } from './fixture.ts'
 
 type Edit = (dir: string, req: AgentRunRequest) => Promise<void>
@@ -188,7 +188,7 @@ describe.concurrent('adoption', () => {
     const { repo, store, comparer, runId, done } = await setup({})
     const head = (await git(repo, ['rev-parse', 'HEAD'])).trim()
     const staged = await git(repo, ['ls-files', '-s'])
-    const pids = done.candidates.map((c) => c.preview!.pid)
+    const previews = done.candidates.map((c) => c.preview!)
     await comparer.choose(runId, 'A')
     const r = await comparer.adopt(runId, 'worktree')
     expect(r.state).toBe('adopted')
@@ -197,7 +197,12 @@ describe.concurrent('adoption', () => {
     expect((await git(repo, ['rev-parse', 'HEAD'])).trim()).toBe(head)
     expect(await git(repo, ['ls-files', '-s'])).toBe(staged)
     for (const c of r.candidates) expect(existsSync(c.dir!)).toBe(false)
-    for (const pid of pids) expect(isAlive(pid)).toBe(false)
+    for (const p of previews) {
+      // A PID can be reused by another concurrent command; verify identity and
+      // the actual application endpoint instead of treating that PID as ours.
+      expect(await ownsProcess(p.pid, [path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${p.port}`])).toBe(false)
+      await expect(fetch(p.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+    }
     // The saved record no longer points at the stopped previews, so history shows screenshots, not a dead frame.
     const saved = (await new RunStore(store.home).load(runId))!
     for (const c of saved.candidates) expect(c.preview).toBeUndefined()
@@ -205,6 +210,21 @@ describe.concurrent('adoption', () => {
     const reverted = await comparer.revert(runId)
     expect(reverted.adoption?.state).toBe('reverted')
     expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+  }, T)
+
+  it('keeps a completed adoption when cleanup fails and retries cleanup separately', async () => {
+    const { repo, store, comparer, runId } = await setup({})
+    await comparer.choose(runId, 'A')
+    const cleanup = vi.spyOn(comparer as unknown as { releaseResources(r: unknown): Promise<void> }, 'releaseResources').mockRejectedValueOnce(new Error('resource is busy'))
+    try {
+      const result = await comparer.adopt(runId, 'worktree')
+      expect(result.state).toBe('adopted')
+      expect(result.adoption?.state).toBe('adopted')
+      expect(result.leftovers?.join()).toContain('resource is busy')
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop A</h1>\n')
+      expect((await store.load(runId))?.adoption?.state).toBe('adopted')
+    } finally { cleanup.mockRestore(); await comparer.cleanup(runId) }
+    expect((await store.load(runId))?.leftovers).toBeUndefined()
   }, T)
 
   it('rehearses on the current checkout and blocks, writing nothing, when the combination fails', async () => {

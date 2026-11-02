@@ -455,7 +455,6 @@ export class Comparer {
     const p = lr?.previews.get(key)
     if (p) {
       await p.stop()
-      await waitGone(p.pid, 5000)
       lr?.previews.delete(key)
     }
   }
@@ -596,6 +595,7 @@ export class Comparer {
 
       let problem: string | undefined
       let attempted: string[] = []
+      let completed = false
       try {
         attempted = await writeCandidate(repo, c.candidateCommit, nameStatus, {
           expected: pf.target,
@@ -620,10 +620,7 @@ export class Comparer {
           }
           r.state = 'adopted'
           await this.save(r)
-          // Previews stop and copies go; record that, so nothing later points at a dead preview.
-          await this.releaseResources(r)
-          await this.save(r)
-          return r
+          completed = true
         }
       } catch (error) {
         if (error instanceof CandidateWriteError) {
@@ -632,6 +629,15 @@ export class Comparer {
           if (error.changedLocations) r.adoption.attention = [...error.changedLocations]
         }
         problem = `写入失败：${(error as Error).message}`
+      }
+      // Once the successful write is durable, cleanup cannot turn it into a
+      // failed adoption or roll back the user's selected result.
+      if (completed) {
+        try { await this.releaseResources(r) } catch (error) {
+          r.leftovers = [...(r.leftovers ?? []), `资源回收未完成：${(error as Error).message}`]
+        }
+        await this.save(r)
+        return r
       }
       // Drop the pending intent when its precondition failed before the write began.
       r.adoption.writtenPaths = attempted
@@ -766,7 +772,7 @@ export class Comparer {
         r.state = 'abandoned'
         await dropRefs(r.baseline.repoRoot, `refs/agent-compare/${runId}/`)
       }
-      this.live.delete(runId)
+      if (!r.leftovers?.length) this.live.delete(runId)
       await this.store.save(r)
       return r
     })
@@ -778,12 +784,20 @@ export class Comparer {
     const leftovers: string[] = []
     const repo = r.baseline.repoRoot
     for (const c of r.candidates) {
-      if (lr?.previews.has(c.label)) await this.stopPreview(lr, c.label)
-      else if (c.preview !== undefined) await stopOwnedPreview(c.preview)
+      try {
+        if (lr?.previews.has(c.label)) await this.stopPreview(lr, c.label)
+        else if (c.preview !== undefined) await stopOwnedPreview(c.preview)
+      } catch (error) {
+        leftovers.push(`候选 ${c.label} 预览未停止：${(error as Error).message}`)
+        // Retain its address and copy so a later cleanup can retry.
+        continue
+      }
       delete c.preview
       if (c.dir !== undefined && c.ownerToken !== undefined) {
-        const res = await removeOwnedWorktree(repo, c.dir, { runId: r.runId, label: c.label, token: c.ownerToken })
-        if (!res.removed) leftovers.push(`${c.dir}（${res.reason ?? '删除失败'}）`)
+        try {
+          const res = await removeOwnedWorktree(repo, c.dir, { runId: r.runId, label: c.label, token: c.ownerToken })
+          if (!res.removed) leftovers.push(`${c.dir}（${res.reason ?? '删除失败'}）`)
+        } catch (error) { leftovers.push(`${c.dir}（${(error as Error).message}）`) }
       }
     }
     const reh = r.adoption?.rehearsal
@@ -898,7 +912,7 @@ async function stopOwnedPreview(p: PreviewInfo): Promise<void> {
   const bin = path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js')
   if (await ownsProcess(p.pid, [bin, `--port ${p.port}`])) {
     await killTree(p.pid)
-    await waitGone(p.pid, 5000)
+    if (!await waitGone(p.pid, 5000)) throw new Error(`预览进程 ${p.pid} 未退出`)
   }
 }
 
