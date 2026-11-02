@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { addOwnedWorktree, git, registeredWorktrees, removeOwnedWorktree } from '../src/core/git.ts'
@@ -12,11 +13,15 @@ describe('worktree administration concurrency', () => {
     const home = await tmp('ac-parallel-worktrees')
     const head = (await git(repo, ['rev-parse', 'HEAD'])).trim()
     const entries = Array.from({ length: 8 }, (_, i) => ({ dir: path.join(home, `copy-${i}`), owner: { runId: `run-${i}`, label: `C${i}`, token: `owner-${i}` } }))
+    const canonical = (p: string) => {
+      const resolved = realpathSync.native(p)
+      return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+    }
     try {
       await Promise.all(entries.map(e => addOwnedWorktree(repo, e.dir, head, e.owner)))
       const registered = await registeredWorktrees(repo)
       for (const entry of entries) {
-        expect(registered.map(p => path.resolve(p).toLowerCase())).toContain(path.resolve(entry.dir).toLowerCase())
+        expect(registered.map(canonical)).toContain(canonical(entry.dir))
         const admin = path.resolve(entry.dir, (await git(entry.dir, ['rev-parse', '--git-dir'])).trim())
         expect(JSON.parse(await readFile(path.join(admin, 'agent-compare-owner.json'), 'utf8'))).toEqual(entry.owner)
       }
