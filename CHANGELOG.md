@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0-alpha.5 — 2026-11-02
+
+- Keep comparison records and a direct tutorial control visible in the upper-right corner before a new conversation's first message. Use the host's blank-session extension without replacing its corner control.
+- Cover new and existing session transitions, direct guidance, correct history targeting, refresh, focus restoration, and narrow-window placement in browser checks.
+
 ## 0.2.0-alpha.4 — 2026-11-02
 
 - Add a settings strip above the conversation composer: comparison mode, configured models, generation limit, and a one-click example. Preserve the draft and structured references when entering or leaving A|B mode; retain controls per conversation across reopening.

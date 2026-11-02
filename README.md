@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each confined to its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.4, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.5, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -73,7 +73,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.4.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.5.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
@@ -86,7 +86,7 @@ After restarting DSH, enable **A|B at the bottom left of the conversation compos
 
 The settings strip's example button creates a separate shop repository and starts directly in the same conversation, preserving an unrelated draft. Example adoption targets that example repository.
 
-The header's **comparison records** button opens history, guidance, and the example. Stopped previews show explicit status and available screenshots; retained copies can be reopened.
+The upper-right **comparison records** and **tutorial** controls work in both new and existing conversations. They open history or guidance directly, preserving the host's corner control. Stopped previews show explicit status and available screenshots; retained copies can be reopened.
 
 Submissions use the host command executor and session log. Every surface reads the same persisted run by id. Model-facing notes describe the result, choice, adoption, or undo; unavailable conversations and failed injections are retried with history/inbox deduplication. Notes identify the target repository, including when an example differs from the original project.
 
@@ -149,7 +149,7 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 - 84 automated tests, including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
 - Adoption regressions preserve edits made during rehearsal or journal persistence, stop on concurrent HEAD/index changes, guard replacements and deletions, preserve ignored files at addition paths, and roll back only attempted paths. Retrying after resolving an overlap still supports adoption and undo.
-- 75 browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation rendering and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. Eight light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
+- 86 browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation navigation and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. Eight light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
 - `node scripts/smoke.mjs`: the built-in case with scripted agents on real Vite 6 and system Edge. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
 
 - Real model (DSH 0.2.1-rc.3 desktop, deepseek-flash, built-in case): both candidate session headers record their own copy as `cwd`, with `sandbox/mode` `workspace-write` and `approval/policy` `never`; `pwsh` runs inside the candidates (the 0.1 `SetNamedSecurityInfoW` error is gone); token usage comes from the session logs. Neither candidate declared completion within 30 minutes. One had written its whole change, and the shared acceptance run on its copy afterwards passed the frozen install, typecheck, build and 12/12 page steps — which is why 0.2.0-alpha.2 verifies written work when the time limit is reached.

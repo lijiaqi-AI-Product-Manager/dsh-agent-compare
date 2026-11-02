@@ -62,7 +62,7 @@ const page = (state, theme, error) => `<!doctype html><html lang="zh-CN"><head><
 .harness-input{border:1px solid #8886;border-radius:12px;padding:12px;background:${theme === 'dark' ? '#1b1d22' : '#fff'}}.harness-input textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:70px;background:transparent;color:inherit;border:0;font:inherit;line-height:1.7;outline-offset:3px}.harness-tools{display:flex;align-items:center;justify-content:space-between}.harness-send{background:#4056d9;color:white;border:0;padding:8px 18px;border-radius:8px;cursor:pointer}.harness-label{font-size:12px;color:${theme === 'dark' ? '#b4b9c3' : '#596475'}}
 ${theme === 'dark' ? ':root{--dsw-alias-bg-base:#1b1d22;--dsw-alias-bg-layer-1:#22252b;--dsw-alias-bg-layer-2:#2a2e35;--dsw-alias-label-primary:#eceef2;--dsw-alias-label-secondary:#b4b9c3;--dsw-alias-label-tertiary:#9ca3af;--dsw-alias-border-l2:rgba(255,255,255,.09);--dsw-alias-border-l3:rgba(255,255,255,.15);--dsw-alias-interactive-bg-hover:rgba(255,255,255,.06);--dsw-alias-bg-mask-1:rgba(0,0,0,.5)}' : ''}</style>
 <script src="/vendor/react.js"></script><script src="/vendor/react-dom.js"></script></head><body>
-<div class="titlebar">Client harness · sample data</div><header class="header"><b>Conversation</b><span id="btn"></span></header>
+<div class="titlebar">Client harness · sample data</div><header class="header"><b>Conversation</b><span id="btn"></span><span data-conversation-header-corner style="position:fixed;right:12px;top:5px;width:28px;height:28px"><button aria-label="宿主侧栏" style="width:28px;height:28px" onclick="window.__cornerClicks=(window.__cornerClicks??0)+1">☰</button></span></header><div id="hero-options"></div>
 <main class="harness-main"><div id="chat" class="harness-chat"></div><div class="harness-composer"><div id="settings"></div><div class="harness-input"><label for="draft" class="harness-label">需求</label><textarea id="draft" aria-label="需求"></textarea><div class="harness-tools"><div id="mode"></div><button class="harness-send" id="send">发送</button></div><p id="notice" role="status"></p></div></div></main><div id="overlay"></div>
 <script>
 const runs = ${JSON.stringify(states[state] ?? [])};
@@ -120,7 +120,11 @@ window.__ModuleLoader__ = {load:({factory})=>{
     catch(error){input={...input,phase:'claimed'};document.getElementById('notice').textContent=error.message}notify();
   };
   mod.apply({get:n=>n==='sessions'?{scope:()=>scope}:undefined,remote,events:{dispatch:()=>[(sessionId,name,result)=>window.__commandAcks.push({sessionId,name,result})]},slots:{inject:(n,cb)=>cb(),register:(spec,C)=>{regs[spec.name]={spec,C};return()=>{}}}});
-  for(const [slot,id] of [['conversation.session.header.utilities','btn'],['shell.overlay','overlay'],['conversation.input.left','mode'],['conversation.input.dock','settings']]){const item=regs[slot];ReactDOM.createRoot(document.getElementById(id)).render(React.createElement(item.C,{...item.spec.inject('s1'),session:{blank:${JSON.stringify(state==='blank'||state==='blank-history')}}}))}
+  const blank=${JSON.stringify(state==='blank'||state==='blank-history')};
+  const headerRoots={normal:ReactDOM.createRoot(document.getElementById('btn')),hero:ReactDOM.createRoot(document.getElementById('hero-options'))};
+  window.__switchHeader=(sessionId,isBlank)=>{for(const [key,slot,visible]of [['normal','conversation.session.header.utilities',!isBlank],['hero','conversation.hero.options',isBlank]]){const item=regs[slot];headerRoots[key].render(visible?React.createElement(item.C,{...item.spec.inject(sessionId),key:sessionId}):null)}};
+  window.__switchHeader('s1',blank);
+  for(const [slot,id] of [['shell.overlay','overlay'],['conversation.input.left','mode'],['conversation.input.dock','settings']]){const item=regs[slot];ReactDOM.createRoot(document.getElementById(id)).render(React.createElement(item.C,{...item.spec.inject('s1'),session:{blank}}))}
   if(${JSON.stringify(state==='inline')}) renderCommand({kind:'success',text:'A|B 比较已开始 · 运行 0a1b2c3d'});
   else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) setTimeout(()=>{
     document.querySelector('.ac-header-btn').focus();document.querySelector('.ac-header-btn').click();

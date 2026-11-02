@@ -370,6 +370,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-hrow span.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ac-header-btn{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 7px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2,rgba(15,17,21,.12));background:transparent;color:var(--dsw-alias-label-secondary,#4b5260);font:600 11px/1 var(--dsw-font-family,inherit);letter-spacing:.03em;cursor:pointer}
 .ac-header-btn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(15,17,21,.05));color:var(--dsw-alias-label-primary,#0f1115)}
+.ac-header-tools{display:flex;align-items:center;gap:6px;-webkit-app-region:no-drag}.ac-header-tools-hero{position:fixed;top:var(--ac-header-top,max(6px,env(titlebar-area-height,0px)));right:var(--ac-header-right,56px);z-index:20;max-width:calc(100vw - 80px)}
 @media (max-width:900px){.ac-grid{grid-template-columns:1fr;height:auto}.ac-card{min-height:460px}.ac-models{grid-template-columns:1fr}}
 /* in the conversation */
 .ac-inline{margin:4px 0 8px;border:1px solid var(--ac-border);border-radius:var(--ac-r-lg);background:var(--ac-bg);overflow:hidden}
@@ -1074,11 +1075,35 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
 }
 function HeaderButton({ sessionId }: { sessionId: string }): React.ReactElement {
   return (
-    <>
+    <div className="ac-root ac-header-tools" role="group" aria-label="AgentCompare 导航">
       <Styles />
-      <button className="ac-header-btn" title="AgentCompare：历史记录与使用指南" aria-label="打开 AgentCompare 历史记录与使用指南" onClick={() => setOpen(sessionId)}>比较记录</button>
-    </>
+      <button className="ac-header-btn" title="AgentCompare：比较记录" aria-label="打开 AgentCompare 比较记录" onClick={() => setOpen(sessionId)}>比较记录</button>
+      <button className="ac-header-btn" title="AgentCompare：使用教程与演示" aria-label="打开 AgentCompare 使用教程" onClick={() => setOpen(sessionId, undefined, 'guide')}>使用教程</button>
+    </div>
   )
+}
+/** The host does not mount header utilities while its blank-session Hero is shown. */
+function HeroHeader({ sessionId }: { sessionId: string }): React.ReactElement {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const corner = document.querySelector<HTMLElement>('[data-conversation-header-corner]')
+    const element = ref.current
+    if (!corner || !element) return
+    const align = (): void => {
+      const rect = corner.getBoundingClientRect()
+      if (!rect.width || !rect.height) return
+      element.style.setProperty('--ac-header-top', `${Math.max(4, rect.top + (rect.height - 26) / 2)}px`)
+      element.style.setProperty('--ac-header-right', `${Math.max(12, innerWidth - rect.left + 8)}px`)
+    }
+    align()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(align)
+    observer?.observe(corner)
+    const header = corner.closest('header')
+    if (header) observer?.observe(header)
+    window.addEventListener('resize', align)
+    return () => { observer?.disconnect(); window.removeEventListener('resize', align) }
+  }, [])
+  return <div ref={ref} className="ac-header-tools-hero"><HeaderButton sessionId={sessionId} /></div>
 }
 function Overlay(): React.ReactElement | null {
   const open = useOpen()
@@ -1103,6 +1128,9 @@ export function apply(ctx: ClientCtx): void {
   safely('header button', () => ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities', id: 'agent-compare', order: 30, registrant: 'dsh-agent-compare', inject: withSession,
   }, HeaderButton)))
+  safely('new conversation navigation', () => ctx.slots.inject('conversation.hero.options', () => ctx.slots.register({
+    name: 'conversation.hero.options', id: 'agent-compare-navigation', order: 30, registrant: 'dsh-agent-compare', inject: withSession,
+  }, HeroHeader)))
   safely('composer A|B button', () => ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left', id: 'agent-compare', order: 50, registrant: 'dsh-agent-compare', inject: withSession,
   }, AbModeButton)))
