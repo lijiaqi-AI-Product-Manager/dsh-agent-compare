@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reserve comparison capacity before repository preparation, transfer the slot without double-counting, and release failed startup entries. Create new records without replacing existing history, and pin baseline references only after the record is accepted.
+
 ## 0.2.0-alpha.7 — 2026-11-03
 
 - Apply the host file-write policy and canonical child-environment scrub to installation, checks and both initial and reopened previews. Keep caches inside each copy and disclose partial enforcement.
