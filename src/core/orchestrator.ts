@@ -7,7 +7,7 @@ import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdo
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
-import { killTree, ownsProcess, run, waitGone } from './proc.ts'
+import { commandHasMarkers, killTree, observeProcess, run, waitGone } from './proc.ts'
 import { BusyError, newRunId, repoKey, RunStore } from './run-store.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
 import { RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
@@ -828,8 +828,13 @@ export class Comparer {
           changed = true
         }
         if (c.preview !== undefined) {
-          await stopOwnedPreview(c.preview)
-          delete c.preview
+          try {
+            await stopOwnedPreview(c.preview)
+            delete c.preview
+          } catch (error) {
+            const detail = `候选 ${c.label} 预览等待清理：${(error as Error).message}`
+            r.leftovers = [...new Set([...(r.leftovers ?? []), detail])]
+          }
           changed = true
         }
       }
@@ -910,7 +915,9 @@ async function copyTree(dir: string): Promise<string> {
 /** Kill a recorded preview only when its process provably is that preview. */
 async function stopOwnedPreview(p: PreviewInfo): Promise<void> {
   const bin = path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js')
-  if (await ownsProcess(p.pid, [bin, `--port ${p.port}`])) {
+  const observed = await observeProcess(p.pid)
+  if (observed.state === 'unavailable') throw new Error(`无法确认进程 ${p.pid} 的归属：${observed.reason}`)
+  if (observed.state === 'observed' && commandHasMarkers(observed.commandLine, [bin, `--port ${p.port}`])) {
     await killTree(p.pid)
     if (!await waitGone(p.pid, 5000)) throw new Error(`预览进程 ${p.pid} 未退出`)
   }

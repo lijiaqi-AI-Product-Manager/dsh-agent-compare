@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { RunStore, repoKey, StaleRecordError } from '../src/core/run-store.ts'
 import { isAlive, killTree, ownsProcess, run, spawnSpec, waitGone, which } from '../src/core/proc.ts'
+import * as processes from '../src/core/proc.ts'
 import { freePort, startVitePreview } from '../src/core/preview.ts'
 import { publicView, verdictOf } from '../src/core/orchestrator.ts'
 import { Comparer } from '../src/core/orchestrator.ts'
@@ -117,6 +118,31 @@ describe('public view', () => {
   })
 })
 
+describe('unknown process identity', () => {
+  it('retains a preview and cleanup record through recovery until its identity is known', async () => {
+    const store = new RunStore(await tmp('ac-unknown-owner'))
+    const r = record('0a1b2c3d')
+    r.state = 'adopted'
+    r.adoption = { label: 'A', mode: 'worktree', state: 'adopted', startedAt: Date.now() }
+    r.candidates[0]!.preview = { url: 'http://127.0.0.1:1234/', port: 1234, pid: process.pid, kind: 'build', cwd: store.home }
+    await store.save(r)
+    const comparer = new Comparer({ store, version: 'test', runner: { isolation: 'own-root', run: async () => { throw new Error('must not generate') } } })
+    const inspection = vi.spyOn(processes, 'observeProcess').mockResolvedValue({ state: 'unavailable', reason: 'inspection busy' })
+    try {
+      await comparer.recover()
+      expect((await store.load(r.runId))?.candidates[0]?.preview?.pid).toBe(process.pid)
+      const blocked = await comparer.cleanup(r.runId)
+      expect(blocked?.state).toBe('adopted')
+      expect(blocked?.candidates[0]?.preview?.pid).toBe(process.pid)
+      expect(blocked?.leftovers?.join()).toContain('inspection busy')
+      inspection.mockResolvedValue({ state: 'gone' })
+      const cleared = await comparer.cleanup(r.runId)
+      expect(cleared?.candidates[0]?.preview).toBeUndefined()
+      expect(cleared?.leftovers).toBeUndefined()
+    } finally { inspection.mockRestore() }
+  })
+})
+
 describe('verdict', () => {
   const base = (over: Partial<Candidate>): Candidate => ({
     label: 'A', strategy: { id: 's', title: 's', instruction: '' }, route: {}, stage: 'ready', timings: {},
@@ -165,19 +191,26 @@ describe('process helpers', () => {
     const marker = `ac-marker-${process.pid}-${Date.now()}`
     const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', marker, '--port', '1234'], { stdio: 'ignore' })
     try {
-      await new Promise((r) => setTimeout(r, 300))
-      expect(await ownsProcess(child.pid!, [marker])).toBe(true)
-      expect(await ownsProcess(child.pid!, [marker, '--port 1234'])).toBe(true)
-      expect(await ownsProcess(child.pid!, [marker, '--port 123'])).toBe(false)
-      expect(await ownsProcess(child.pid!, [marker.slice(0, -1)])).toBe(false)
-      expect(await ownsProcess(child.pid!, [marker, '--port 1'])).toBe(false)
+      const deadline = Date.now() + 40_000
+      let observed = await processes.observeProcess(child.pid!)
+      while (observed.state === 'unavailable' && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 200))
+        observed = await processes.observeProcess(child.pid!)
+      }
+      expect(observed.state, JSON.stringify(observed)).toBe('observed')
+      if (observed.state !== 'observed') throw new Error('child process identity was not observable')
+      expect(processes.commandHasMarkers(observed.commandLine, [marker])).toBe(true)
+      expect(processes.commandHasMarkers(observed.commandLine, [marker, '--port 1234'])).toBe(true)
+      expect(processes.commandHasMarkers(observed.commandLine, [marker, '--port 123'])).toBe(false)
+      expect(processes.commandHasMarkers(observed.commandLine, [marker.slice(0, -1)])).toBe(false)
+      expect(processes.commandHasMarkers(observed.commandLine, [marker, '--port 1'])).toBe(false)
       expect(await ownsProcess(process.pid, [marker])).toBe(false)
       expect(await ownsProcess(999_999_999, [marker])).toBe(false)
     } finally {
       await killTree(child.pid)
       expect(await waitGone(child.pid!, 5000)).toBe(true)
     }
-  }, 30_000)
+  }, 90_000)
 
   it('allocates distinct free ports', async () => {
     const a = await freePort()
