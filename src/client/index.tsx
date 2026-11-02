@@ -39,6 +39,7 @@ interface Cand {
   generation?: { ended: 'completed' | 'budget' | 'agent-stopped'; stopReason?: string }
   progress?: { steps: number; lastAction?: string; lastActivityAt: number; tokens?: number }
   salvageable?: boolean
+  canReopenPreview?: boolean
   strategy?: { id: string; title: string }
   route?: Route
   actualRoute?: Route
@@ -53,6 +54,7 @@ interface Run {
   isolation: 'own-root' | 'shared-root'
   createdAt: number
   follows?: string
+  origin?: { kind: 'command' | 'tool' | 'panel'; id?: string }
   baseline: { dirty: boolean; headCommit?: string }
   acceptance: { source: 'defaults' | 'repository'; checks: string[]; steps: number; frozenInstall: boolean }
   candidates: Cand[]
@@ -74,14 +76,14 @@ async function call<T>(method: string, body: Record<string, unknown>): Promise<T
   return env.value as T
 }
 
-// ---- tiny shared store: which session's sheet is open ----
-let openSession: string | undefined
+// ---- tiny shared store: which session's sheet is open, optionally on one run ----
+let openSession: { sessionId: string; runId?: string; tab?: 'history' | 'guide' } | undefined
 const listeners = new Set<() => void>()
-function setOpen(id: string | undefined): void {
-  openSession = id
+function setOpen(sessionId: string | undefined, runId?: string, tab?: 'history' | 'guide'): void {
+  openSession = sessionId === undefined ? undefined : { sessionId, ...(runId ? { runId } : {}), ...(tab ? { tab } : {}) }
   for (const l of listeners) l()
 }
-function useOpen(): string | undefined {
+function useOpen(): typeof openSession {
   const [, force] = useState(0)
   useEffect(() => {
     const l = (): void => force((n) => n + 1)
@@ -89,6 +91,32 @@ function useOpen(): string | undefined {
     return () => { listeners.delete(l) }
   }, [])
   return openSession
+}
+
+// ---- the session's composer, reached through DSH's conversation service ----
+interface InputShell {
+  readonly projection?: { readonly clipboardText?: string }
+  readonly actions?: { setDraft?(text: string): void }
+  readonly state?: { subscribe?(fn: () => void): () => void }
+}
+let clientCtx: { get?(name: string): unknown } | undefined
+function inputShell(sessionId: string): InputShell | undefined {
+  try {
+    const sessions = clientCtx?.get?.('sessions') as { scope?(id: string): { get?(n: string): unknown } | undefined } | undefined
+    const actx = sessions?.scope?.(sessionId)
+    const conversation = actx?.get?.('conversation') as { input?: { for?(scope: unknown): InputShell } } | undefined
+    return conversation?.input?.for?.(actx)
+  } catch {
+    return undefined
+  }
+}
+const AB_PREFIX = /^\/ab(\s+|$)/
+/** Put a `/ab` command line into the composer (replacing an existing `/ab` prefix); false when the composer is unreachable. */
+function setAbDraft(sessionId: string, line: string): boolean {
+  const shell = inputShell(sessionId)
+  if (shell?.actions?.setDraft === undefined) return false
+  shell.actions.setDraft(line)
+  return true
 }
 
 /** Re-render every second while `on`, for live elapsed times. */
@@ -278,6 +306,27 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-header-btn{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 7px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2,rgba(15,17,21,.12));background:transparent;color:var(--dsw-alias-label-secondary,#4b5260);font:600 11px/1 var(--dsw-font-family,inherit);letter-spacing:.03em;cursor:pointer}
 .ac-header-btn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(15,17,21,.05));color:var(--dsw-alias-label-primary,#0f1115)}
 @media (max-width:900px){.ac-grid{grid-template-columns:1fr;height:auto}.ac-card{min-height:460px}.ac-models{grid-template-columns:1fr}}
+/* in the conversation */
+.ac-inline{margin:4px 0 8px;border:1px solid var(--ac-border);border-radius:var(--ac-r-lg);background:var(--ac-bg);overflow:hidden}
+.ac-inline-head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--ac-border);background:var(--ac-l1)}
+.ac-inline-head .ac-task{font-size:13px}
+.ac-inline .ac-grid{min-height:0;padding:12px;gap:12px}
+.ac-inline .ac-card{min-height:0}
+.ac-inline .ac-browser,.ac-inline .ac-shotwrap,.ac-inline .ac-fail,.ac-inline .ac-empty{height:300px;flex:none}
+.ac-inline .ac-banner{margin:12px 12px 0}
+.ac-inline .ac-bar{padding:10px 12px}
+.ac-inline-note{padding:10px 14px;color:var(--ac-fg2)}
+.ac-shotwrap{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--ac-l1)}
+.ac-shotbar{display:flex;align-items:center;gap:10px;padding:8px 12px;color:var(--ac-fg3);font-size:12px;border-bottom:1px solid var(--ac-border)}
+.ac-shotbar span{flex:1}
+.ac-mode-btn{display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 9px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2,rgba(15,17,21,.12));background:transparent;color:var(--dsw-alias-label-secondary,#4b5260);font:600 12px/1 var(--dsw-font-family,inherit);letter-spacing:.03em;cursor:pointer}
+.ac-mode-btn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(15,17,21,.05))}
+.ac-mode-btn.on{background:var(--dsw-alias-brand-primary,#4d6bfe);border-color:transparent;color:#fff}
+.ac-guide{max-width:820px;width:100%;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:18px}
+.ac-guide h3{margin:0;font-size:15px}
+.ac-guide ol,.ac-guide ul{margin:6px 0 0;padding-left:20px;color:var(--ac-fg2);display:flex;flex-direction:column;gap:4px}
+.ac-guide code{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;background:var(--ac-l2);padding:1px 5px;border-radius:5px}
+.ac-back{margin:12px 16px 0;align-self:flex-start}
 @media (prefers-reduced-motion:reduce){.ac-root *{animation:none!important}}
 `
 function Styles(): React.ReactElement {
@@ -350,18 +399,29 @@ function Verdict({ c }: { c: Cand }): React.ReactElement | null {
   )
 }
 
-function Screenshots({ runId, c }: { runId: string; c: Cand }): React.ReactElement {
+/** A finished candidate that is no longer served: its verification screenshots, and a way to serve it again. */
+function Screenshots({ runId, c, busy, act }: { runId: string; c: Cand; busy: boolean; act: Act }): React.ReactElement {
   const [desk, setDesk] = useState<string>()
   const [mob, setMob] = useState<string>()
   useEffect(() => {
     if (c.hasScreenshot) call<{ dataUrl: string }>('shot', { runId, label: c.label }).then((r) => setDesk(r.dataUrl), () => {})
     if (c.hasMobileScreenshot) call<{ dataUrl: string }>('shot', { runId, label: c.label, mobile: true }).then((r) => setMob(r.dataUrl), () => {})
   }, [runId, c.label, c.hasScreenshot, c.hasMobileScreenshot])
-  if (!desk && !mob) return <div className="ac-empty">预览已停止</div>
+  const reopen = c.canReopenPreview
+    ? <button className="ac-btn primary sm" disabled={busy} onClick={() => act('reopenPreview', { label: c.label })}>重新打开预览</button>
+    : null
   return (
-    <div className="ac-shot">
-      {desk && <img src={desk} alt={`候选 ${c.label} 桌面截图`} />}
-      {mob && <img className="m" src={mob} alt={`候选 ${c.label} 手机截图`} />}
+    <div className="ac-shotwrap">
+      <div className="ac-shotbar">
+        <span>{c.canReopenPreview ? '预览已停止（DSH 重启或已结束），可以重新打开。下面是验收时的截图：' : '副本已清理，下面是验收时的截图：'}</span>
+        {reopen}
+      </div>
+      {desk || mob ? (
+        <div className="ac-shot">
+          {desk && <img src={desk} alt={`候选 ${c.label} 桌面截图`} />}
+          {mob && <img className="m" src={mob} alt={`候选 ${c.label} 手机截图`} />}
+        </div>
+      ) : <div className="ac-empty">没有截图</div>}
     </div>
   )
 }
@@ -427,7 +487,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: C
           )}
         </div>
       ) : c.stage === 'ready' ? (
-        <Screenshots runId={run.runId} c={c} />
+        <Screenshots runId={run.runId} c={c} busy={busy} act={act} />
       ) : (
         <div className="ac-empty">
           <div className="ac-skel"><i style={{ width: '60%' }} /><i /><i style={{ width: '80%' }} /></div>
@@ -438,101 +498,29 @@ function CandidateCard({ run, c, revealed, picked, busy, act }: { run: Run; c: C
   )
 }
 
-function ModeAndModels({ sessionId, mode, setMode, pair, setPair }: { sessionId: string; mode: 'same-model' | 'cross-model'; setMode: (m: 'same-model' | 'cross-model') => void; pair: [string, string]; setPair: (p: [string, string]) => void }): React.ReactElement {
+/** Two configured models for a cross-model run, returned as the `--models` value. */
+function ModelPicker({ sessionId, onPick }: { sessionId: string; onPick: (models: string) => void }): React.ReactElement {
   const [models, setModels] = useState<ModelItem[]>()
-  const [current, setCurrent] = useState<Route>()
+  const [pair, setPair] = useState<[string, string]>(['', ''])
   const [err, setErr] = useState<string>()
   useEffect(() => {
-    call<{ current: Route; models: ModelItem[] }>('models', { sessionId }).then((r) => { setModels(r.models); setCurrent(r.current) }, (e: Error) => setErr(e.message))
+    call<{ current: Route; models: ModelItem[] }>('models', { sessionId }).then((r) => setModels(r.models), (e: Error) => setErr(e.message))
   }, [sessionId])
-  const key = (m: ModelItem): string => `${m.provider}\u0000${m.id}`
+  const key = (m: ModelItem): string => `${m.provider}/${m.id}`
+  if (models === undefined) return <div className="ac-meta">{err ? `读取模型列表失败：${err}` : '正在读取已配置的模型…'}</div>
+  if (models.length < 2) return <div className="ac-meta">至少需要两个已配置的模型，请先在 DSH 的模型设置里添加。</div>
+  const ok = pair[0] !== '' && pair[1] !== '' && pair[0] !== pair[1]
   return (
-    <>
-      <div className="ac-seg" role="tablist" aria-label="比较方式">
-        <button className={mode === 'same-model' ? 'on' : ''} onClick={() => setMode('same-model')} role="tab" aria-selected={mode === 'same-model'}>同一模型 · 两种策略</button>
-        <button className={mode === 'cross-model' ? 'on' : ''} onClick={() => setMode('cross-model')} role="tab" aria-selected={mode === 'cross-model'}>两个模型 · 同一要求</button>
-      </div>
-      {mode === 'same-model' ? (
-        <div className="ac-meta">两边都用当前对话的模型{current?.model ? `（${routeText(current)}）` : ''}，一边「稳妥」沿用现有写法，一边「大胆」重做交互；揭晓前你看不到哪边是哪种。</div>
-      ) : models === undefined ? (
-        <div className="ac-meta">{err ? `读取模型列表失败：${err}` : '正在读取已配置的模型…'}</div>
-      ) : models.length < 2 ? (
-        <div className="ac-meta">至少需要两个已配置的模型。请先在 DSH 的模型设置里添加。</div>
-      ) : (
-        <div className="ac-models">
-          {[0, 1].map((i) => (
-            <label key={i}>{i === 0 ? '模型一' : '模型二'}
-              <select value={pair[i]} onChange={(e) => { const next: [string, string] = [...pair]; next[i] = e.target.value; setPair(next) }}>
-                <option value="">选择模型</option>
-                {models.map((m) => <option key={key(m)} value={key(m)}>{m.name} · {m.providerName}</option>)}
-              </select>
-            </label>
-          ))}
-        </div>
-      )}
-    </>
-  )
-}
-
-function Composer({ sessionId, follows, onStarted, compact }: { sessionId: string; follows?: string; onStarted: (r: Run) => void; compact?: boolean }): React.ReactElement {
-  const [task, setTask] = useState('')
-  const [mode, setMode] = useState<'same-model' | 'cross-model'>('same-model')
-  const [pair, setPair] = useState<[string, string]>(['', ''])
-  const [minutes, setMinutes] = useState(30)
-  const [err, setErr] = useState<string>()
-  const [busy, setBusy] = useState(false)
-  const ref = useRef<HTMLTextAreaElement>(null)
-  useEffect(() => { ref.current?.focus() }, [])
-  const pairOk = mode === 'same-model' || (pair[0] !== '' && pair[1] !== '' && pair[0] !== pair[1])
-  const start = (example = false): void => {
-    if (busy || (!example && (task.trim() === '' || !pairOk))) return
-    setBusy(true)
-    setErr(undefined)
-    const models = mode === 'cross-model' ? pair.map((k) => { const [provider, model] = k.split('\u0000'); return { provider, model } }) : undefined
-    call<Run>('start', { sessionId, task, generationMinutes: minutes, mode: example ? 'same-model' : mode, ...(models && !example ? { models } : {}), ...(follows ? { follows } : {}), ...(example ? { example: true } : {}) })
-      .then(onStarted, (e: Error) => setErr(e.message)).finally(() => setBusy(false))
-  }
-  return (
-    <>
-      <ModeAndModels sessionId={sessionId} mode={mode} setMode={setMode} pair={pair} setPair={setPair} />
-      <div className="ac-field">
-        <textarea ref={ref} value={task} onChange={(e) => setTask(e.target.value)} placeholder={follows ? '在刚采用的版本上，下一项想做什么？' : '这次想做什么？把每条要求都写清楚，两版才好比较'}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) start() }} aria-label="对比任务" style={compact ? { minHeight: 72 } : undefined} />
-        <div className="ac-field-foot">
-          <div className="ac-chips">{!compact && EXAMPLES.map((x) => <button key={x} className="ac-chip" onClick={() => { setTask(x); ref.current?.focus() }}>{x}</button>)}</div>
-          <label className="ac-budget" title="到时还没说完成，就停下并验收它已写的改动">每版最多
-            <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label="每个候选的生成时间上限">
-              {[15, 30, 60, 90].map((m) => <option key={m} value={m}>{m} 分钟</option>)}
-            </select>
-          </label>
-          <span className="ac-kbd">Ctrl + Enter</span>
-          <button className="ac-btn primary lg" disabled={busy || task.trim() === '' || !pairOk} onClick={() => start()}>{busy ? <><span className="ac-spin" />准备中</> : follows ? '再次比较' : '开始对比'}</button>
-        </div>
-      </div>
-      {!compact && (
-        <div className="ac-case">
-          <div><b>先用内置案例试一次</b><span>新建一个独立的示例商店仓库（不碰你的项目），要求两版都做出搜索、组合筛选、清空和手机适配，并逐条自动验收。</span></div>
-          <button className="ac-btn" disabled={busy} onClick={() => start(true)}>试跑内置案例</button>
-        </div>
-      )}
-      {err && <div className="ac-error" style={{ margin: 0 }}>{err}</div>}
-    </>
-  )
-}
-
-function StartView({ sessionId, isolation, onStarted }: { sessionId: string; isolation?: 'own-root' | 'shared-root'; onStarted: (r: Run) => void }): React.ReactElement {
-  return (
-    <div className="ac-start">
-      <div>
-        <h2 className="ac-h1">同一需求，两版真跑</h2>
-        <p className="ac-lead">两个 Agent 各在自己的隔离副本里做一版，构建后真的跑起来给你试，并按同一套验收逐条检查。先体验、再选择，选完立即揭晓。</p>
-      </div>
-      <Composer sessionId={sessionId} onStarted={onStarted} />
-      <div className="ac-note">
-        <span>需要：Git 仓库 · Vite 项目</span>
-        <span>{isolation === 'shared-root' ? '隔离：副本在仓库内，越界写入只能事后发现' : '隔离：每个候选只能写自己的副本'}</span>
-        <span>采用前先预演；不提交、不动 index</span>
-      </div>
+    <div className="ac-models">
+      {[0, 1].map((i) => (
+        <label key={i}>{i === 0 ? '模型一' : '模型二'}
+          <select value={pair[i]} onChange={(e) => { const next: [string, string] = [...pair]; next[i] = e.target.value; setPair(next) }}>
+            <option value="">选择模型</option>
+            {models.map((m) => <option key={key(m)} value={key(m)}>{m.name} · {m.providerName}</option>)}
+          </select>
+        </label>
+      ))}
+      <div><button className="ac-btn" disabled={!ok} onClick={() => onPick(`${pair[0]},${pair[1]}`)}>放进输入框</button></div>
     </div>
   )
 }
@@ -552,7 +540,7 @@ function StarNudge(): React.ReactElement | null {
 
 type Act = (method: string, extra?: Record<string, unknown>) => void
 
-function ActionBar({ run, busy, act, home }: { run: Run; busy: boolean; act: Act; home: () => void }): React.ReactElement | null {
+function ActionBar({ run, busy, act, onDone }: { run: Run; busy: boolean; act: Act; onDone?: () => void }): React.ReactElement | null {
   const pick = run.choice?.pick
   const picked = run.candidates.find((c) => c.label === pick)
   const total = Math.max(...run.candidates.map(elapsed))
@@ -608,9 +596,9 @@ function ActionBar({ run, busy, act, home }: { run: Run; busy: boolean; act: Act
     case 'adopted':
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text"><StarNudge /></span>
+          <span className="ac-bar-text">{run.origin?.kind === 'command' ? '采用结果已记入这个对话，可以直接接着提下一项需求。' : ''} <StarNudge /></span>
           {run.adoption?.mode === 'worktree' && <button className="ac-btn" disabled={busy} onClick={() => act('revert')}>撤销采用</button>}
-          <button className="ac-btn" disabled={busy} onClick={home}>完成</button>
+          {onDone && <button className="ac-btn" disabled={busy} onClick={onDone}>完成</button>}
         </div>
       )
     default:
@@ -618,7 +606,6 @@ function ActionBar({ run, busy, act, home }: { run: Run; busy: boolean; act: Act
         <div className="ac-bar">
           <span className="ac-bar-text">{run.state === 'interrupted' ? '这次比较因宿主重启而中断。' : '这次比较已结束。'}{run.leftovers?.length ? ` 有 ${run.leftovers.length} 个目录无法确认归属，没有删除。` : ''}</span>
           {run.state === 'interrupted' && <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>清理</button>}
-          <button className="ac-btn primary" disabled={busy} onClick={home}>新的比较</button>
         </div>
       )
   }
@@ -627,7 +614,7 @@ function ActionBar({ run, busy, act, home }: { run: Run; busy: boolean; act: Act
 function Banners({ run }: { run: Run }): React.ReactElement {
   const pick = run.choice?.pick
   const fav = run.checksFavoured
-  const revealed = REVEALED.has(run.state) || (run.choice !== undefined)
+  const revealed = REVEALED.has(run.state) || run.choice !== undefined
   const pickedTitle = run.candidates.find((c) => c.label === pick)?.strategy?.title
   const a = run.adoption
   const bad = a && ['blocked', 'rolled-back', 'needs-recovery'].includes(a.state)
@@ -665,9 +652,112 @@ function Banners({ run }: { run: Run }): React.ReactElement {
   )
 }
 
+/**
+ * One comparison, live: candidate cards, banners and the action bar. Used
+ * both inside the conversation (compact) and in the large window.
+ */
+function RunView({ runId, initial, compact, onDone, onExpand }: { runId: string; initial?: Run; compact?: boolean; onDone?: () => void; onExpand?: () => void }): React.ReactElement {
+  const [run, setRun] = useState<Run | undefined>(initial)
+  const [err, setErr] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  const refresh = useCallback(async () => {
+    try { setRun(await call<Run>('get', { runId })); setErr(undefined) } catch (e) { setErr((e as Error).message) }
+  }, [runId])
+  useEffect(() => { void refresh() }, [refresh])
+  const live = run !== undefined && (LIVE_POLL.has(run.state) || run.candidates.some((c) => busyStage(c.stage)))
+  useEffect(() => {
+    // Live runs refresh quickly; settled ones slowly, so a card in the chat follows actions taken elsewhere.
+    const t = setInterval(() => { void refresh() }, live ? 1500 : 6000)
+    return () => clearInterval(t)
+  }, [live, refresh])
+  useTick(run?.state === 'running')
+  const act: Act = (method, extra = {}) => {
+    setBusy(true)
+    setErr(undefined)
+    call<Run | null>(method, { runId, ...extra })
+      .then((r) => { if (r && typeof r === 'object' && 'runId' in r) setRun(r) }, (e: Error) => setErr(e.message))
+      .finally(() => { setBusy(false); void refresh() })
+  }
+  if (run === undefined) return <div className={compact ? 'ac-inline-note' : 'ac-empty'}>{err ?? '正在读取这次比较…'}</div>
+  const revealed = REVEALED.has(run.state) || run.choice !== undefined
+  const body = (
+    <>
+      {err && <div className="ac-error" style={{ marginTop: 12 }}>{err}</div>}
+      <Banners run={run} />
+      <div className="ac-grid">
+        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={busy} act={act} />)}
+      </div>
+      <ActionBar run={run} busy={busy} act={act} {...(onDone ? { onDone } : {})} />
+    </>
+  )
+  if (!compact) return body
+  return (
+    <div className="ac-root ac-inline" aria-label={`A|B 比较 ${run.runId}`}>
+      <Styles />
+      <div className="ac-inline-head">
+        <span className="ac-logo">A|B</span>
+        <span className="ac-task" title={run.task}>{run.task}</span>
+        <span className={`ac-pill ${run.state === 'adopted' ? 'ok' : ACTIVE.has(run.state) ? 'brand' : ''}`}>{STATE_TEXT[run.state] ?? run.state}</span>
+        {onExpand && <button className="ac-btn sm" onClick={onExpand}>大窗口查看</button>}
+      </div>
+      {body}
+    </div>
+  )
+}
+
+const runIdIn = (text: string | undefined): string | undefined => /运行 ([0-9a-f]{8})/.exec(text ?? '')?.[1] ?? /"runId"\s*:\s*"([0-9a-f]{8})"/.exec(text ?? '')?.[1]
+
+/** The `/ab` command row in the conversation: the comparison it started, live. */
+function CommandView({ node, sessionId }: { node: { name?: string; args?: string | null; outcome: { kind: string; text?: string } | null }; sessionId?: string }): React.ReactElement {
+  const runId = runIdIn(node.outcome?.text)
+  if (node.outcome === null) return <div className="ac-root ac-inline"><Styles /><div className="ac-inline-note"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />正在准备 A|B 比较：{node.args ?? ''}</div></div>
+  if (node.outcome.kind !== 'success' || runId === undefined) {
+    return <div className="ac-root ac-inline"><Styles /><div className="ac-fail" style={{ height: 'auto' }}><b>A|B 比较没有开始</b>{node.outcome.text ?? ''}</div></div>
+  }
+  return <RunView runId={runId} compact {...(sessionId ? { onExpand: () => setOpen(sessionId, runId) } : {})} />
+}
+
+/** The model's `agent_compare_start` tool call in the conversation: the same live card. */
+function ToolView(props: { sessionId?: string; phase?: string; block?: unknown }): React.ReactElement {
+  const fromResult = runIdIn(JSON.stringify(props.block ?? null))
+  const [found, setFound] = useState<string | undefined>(fromResult)
+  useEffect(() => {
+    if (fromResult !== undefined) { setFound(fromResult); return }
+    if (props.sessionId === undefined) return
+    // Still running: the newest comparison this conversation's model started.
+    call<ListResult>('list', { sessionId: props.sessionId }).then((l) => setFound(l.runs.find((r) => r.origin?.kind === 'tool')?.runId), () => {})
+  }, [fromResult, props.sessionId])
+  if (found === undefined) return <div className="ac-root ac-inline"><Styles /><div className="ac-inline-note"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />正在准备 A|B 比较…</div></div>
+  const sid = props.sessionId
+  return <RunView runId={found} compact {...(sid ? { onExpand: () => setOpen(sid, found) } : {})} />
+}
+
+/** The A|B mode switch in the composer: puts `/ab ` in front of the draft, or takes it away. */
+function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement {
+  const [, force] = useState(0)
+  useEffect(() => {
+    const shell = inputShell(sessionId)
+    const unsubscribe = shell?.state?.subscribe?.(() => force((n) => n + 1))
+    return () => { unsubscribe?.() }
+  }, [sessionId])
+  const text = inputShell(sessionId)?.projection?.clipboardText ?? ''
+  const on = AB_PREFIX.test(text)
+  const toggle = (): void => {
+    const done = setAbDraft(sessionId, on ? text.replace(AB_PREFIX, '') : `/ab ${text}`)
+    if (!done) setOpen(sessionId, undefined, 'guide')
+  }
+  return (
+    <>
+      <Styles />
+      <button className={`ac-mode-btn${on ? ' on' : ''}`} onClick={toggle} aria-pressed={on}
+        title={on ? '已切到 A|B 对比：发送后会做两版、真跑、验收，再由你选择。再点一次取消' : 'A|B 对比：这条需求做两版，真跑、验收、盲选，再采用到项目'}>A|B</button>
+    </>
+  )
+}
+
 function History({ data, open }: { data?: ListResult; open: (r: Run) => void }): React.ReactElement {
   if (data === undefined) return <div className="ac-empty"><span className="ac-spin" /></div>
-  if (data.runs.length === 0 && data.legacy.length === 0) return <div className="ac-empty">还没有比较记录</div>
+  if (data.runs.length === 0 && data.legacy.length === 0) return <div className="ac-empty">还没有比较记录。点输入框左下角的 A|B，或输入 /ab 加上你的需求，就能在对话里开始第一次比较。</div>
   return (
     <div className="ac-history">
       {data.runs.map((r) => (
@@ -688,59 +778,71 @@ function History({ data, open }: { data?: ListResult; open: (r: Run) => void }):
   )
 }
 
-function Sheet({ sessionId }: { sessionId: string }): React.ReactElement {
-  const [view, setView] = useState<'home' | 'run' | 'history'>('home')
-  const [run, setRun] = useState<Run>()
-  const [list, setList] = useState<ListResult>()
-  const [loaded, setLoaded] = useState(false)
-  const [err, setErr] = useState<string>()
-  const [busy, setBusy] = useState(false)
+function Guide({ sessionId, isolation }: { sessionId: string; isolation?: 'own-root' | 'shared-root' }): React.ReactElement {
+  const [note, setNote] = useState<string>()
+  const put = (line: string): void => {
+    if (setAbDraft(sessionId, line)) setOpen(undefined)
+    else setNote(`没能直接放进输入框，请手动输入：${line}`)
+  }
+  return (
+    <div className="ac-guide">
+      <div>
+        <h2 className="ac-h1">同一需求，两版真跑</h2>
+        <p className="ac-lead">两个 Agent 各在自己的隔离副本里做一版，构建后真的跑起来，按同一套验收逐条检查。你在对话里试用两版、做出选择，再安全地采用到项目；整个过程都记在这个对话里，之后可以直接接着改。</p>
+      </div>
+      <div>
+        <h3>怎么用</h3>
+        <ol>
+          <li>点输入框左下角的 <b>A|B</b>（或直接输入 <code>/ab</code>），写下需求，发送。</li>
+          <li>对话里会出现 A|B 卡片：两个小窗口分别是两版真实运行的页面，并显示验收进度与结论。</li>
+          <li>两边都试一下，选一版；选完立即揭晓策略和模型。</li>
+          <li>点「采用到工作区」：先在你当前项目的副本里预演，验收通过才写入；不提交、不动 index，随时可撤销。</li>
+          <li>采用结果会记入对话，直接接着提下一项需求即可。</li>
+        </ol>
+      </div>
+      <div>
+        <h3>可选参数</h3>
+        <ul>
+          <li><code>--minutes 60</code>：每版最长生成时间（默认 30 分钟）；到时还没完成，也会验收它已写的改动。</li>
+          <li><code>--models 服务/模型,服务/模型</code>：两个模型各做一版，用同一份要求。</li>
+          <li><code>--example</code>：在一个新建的示例商店仓库里试跑内置案例，不碰你的项目。</li>
+        </ul>
+      </div>
+      <div className="ac-case">
+        <div><b>先用内置案例试一次</b><span>新建一个独立的示例仓库，要求两版都做出搜索、组合筛选、清空和手机适配，并逐条自动验收。</span></div>
+        <button className="ac-btn primary" onClick={() => put('/ab --example')}>放进输入框</button>
+      </div>
+      <div>
+        <h3>用两个模型比较</h3>
+        <ModelPicker sessionId={sessionId} onPick={(m) => put(`/ab --models ${m} `)} />
+      </div>
+      {note && <div className="ac-error" style={{ margin: 0 }}>{note}</div>}
+      <div className="ac-note">
+        <span>需要：Git 仓库 · Vite 项目</span>
+        <span>{isolation === 'shared-root' ? '隔离：副本在仓库内，越界写入只能事后发现' : '隔离：每个候选只能写自己的副本'}</span>
+        <span>采用前先预演；不提交、不动 index</span>
+      </div>
+    </div>
+  )
+}
 
-  const refreshList = useCallback(async (): Promise<ListResult | undefined> => {
-    try {
-      const l = await call<ListResult>('list', { sessionId })
-      setList(l)
-      setErr(undefined)
-      return l
-    } catch (e) { setErr((e as Error).message); return undefined } finally { setLoaded(true) }
+/** The window behind the header button: history (with any run in full) and the guide. */
+function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; tab?: 'history' | 'guide' }): React.ReactElement {
+  const [view, setView] = useState<'history' | 'guide'>(tab ?? 'history')
+  const [selected, setSelected] = useState<string | undefined>(runId)
+  const [list, setList] = useState<ListResult>()
+  const [err, setErr] = useState<string>()
+  const refreshList = useCallback(async () => {
+    try { setList(await call<ListResult>('list', { sessionId })); setErr(undefined) } catch (e) { setErr((e as Error).message) }
   }, [sessionId])
-  // On open: resume a comparison still in progress for this conversation, otherwise start fresh.
-  useEffect(() => {
-    void refreshList().then((l) => {
-      const active = l?.runs.find((r) => ACTIVE.has(r.state))
-      if (active) { setRun(active); setView('run') }
-    })
-  }, [refreshList])
-  const refreshRun = useCallback(async () => {
-    if (!run) return
-    try { setRun(await call<Run>('get', { runId: run.runId })) } catch (e) { setErr((e as Error).message) }
-  }, [run?.runId])
-  const polling = view === 'run' && run !== undefined && (LIVE_POLL.has(run.state) || run.candidates.some((c) => busyStage(c.stage)))
-  useEffect(() => {
-    if (!polling) return
-    const t = setInterval(() => { void refreshRun() }, 1500)
-    return () => clearInterval(t)
-  }, [polling, refreshRun])
-  useTick(run?.state === 'running')
+  useEffect(() => { void refreshList() }, [refreshList])
+  useEffect(() => { setSelected(runId); if (runId) setView('history') }, [runId])
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setOpen(undefined) }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-
-  const act: Act = (method, extra = {}) => {
-    if (!run) return
-    setBusy(true)
-    setErr(undefined)
-    call<Run | null>(method, { runId: run.runId, ...extra })
-      .then((r) => { if (r && typeof r === 'object' && 'runId' in r) setRun(r) }, (e: Error) => setErr(e.message))
-      .finally(() => { setBusy(false); void refreshRun() })
-  }
-  const home = (): void => { setRun(undefined); setView('home'); void refreshList() }
-  const started = (r: Run): void => { setRun(r); setView('run') }
-
-  const revealed = run ? REVEALED.has(run.state) || run.choice !== undefined : false
-  const runningCount = run?.candidates.filter((c) => busyStage(c.stage)).length ?? 0
+  const current = list?.runs.find((r) => r.runId === selected)
   return (
     <div className="ac-root">
       <Styles />
@@ -749,39 +851,26 @@ function Sheet({ sessionId }: { sessionId: string }): React.ReactElement {
         <header className="ac-head">
           <span className="ac-logo">A|B</span>
           <span className="ac-title">AgentCompare</span>
-          {view === 'run' && run ? <span className="ac-task" title={run.task}>{run.task}</span> : <span className="ac-spacer" />}
-          {view === 'run' && run?.baseline.dirty && <span className="ac-pill" title="未提交的改动已一起复制给两个候选；你的文件没有被修改">含未提交改动</span>}
-          {view === 'run' && run && runningCount > 0 && <span className="ac-pill brand"><span className="ac-spin" />进行中</span>}
+          {view === 'history' && selected ? <span className="ac-task" title={current?.task}>{current?.task ?? ''}</span> : <span className="ac-spacer" />}
           <div className="ac-tabs" role="tablist">
-            <button className={`ac-tab${view !== 'history' ? ' on' : ''}`} onClick={() => setView(run ? 'run' : 'home')} role="tab" aria-selected={view !== 'history'}>{run ? '当前比较' : '新的比较'}</button>
-            <button className={`ac-tab${view === 'history' ? ' on' : ''}`} onClick={() => { setView('history'); void refreshList() }} role="tab" aria-selected={view === 'history'}>历史记录</button>
+            <button className={`ac-tab${view === 'history' ? ' on' : ''}`} onClick={() => { setView('history'); setSelected(undefined); void refreshList() }} role="tab" aria-selected={view === 'history'}>历史记录</button>
+            <button className={`ac-tab${view === 'guide' ? ' on' : ''}`} onClick={() => setView('guide')} role="tab" aria-selected={view === 'guide'}>使用说明</button>
           </div>
           <button className="ac-icon-btn" onClick={() => setOpen(undefined)} aria-label="关闭（Esc）" title="关闭（Esc）"><IconClose /></button>
         </header>
         {err && <div className="ac-error" style={{ marginTop: 12 }}>{err}</div>}
         <div className="ac-body">
-          {!loaded ? (
-            <div className="ac-empty" style={{ height: '100%' }}><span className="ac-spin" /></div>
-          ) : view === 'history' ? (
-            <History data={list} open={(r) => { setRun(r); setView('run') }} />
-          ) : view === 'run' && run ? (
+          {view === 'guide' ? (
+            <Guide sessionId={sessionId} {...(list?.isolation ? { isolation: list.isolation } : {})} />
+          ) : selected ? (
             <>
-              <Banners run={run} />
-              <div className="ac-grid">
-                {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={busy} act={act} />)}
-              </div>
-              {run.state === 'adopted' && run.adoption?.mode === 'worktree' && (
-                <div className="ac-next">
-                  <b>继续这份成果</b>
-                  <Composer sessionId={sessionId} follows={run.runId} onStarted={started} compact />
-                </div>
-              )}
+              <button className="ac-btn sm ac-back" onClick={() => { setSelected(undefined); void refreshList() }}>← 返回历史记录</button>
+              <RunView runId={selected} {...(current ? { initial: current } : {})} onDone={() => { setSelected(undefined); void refreshList() }} />
             </>
           ) : (
-            <StartView sessionId={sessionId} {...(list?.isolation ? { isolation: list.isolation } : {})} onStarted={started} />
+            <History data={list} open={(r) => setSelected(r.runId)} />
           )}
         </div>
-        {view === 'run' && run && <ActionBar run={run} busy={busy} act={act} home={home} />}
       </div>
     </div>
   )
@@ -791,22 +880,23 @@ function HeaderButton({ sessionId }: { sessionId: string }): React.ReactElement 
   return (
     <>
       <Styles />
-      <button className="ac-header-btn" title="AgentCompare：同一需求，两版真跑" aria-label="打开 AgentCompare" onClick={() => setOpen(sessionId)}>A|B</button>
+      <button className="ac-header-btn" title="AgentCompare：历史记录与使用说明" aria-label="打开 AgentCompare 历史记录与使用说明" onClick={() => setOpen(sessionId)}>A|B</button>
     </>
   )
 }
 
 function Overlay(): React.ReactElement | null {
-  const sid = useOpen()
-  return sid === undefined ? null : <Sheet sessionId={sid} />
+  const open = useOpen()
+  return open === undefined ? null : <Sheet sessionId={open.sessionId} {...(open.runId ? { runId: open.runId } : {})} {...(open.tab ? { tab: open.tab } : {})} />
 }
 
 /**
  * DSH 0.2.1 treats any client entry that fails to activate as a fatal web
  * boot (the desktop app then disables every third-party plugin). So nothing
- * here may throw: a slot that cannot be registered only loses this button.
+ * here may throw: a slot that cannot be registered only loses that surface.
  */
 export function apply(ctx: ClientCtx): void {
+  clientCtx = ctx as unknown as typeof clientCtx
   const disposers: Array<() => void> = []
   const safely = (label: string, fn: () => () => void): void => {
     try {
@@ -815,19 +905,21 @@ export function apply(ctx: ClientCtx): void {
       console.warn(`[dsh-agent-compare] ${label} unavailable:`, error)
     }
   }
+  const withSession = (sessionId: string): { sessionId: string } => ({ sessionId })
   safely('header button', () => ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
-    name: 'conversation.session.header.utilities',
-    id: 'agent-compare',
-    order: 30,
-    registrant: 'dsh-agent-compare',
-    inject: (sessionId: string) => ({ sessionId }),
+    name: 'conversation.session.header.utilities', id: 'agent-compare', order: 30, registrant: 'dsh-agent-compare', inject: withSession,
   }, HeaderButton)))
+  safely('composer A|B button', () => ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+    name: 'conversation.input.left', id: 'agent-compare', order: 50, registrant: 'dsh-agent-compare', inject: withSession,
+  }, AbModeButton)))
+  safely('/ab command view', () => ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
+    name: 'conversation.chat.commandview', key: 'ab', registrant: 'dsh-agent-compare', inject: withSession,
+  }, CommandView)))
+  safely('tool view', () => ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
+    name: 'tool.call.toolview', key: 'agent_compare_start', registrant: 'dsh-agent-compare', inject: withSession,
+  }, ToolView)))
   safely('overlay', () => ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'agent-compare',
-    order: 30,
-    registrant: 'dsh-agent-compare',
-    inject: () => ({}),
+    name: 'shell.overlay', id: 'agent-compare', order: 30, registrant: 'dsh-agent-compare', inject: () => ({}),
   }, Overlay)))
   try {
     ctx.effect?.(() => () => { for (const d of disposers.reverse()) d() })

@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each confined to its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.2, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.3, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -71,12 +71,19 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.2.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.3.tgz
 ```
 
-Restart DSH and click **A|B** in the session header. Start with "试跑内置案例" (try the built-in case): it creates a separate example shop repository (your project is not touched) and requires both versions to deliver search, combined filters, a clear button and phone layout, each checked step by step.
+After restarting DSH, comparisons run inside the conversation:
 
-A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); it returns a blind summary when both candidates have finished.
+- **The A|B button at the bottom left of the composer** sends the message as an `/ab` command; click it again to turn it off. Typing `/ab <task>` does the same.
+- **The A|B card in the conversation** shows both candidates' running builds in two small windows, with progress and verdicts; choosing, adopting and undoing all happen in the card ("大窗口查看" enlarges it).
+- **Record and memory**: the command and its result are in the conversation's session log, and each milestone (generation finished, your pick, adoption or undo) is written into the conversation as a model-visible note, so the next message can build on what was adopted.
+- **The A|B button in the header** opens history (with reopening stopped previews) and the guide; the guide puts the built-in case (`/ab --example`) into the composer for a first try.
+
+Flags: `--minutes 60` per-candidate time limit; `--models provider/model,provider/model` two models; `--example` the built-in case in a new example repository.
+
+A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); the conversation shows the same A|B card.
 
 ## Configuration (optional)
 
@@ -123,7 +130,7 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 | Item | Status |
 |---|---|
-| DSH 0.2.1-rc.3 desktop, Windows 11 | Real-model run: each candidate session's directory is its own copy, sandbox `workspace-write`, approvals `never`, and shell commands work; a full round through adoption is still pending |
+| DSH 0.2.1-rc.3 desktop, Windows 11 | A full real-model round (generate, verify, pick, adopt) completed; candidate sessions write only their own copy, and shell commands work |
 | DSH 0.2.1-rc.4+, Web UI | Not tested |
 | macOS / Linux | Core tests run in CI; not tested inside DSH |
 | Node | ≥ 22.19 (tested on 24) |
@@ -131,14 +138,17 @@ Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectTex
 
 ## Verified (2026-11-02, Windows 11, Node 24.22, Git 2.53)
 
-- 61 automated tests on real git, real npm installs, real builds and preview processes (temporary paths contain spaces), including a regression for every known 0.1 issue: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, real token usage).
+- 68 automated tests on real git, real npm installs, real builds and preview processes (temporary paths contain spaces), including a regression for every known 0.1 issue: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, real token usage).
 - `node scripts/smoke.mjs`: the built-in case with scripted agents on real Vite 6 and system Edge. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Adopting the complete one rehearses first (an uncommitted file was present) and keeps that file. With `--escape B`, a write outside the copy is detected.
 
 - Real model (DSH 0.2.1-rc.3 desktop, deepseek-flash, built-in case): both candidate session headers record their own copy as `cwd`, with `sandbox/mode` `workspace-write` and `approval/policy` `never`; `pwsh` runs inside the candidates (the 0.1 `SetNamedSecurityInfoW` error is gone); token usage comes from the session logs. Neither candidate declared completion within 30 minutes. One had written its whole change, and the shared acceptance run on its copy afterwards passed the frozen install, typecheck, build and 12/12 page steps — which is why 0.2.0-alpha.2 verifies written work when the time limit is reached.
 
+- A full real-model round (DSH 0.2.1-rc.3 desktop, deepseek-flash, one model with two strategies, 60-minute limit): each candidate generated for about 42 minutes, using about 2.64M and 2.94M tokens; both passed typecheck, build and page acceptance; B was picked and adopted into the working tree (`src/App.tsx`, `src/styles.css`), uncommitted, with index and HEAD unchanged.
+- In-conversation runs (DSH 0.2.1-rc.3 runtime, test profile): `/ab` appears in the command menu; the composer's A|B button turns the draft into `/ab …`, which is executed as the command; the session log records `command/run` (`ab` and its arguments) and `command/done` (with the run id); when generation finishes, a note describing the result is queued into that conversation for the model's next step; the host accepted every registration (composer button, command card, tool card, header button).
+
 ## Not verified yet
 
-- A full real-model round from generation through choice, adoption and the next task.
+- How the in-chat A|B card looks in the desktop app, and the full "adopt, then ask for the next change" flow with the model reading the record.
 - On this Windows machine each tool call inside DSH's sandbox took from about ten seconds to several minutes, and the model often waited two to three minutes between steps, so one comparison can exceed 30 minutes. The cause lies on the DSH and model-service side and has not been pinned down.
 - Whether storage inside the panel's iframes is isolated from your own browser; use "open in browser" when it matters.
 - Provider behaviour in two-model mode.

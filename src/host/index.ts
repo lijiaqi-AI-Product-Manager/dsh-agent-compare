@@ -20,6 +20,7 @@ import {
   Comparer, publicView, RunStore, defaultHome, createExampleRepo, EXAMPLE_TASK, DEFAULT_GENERATION_MS,
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
 } from '../core/index.ts'
+import { commandResultText, memoryNote, milestoneOf, parseAbInput } from './conversation.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -39,7 +40,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.2'
+const VERSION = '0.2.0-alpha.3'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -58,6 +59,8 @@ interface AgentLike {
   readonly options?: { readonly provider?: string; readonly model?: string; readonly reasoningEffort?: string }
   readonly inbox?: { readonly nextTurn: readonly unknown[]; readonly nextStep: readonly unknown[] }
   followup(message: unknown): void
+  /** Model-facing context for the next step; does not wake the agent. */
+  inject?(message: unknown): void
   cancel(cause: unknown): void
   whenIdle(): Promise<void>
 }
@@ -318,13 +321,41 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   } else throw new Error('agent-compare needs ctx.agents (or ctx.subagents) to run candidates')
 
   const store = new RunStore(config.home ?? defaultHome())
+  // Each milestone of a run becomes one model-facing note in its conversation,
+  // so the conversation remembers what was compared, chosen and adopted.
+  const noted = new Map<string, string>()
+  const userMessage = async (): Promise<((m: unknown) => unknown) | undefined> => {
+    try { return ((await import('@deepseek-ai/dsh-llm' as string)) as { createUserMessage: (m: unknown) => unknown }).createUserMessage } catch { return undefined }
+  }
+  const remember = (r: RunRecord): void => {
+    const key = milestoneOf(r)
+    if (key === undefined || r.sessionId === undefined || noted.get(r.runId) === key) return
+    noted.set(r.runId, key)
+    const text = memoryNote(r)
+    const agent = agents?.list().find((a) => a.session.id === r.sessionId)
+    if (text === undefined || agent?.inject === undefined) return
+    void userMessage().then((create) => {
+      if (create === undefined) return
+      try {
+        agent.inject!(create({ content: [{ type: 'text', text }], source: { kind: 'agent-compare' } }))
+      } catch (error) {
+        ctx.logger.warn(`agent-compare: could not record run ${r.runId} in its conversation: ${(error as Error).message}`)
+      }
+    })
+  }
   const comparer = new Comparer({
     store,
     runner,
     version: VERSION,
     generationMs: (config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000) * 60_000,
     maxActiveRuns: config.maxActiveRuns ?? 1,
+    onUpdate: remember,
   })
+  // Milestones reached before this host started were already noted then.
+  for (const r of await store.list()) {
+    const key = milestoneOf(r)
+    if (key !== undefined) noted.set(r.runId, key)
+  }
   ctx.effect(() => () => { void comparer.dispose() }, 'agent-compare: stop previews and candidates')
   const recovered = await comparer.recover()
   if (recovered.length > 0) ctx.logger.info(`agent-compare: settled ${recovered.length} unfinished run(s) after restart`)
@@ -367,6 +398,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         routes: [currentRoute(exec.agent), currentRoute(exec.agent)],
         hostContext: exec.agent,
         sessionId: exec.agent.session.id,
+        origin: { kind: 'tool' },
         ...(minutes === undefined ? {} : { generationMs: minutes * 60_000 }),
       })
       const onAbort = (): void => { void comparer.cancel(started.runId) }
@@ -392,6 +424,41 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       return r === undefined ? { error: 'no such run' } : brief(r)
     },
   })), 'agent-compare: agent_compare_status tool')
+
+  // `/ab <task>`: start a comparison from the conversation itself. DSH logs the
+  // command (`command/run`, `command/done`) in the session, and the chat renders
+  // it through our `ab` command view: the live A/B card.
+  interface CommandInvocation { readonly commandId: string; readonly agent: AgentLike; readonly rawInput: string; readonly signal: AbortSignal }
+  type CommandResult = { kind: 'success' | 'error'; text: string }
+  ctx.inject(['commands'], (sub) => {
+    const commands = (sub as unknown as { commands: { register(def: unknown): () => void } }).commands
+    sub.effect(() => commands.register({
+      name: 'ab',
+      description: 'A|B 对比：同一需求做两版，真跑、验收、盲选，再采用到项目',
+      input: { hint: '<需求>  可选 --minutes 30 · --models 服务/模型,服务/模型 · --example' },
+      handler: async ({ commandId, agent, rawInput, signal }: CommandInvocation): Promise<CommandResult> => {
+        if (isDelegated(agent)) return { kind: 'error', text: '候选或子 Agent 不能再发起比较' }
+        let input: ReturnType<typeof parseAbInput>
+        try { input = parseAbInput(rawInput) } catch (error) { return { kind: 'error', text: (error as Error).message } }
+        if (!input.example && input.task === '') return { kind: 'error', text: '用法：/ab <需求>，例如：/ab 给商品列表加上搜索框和分类筛选，手机上也要好用' }
+        try {
+          const r = await comparer.start({
+            repo: input.example ? await createExampleRepo(store.examplesDir) : await repoFor(agent, signal),
+            task: input.task === '' ? EXAMPLE_TASK : input.task,
+            mode: input.models === undefined ? 'same-model' : 'cross-model',
+            routes: input.models ?? [currentRoute(agent), currentRoute(agent)],
+            hostContext: agent,
+            sessionId: agent.session.id,
+            origin: { kind: 'command', id: commandId },
+            ...(input.minutes === undefined ? {} : { generationMs: input.minutes * 60_000 }),
+          })
+          return { kind: 'success', text: commandResultText(r.runId) }
+        } catch (error) {
+          return { kind: 'error', text: (error as Error).message }
+        }
+      },
+    }), 'agent-compare: /ab command')
+  })
 
   type Handler = (body: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>
   const runIdOf = (b: Record<string, unknown>): string => {
@@ -456,9 +523,15 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         hostContext: agent,
         sessionId: agent.session.id,
         ...(follows === undefined ? {} : { follows }),
+        origin: { kind: 'panel' },
         ...(minutes === undefined ? {} : { generationMs: minutes * 60_000 }),
       })
       return publicView(r)
+    },
+    async reopenPreview(b) {
+      const l = label(b.label)
+      if (l === undefined) throw new HttpError(400, 'label must be A or B')
+      return publicView(await comparer.reopenPreview(runIdOf(b), l))
     },
     async salvage(b) {
       const l = label(b.label)

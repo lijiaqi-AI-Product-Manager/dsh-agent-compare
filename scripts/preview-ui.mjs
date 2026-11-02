@@ -32,10 +32,12 @@ const legacy = [{ runId: '1c1fe140', task: '给商品列表加上搜索框和分
 const states = {
   start: [],
   history: [],
+  guide: [],
   running: [{ ...base, state: 'running', candidates: [
     { label: 'A', stage: 'verifying', timings: { preparing: t(50, 49), generating: t(49, 12), sealing: t(12, 11), installing: t(11, 6), verifying: t(6) } },
     { label: 'B', stage: 'generating', timings: { preparing: t(50, 49), generating: t(49) }, progress: { steps: 5, lastAction: 'write src\\App.tsx', lastActivityAt: now - 150_000, tokens: 61240 } },
   ] }],
+  inline: [{ ...base, state: 'judging', origin: { kind: 'command' }, checksFavoured: 'A', candidates: [A, B] }],
   allfailed: [{ ...base, state: 'judging', checksFavoured: 'none', candidates: [
     { label: 'A', stage: 'failed', timings: { preparing: t(1890, 1889), generating: t(1889, 2) }, usage: { kind: 'reported', totalTokens: 233363 }, salvageable: false, generation: { ended: 'budget' }, error: { stage: 'sealing', message: '超出生成时间预算（30 分钟）时还没有改动任何文件。' } },
     { label: 'B', stage: 'failed', timings: { preparing: t(1910, 1909), generating: t(1909, 2) }, usage: { kind: 'reported', totalTokens: 257649 }, salvageable: true, error: { stage: 'generating', message: '超出生成时间预算（30 分钟），已停止这个候选' } },
@@ -76,9 +78,15 @@ window.__ModuleLoader__ = { load: ({ factory }) => {
   const h = regs['conversation.session.header.utilities'], o = regs['shell.overlay'];
   ReactDOM.createRoot(document.getElementById('btn')).render(React.createElement(h.C, h.spec.inject('s1')));
   ReactDOM.createRoot(document.getElementById('overlay')).render(React.createElement(o.C, o.spec.inject()));
-  if (${JSON.stringify(state !== 'closed')}) setTimeout(() => {
+  if (${JSON.stringify(state === 'inline')}) {
+    // The /ab command row as the chat would render it.
+    const cv = regs['conversation.chat.commandview'];
+    const host = document.createElement('div'); host.style.cssText = 'max-width:980px;margin:0 auto;padding:0 20px'; document.body.appendChild(host);
+    ReactDOM.createRoot(host).render(React.createElement(cv.C, { ...cv.spec.inject('s1'), node: { name: 'ab', args: ' 给商品列表加上搜索框和分类筛选', outcome: { kind: 'success', text: 'A|B 比较已开始 · 运行 0a1b2c3d' } } }));
+  } else if (${JSON.stringify(state !== 'closed')}) setTimeout(() => {
     document.querySelector('.ac-header-btn').click();
-    if (${JSON.stringify(state === 'history')}) setTimeout(() => [...document.querySelectorAll('.ac-tab')].at(-1).click(), 300);
+    if (${JSON.stringify(state === 'guide')}) setTimeout(() => [...document.querySelectorAll('.ac-tab')].at(-1).click(), 300);
+    else if (${JSON.stringify(state !== 'history')}) setTimeout(() => document.querySelector('.ac-hrow')?.click(), 300);
   }, 50);
 } };
 </script><script src="/lib/client.js"></script></body></html>`

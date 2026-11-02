@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0-alpha.3 — 2026-11-02
+
+Comparisons now run inside the conversation, and the conversation keeps the record.
+
+- **`/ab <task>` command.** Registered with DSH's command registry, so it runs directly against the conversation's agent, is listed in the command menu, and is logged in the session (`command/run`, `command/done`). Flags: `--minutes`, `--models provider/model,provider/model`, `--example`.
+- **A|B button in the composer.** Turns the draft into an `/ab` command line and back.
+- **A|B card in the conversation.** The `/ab` command row and the model's `agent_compare_start` tool call render the live comparison: two small windows with the running builds, progress, verdicts, and choose / adopt / undo / salvage actions; "大窗口查看" opens it large.
+- **Conversation memory.** When generation finishes, when the user picks, and when a candidate is adopted, undone or blocked, a model-visible note is added to the conversation (hidden from the chat, kept in the log), so the next request can build on what was adopted.
+- **Header button** opens history and a usage guide; the guide puts the built-in case or a two-model command into the composer.
+- **Previews from history.** After adoption the record no longer points at stopped previews (history showed an empty frame); a finished candidate whose preview stopped with a host restart can be served again ("重新打开预览").
+
 ## 0.2.0-alpha.2 — 2026-11-02
 
 From the first real-model run on DSH desktop (Windows 11): both candidates hit the 30-minute budget and everything they wrote was discarded, although one of them had already delivered every requirement (its copy later passed all 12 acceptance steps).

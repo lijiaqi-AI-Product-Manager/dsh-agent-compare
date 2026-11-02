@@ -13,7 +13,7 @@ for (const theme of themes) {
   for (const state of states) {
     await page.goto(`http://127.0.0.1:4317/?state=${state}&theme=${theme}`)
     await page.addStyleTag({ content: '.ac-root *{animation:none!important;transition:none!important}' })
-    await page.waitForSelector('.ac-sheet')
+    await page.waitForSelector('.ac-sheet, .ac-inline')
     await page.waitForTimeout(state === 'start' ? 300 : 900)
     await page.screenshot({ path: `${out}/${state}-${theme}.png` })
     console.log(`${state}-${theme}.png`)
