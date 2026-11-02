@@ -174,7 +174,9 @@ export interface Candidate {
   acceptanceTouched?: string[]
   /** package.json dependencies or the lockfile changed. */
   dependencyChange?: boolean
-  install?: { argv: string[]; frozen: boolean; durationMs: number }
+  install?: { argv: string[]; frozen: boolean; durationMs: number; outcome?: 'passed' | 'failed' | 'timeout' | 'cancelled' }
+  /** Weakest completeness reported across installation, checks and preview. */
+  execution?: { enforcement: 'full' | 'partial' | 'unknown' }
   checks?: CheckResult[]
   /** Tree the checks ran on; must equal candidateTree. */
   checkedTree?: string

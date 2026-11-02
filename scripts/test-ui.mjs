@@ -194,6 +194,9 @@ try {
   check(partialUsage.includes('缓存读取 100') && partialUsage.includes('缓存写入 50'), 'both cache counters must remain visible in the evidence')
   check(!partialUsage.includes(' tokens'), 'missing totals must never be displayed as an inferred or zero total')
   check((await page.getByRole('region', { name: '候选 B', exact: true }).locator('.ac-evidence').innerText()).includes('用量未知'), 'absent provider usage must stay unknown')
+  const partialBoundary = await page.getByRole('region', { name: '候选 B', exact: true }).locator('.ac-evidence').innerText()
+  check(partialBoundary.includes('宿主报告部分文件写入约束') && partialBoundary.includes('不包含文件读取与网络隔离'), 'partial host enforcement and its limits must remain visible')
+  check(!partialBoundary.includes('宿主报告完整文件写入约束'), 'partial enforcement must never become a full-enforcement claim')
 
   await open('unverified')
   const unverified = page.getByRole('region', { name: '候选 A', exact: true })

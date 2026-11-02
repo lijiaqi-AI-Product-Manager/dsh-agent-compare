@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent-compare",
-  "version": "0.2.0-alpha.6",
+  "version": "0.2.0-alpha.7",
   "description": "Same task, two live builds, pick blind. A DeepSeek Harness plugin that runs two isolated implementations of one front-end task, starts both apps, applies the same checks, lets you choose blind, then adopts the winner safely. · 同一需求，两版真跑，盲选再揭晓。",
   "type": "module",
   "packageManager": "npm@12.2.1",
@@ -40,6 +40,7 @@
     "test": "npm run build && vitest run",
     "test:coverage": "npm run build && vitest run --coverage",
     "test:ui": "npm run build && node scripts/test-ui.mjs",
+    "test:runtime": "npm run build && node scripts/test-runtime.mjs",
     "smoke": "npm run build && node scripts/smoke.mjs",
     "prepack": "npm run build"
   },
@@ -64,7 +65,9 @@
     "@deepseek-ai/dsh-host-webserver": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-llm": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.1",
-    "react": "^18.3.1 || ^19.3.1"
+    "react": "^18.3.1 || ^19.3.1",
+    "@deepseek-ai/dsh-sandbox": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-subprocess": "^0.2.1-rc.3"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -92,6 +95,12 @@
       "optional": true
     },
     "@deepseek-ai/dsh-client-ui-chat": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-sandbox": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-subprocess": {
       "optional": true
     }
   },

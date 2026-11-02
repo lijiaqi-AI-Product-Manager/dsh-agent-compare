@@ -1,11 +1,12 @@
 import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
-import { run } from './proc.ts'
+import { runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
+import { diagnosticText } from './proc.ts'
 import type { BrowserCheck, BrowserStep, CheckResult, ChecksSpec } from './types.ts'
 
 const tailOf = (s: string, n = 1500): string => (s.length > n ? s.slice(-n) : s)
 
-export async function runCommandChecks(dir: string, spec: ChecksSpec, signal?: AbortSignal): Promise<CheckResult[]> {
+export async function runCommandChecks(dir: string, spec: ChecksSpec, signal?: AbortSignal, prepare?: PrepareProjectProcess): Promise<CheckResult[]> {
   const results: CheckResult[] = []
   for (const cmd of spec.commands) {
     const started = Date.now()
@@ -14,14 +15,14 @@ export async function runCommandChecks(dir: string, spec: ChecksSpec, signal?: A
       continue
     }
     try {
-      const r = await run(cmd.argv, {
+      const r = await runProjectProcess(cmd.argv, {
         cwd: dir,
-        env: { ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' },
         timeoutMs: cmd.timeoutMs ?? 180_000,
         ...(signal === undefined ? {} : { signal }),
-      })
+      }, prepare)
       const outcome = r.timedOut ? 'timeout' : r.aborted ? 'skipped' : r.code === 0 ? 'passed' : 'failed'
-      results.push({ name: cmd.name, outcome, durationMs: Date.now() - started, tail: tailOf(`${r.stdout}\n${r.stderr}`.trim()), ...(r.aborted ? { reason: 'cancelled' } : {}) })
+      results.push({ name: cmd.name, outcome, durationMs: Date.now() - started, tail: diagnosticText((r.code === 0 ? `${r.stdout}\n${r.stderr}` : `${r.stderr}\n${r.stdout}`).trim()), ...(r.aborted ? { reason: 'cancelled' } : {}) })
     } catch (error) {
       results.push({ name: cmd.name, outcome: 'failed', durationMs: Date.now() - started, tail: '', reason: (error as Error).message })
     }

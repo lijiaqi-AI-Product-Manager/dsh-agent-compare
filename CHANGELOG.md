@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.7 — 2026-11-03
+
+- Apply the host file-write policy and canonical child-environment scrub to installation, checks and both initial and reopened previews. Keep caches inside each copy and disclose partial enforcement.
+- Adapt the standard Windows Vite CLI's optional network-drive probe to file-backed output under confinement. Preserve completed verification evidence when a later stage fails, including the initial failure explanation in bounded diagnostics.
+
 - Give concurrent snapshots independent, atomically allocated private index directories, even within one wall-clock tick. Include the retained copy path when process inspection prevents cleanup.
 - Remove the repeated blank-conversation result header, size compact previews to the available window, distinguish preview availability from passing acceptance, and restore focus to current navigation when a previous session header has unmounted.
 - Serialize worktree administration within each Git common directory, including across processes, so one candidate cannot inspect another candidate's incomplete worktree metadata. Candidate generation remains parallel.

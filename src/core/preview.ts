@@ -2,7 +2,8 @@ import { createServer } from 'node:net'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import type { ChildProcess } from 'node:child_process'
-import { killTree, startLongRunning, Tail } from './proc.ts'
+import { DiagnosticLog, killTree, startLongRunning, Tail } from './proc.ts'
+import { prepareProjectProcess, type PrepareProjectProcess } from './project-process.ts'
 
 /** Ask the OS for a free loopback port. The caller still uses --strictPort, so a race fails loudly. */
 export function freePort(): Promise<number> {
@@ -49,7 +50,7 @@ async function httpReady(url: string, signal: AbortSignal): Promise<boolean> {
  * dev server and is used only when there is no build to serve. The Vite binary
  * runs on the host Node directly, so the pid is the server itself, not a shim.
  */
-export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'dev'; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<Preview> {
+export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'dev'; timeoutMs?: number; signal?: AbortSignal; prepareProjectProcess?: PrepareProjectProcess } = {}): Promise<Preview> {
   const viteBin = path.join(dir, 'node_modules', 'vite', 'bin', 'vite.js')
   if (!existsSync(viteBin)) throw new PreviewError('副本里没有安装 vite', '')
   const kind = opts.kind ?? 'build'
@@ -59,11 +60,13 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
     const port = await freePort()
     const root = `http://127.0.0.1:${port}/`
     const args = kind === 'build' ? ['preview'] : []
-    const child = startLongRunning(['node', viteBin, ...args, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
+    const prepared = await prepareProjectProcess({ argv: ['node', viteBin, ...args, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], cwd: dir,
+      env: { BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, signal: opts.signal }, opts.prepareProjectProcess)
+    const child = startLongRunning(prepared.argv, {
       cwd: dir,
-      env: { ...process.env, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' },
+      env: prepared.env,
     })
-    const log = new Tail(6000)
+    const log = new DiagnosticLog(6000)
     let closed = false
     const exit = new Promise<void>((resolve) => child.once('close', () => { closed = true; resolve() }))
     child.stdout?.setEncoding('utf8').on('data', (d: string) => log.push(d))

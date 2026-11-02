@@ -9,6 +9,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { git } from '../src/core/git.ts'
 import { run } from '../src/core/proc.ts'
+import type { PrepareProjectProcess } from '../src/core/project-process.ts'
+
+/** Only for the repository's trusted offline fixtures; this does not test confinement. */
+export const prepareFixtureProcess: PrepareProjectProcess = async ({ argv, env }) => ({ argv, env: { ...process.env, ...env } })
 
 const STUB_BIN = `#!/usr/bin/env node
 const fs = require('fs'), path = require('path'), http = require('http')
