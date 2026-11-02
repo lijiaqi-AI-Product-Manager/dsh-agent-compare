@@ -43,37 +43,43 @@ async function httpReady(url: string, signal: AbortSignal): Promise<boolean> {
 }
 
 /**
- * Start the candidate's own Vite dev server on a dedicated loopback port and
- * return only after the URL answers HTTP. The Vite binary is run with the host
- * Node directly, so the recorded pid is the server itself, not a shim.
+ * Serve a copy on a dedicated loopback port and return only after it answers
+ * HTTP. `build` serves the output of the build the checks just ran (`vite
+ * preview`), so what the user tries is the artifact that passed; `dev` runs the
+ * dev server and is used only when there is no build to serve. The Vite binary
+ * runs on the host Node directly, so the pid is the server itself, not a shim.
  */
-export async function startVitePreview(dir: string, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<Preview> {
+export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'dev'; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<Preview> {
   const viteBin = path.join(dir, 'node_modules', 'vite', 'bin', 'vite.js')
-  if (!existsSync(viteBin)) throw new PreviewError('vite is not installed in the candidate worktree', '')
+  if (!existsSync(viteBin)) throw new PreviewError('副本里没有安装 vite', '')
+  const kind = opts.kind ?? 'build'
   const timeoutMs = opts.timeoutMs ?? 60_000
   let lastError: PreviewError | undefined
   for (let attempt = 0; attempt < 3; attempt++) {
     const port = await freePort()
-    const url = `http://127.0.0.1:${port}/`
-    const child = startLongRunning(['node', viteBin, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
+    const root = `http://127.0.0.1:${port}/`
+    const args = kind === 'build' ? ['preview'] : []
+    const child = startLongRunning(['node', viteBin, ...args, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
       cwd: dir,
       env: { ...process.env, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' },
     })
     const log = new Tail(6000)
     child.stdout?.setEncoding('utf8').on('data', (d: string) => log.push(d))
     child.stderr?.setEncoding('utf8').on('data', (d: string) => log.push(d))
-    const outcome = await waitReady(child, url, timeoutMs, opts.signal)
+    const outcome = await waitReady(child, root, timeoutMs, opts.signal)
     if (outcome === 'ready' && child.pid !== undefined) {
       const pid = child.pid
-      return { url, port, pid, log, stop: () => killTree(pid) }
+      // A configured `base` moves the app below the root; Vite prints the real entry URL.
+      const printed = new RegExp(`http://127\\.0\\.0\\.1:${port}/[^\\s]*`).exec(log.toString())?.[0]
+      return { url: printed ?? root, port, pid, log, stop: () => killTree(pid) }
     }
     await killTree(child.pid)
-    lastError = new PreviewError(outcome === 'exited' ? 'dev server exited before it answered' : outcome === 'aborted' ? 'cancelled' : `dev server did not answer within ${timeoutMs} ms`, log.toString())
+    lastError = new PreviewError(outcome === 'exited' ? '预览服务在响应前退出' : outcome === 'aborted' ? 'cancelled' : `预览服务 ${Math.round(timeoutMs / 1000)} 秒内没有响应`, log.toString())
     if (outcome === 'aborted') break
     // A port taken between probe and bind shows up as an early exit; retry with a new port.
     if (outcome !== 'exited' || !/port .* (in use|already)/i.test(log.toString())) break
   }
-  throw lastError ?? new PreviewError('dev server failed', '')
+  throw lastError ?? new PreviewError('预览服务启动失败', '')
 }
 
 function waitReady(child: ChildProcess, url: string, timeoutMs: number, signal?: AbortSignal): Promise<'ready' | 'exited' | 'timeout' | 'aborted'> {

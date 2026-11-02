@@ -6,7 +6,7 @@ import { mkdir } from 'node:fs/promises'
 const out = '.research/ui-shots'
 await mkdir(out, { recursive: true })
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true })
-const states = (process.argv[2] ?? 'start,running,judging,failed,revealed,adopted').split(',')
+const states = (process.argv[2] ?? 'start,history,running,judging,failed,revealed,blocked,adopted,recovery').split(',')
 const themes = (process.argv[3] ?? 'light,dark').split(',')
 for (const theme of themes) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: theme })

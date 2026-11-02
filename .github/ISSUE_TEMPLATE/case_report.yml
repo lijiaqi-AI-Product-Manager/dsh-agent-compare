@@ -1,0 +1,30 @@
+name: 分享一次比较 / Share a comparison
+description: 一次真实的比较：任务、两版的验收结果、你的选择 / A real run: task, verdicts and your pick
+labels: [case]
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: 任务 / Task
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 方式 / Mode
+      options:
+        - 同一模型 · 两种策略 / one model, two strategies
+        - 两个模型 · 同一要求 / two models, one brief
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 结果 / Result
+      description: 两版的验收结论、程序倾向、你的选择，以及是否采用成功。截图欢迎附上。
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 为什么选它 / Why you picked it

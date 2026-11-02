@@ -1,17 +1,12 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rm, symlink } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import os from 'node:os'
 import path from 'node:path'
-import { addDetachedWorktree, ALWAYS_EXCLUDED, captureChange, commitTree, ensureWorktreePool, git, headCommit, snapshotTree, treeOf } from '../src/core/git.ts'
-import { adoptAsBranch, adoptIntoWorktree, preflight, revertWorktreeAdoption } from '../src/core/adopt.ts'
+import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, commitTree, ensureWorktreePool, git, headCommit, overlayTree, registeredWorktrees, removeOwnedWorktree, snapshotTree, treeOf } from '../src/core/git.ts'
+import { adoptAsBranch, checkWritten, pinPreAdopt, preflight, undoAdoption, writeCandidate, type AdoptInput } from '../src/core/adopt.ts'
 import type { Baseline } from '../src/core/types.ts'
-
-async function tmp(prefix: string): Promise<string> {
-  // A space in the path exercises quoting on every platform.
-  return mkdtemp(path.join(os.tmpdir(), `${prefix} `))
-}
+import { tmp } from './fixture.ts'
 
 async function initRepo(): Promise<string> {
   const repo = await tmp('ac-repo')
@@ -30,6 +25,7 @@ async function initRepo(): Promise<string> {
 }
 
 const sha = async (f: string): Promise<string> => createHash('sha256').update(await readFile(f)).digest('hex')
+const owner = (label: string) => ({ runId: '0a1b2c3d', label, token: `tok-${label}` })
 
 async function baselineOf(repo: string, scratch: string): Promise<Baseline> {
   const head = await headCommit(repo)
@@ -41,7 +37,7 @@ async function baselineOf(repo: string, scratch: string): Promise<Baseline> {
 /** A candidate that edits a.txt, adds a binary file and a nested file, and deletes src/old.ts. */
 async function makeCandidate(base: Baseline, scratch: string) {
   const wt = path.join(scratch, 'wt A')
-  await addDetachedWorktree(base.repoRoot, wt, base.snapshotCommit)
+  await addOwnedWorktree(base.repoRoot, wt, base.snapshotCommit, owner('A'))
   await writeFile(path.join(wt, 'a.txt'), 'one\ntwo\n')
   await writeFile(path.join(wt, 'logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3, 255, 0]))
   await mkdir(path.join(wt, 'src', 'new dir'), { recursive: true })
@@ -51,6 +47,16 @@ async function makeCandidate(base: Baseline, scratch: string) {
   await writeFile(path.join(wt, 'node_modules', 'x', 'index.js'), 'junk')
   const change = await captureChange(wt, base.snapshotCommit, 'cand')
   return { wt, change }
+}
+
+/** The worktree-adoption core without the orchestrator: preflight, pin, write, verify. */
+async function adoptDirect(input: AdoptInput) {
+  const pf = await preflight(input)
+  if (!pf.ok) throw new Error(`overlap: ${pf.overlapping.join(', ')}`)
+  const pre = await pinPreAdopt(input.baseline.repoRoot, pf.target)
+  await writeCandidate(input.baseline.repoRoot, input.candidateCommit, input.nameStatus)
+  const chk = await checkWritten(input.baseline.repoRoot, input.scratchDir, { expectedTree: pf.expectedTree, candidateCommit: input.candidateCommit, touched: input.nameStatus.map((n) => n.path), before: pf.target })
+  return { pre, pf, chk }
 }
 
 describe('baseline snapshot', () => {
@@ -103,7 +109,7 @@ describe('candidate capture', () => {
   })
 })
 
-describe('adoption', () => {
+describe('adoption primitives', () => {
   let repo: string
   let scratch: string
   let base: Baseline
@@ -114,13 +120,14 @@ describe('adoption', () => {
     base = await baselineOf(repo, scratch)
     cand = await makeCandidate(base, scratch)
   })
-  const input = () => ({ baseline: base, candidateCommit: cand.change.commit, nameStatus: cand.change.nameStatus, scratchDir: scratch, refPrefix: 'refs/agent-compare/test' })
+  const input = (): AdoptInput => ({ baseline: base, candidateCommit: cand.change.commit, nameStatus: cand.change.nameStatus, scratchDir: scratch })
 
   it('writes exactly the checked content into a clean checkout, leaving index and HEAD alone', async () => {
     const head = await headCommit(repo)
     const indexBefore = await sha(path.join(repo, '.git', 'index'))
-    const res = await adoptIntoWorktree(input())
-    expect(res.verifiedPaths).toBe(4)
+    const { pf, chk } = await adoptDirect(input())
+    expect(pf.ok && pf.expectedTree).toBe(cand.change.tree)
+    expect(chk).toEqual({ mismatched: [], concurrent: [], headChanged: false, stagedChanged: false })
     expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\ntwo\n')
     expect([...(await readFile(path.join(repo, 'logo.png')))]).toEqual([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3, 255, 0])
     expect(existsSync(path.join(repo, 'src', 'new dir', 'Card.tsx'))).toBe(true)
@@ -129,42 +136,63 @@ describe('adoption', () => {
     expect(await sha(path.join(repo, '.git', 'index'))).toBe(indexBefore)
   })
 
-  it('refuses when the user edited a touched file after the baseline, and writes nothing', async () => {
+  it('refuses when the user edited a touched file after the baseline', async () => {
     await writeFile(path.join(repo, 'a.txt'), 'one\nmine\n')
     const p = await preflight(input())
-    expect(p.ok).toBe(false)
-    await expect(adoptIntoWorktree(input())).rejects.toThrow(/changed since the baseline: a.txt/)
-    expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\nmine\n')
-    expect(existsSync(path.join(repo, 'logo.png'))).toBe(false)
-    expect(existsSync(path.join(repo, 'src', 'old.ts'))).toBe(true)
-  })
-
-  it('adopts when only untouched files changed after the baseline, and keeps those changes', async () => {
-    await writeFile(path.join(repo, 'keep.txt'), 'keep\nlater\n')
-    const res = await adoptIntoWorktree(input())
-    expect(res.targetChanged).toBe(true)
-    expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('keep\nlater\n')
-    expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\ntwo\n')
+    expect(p.ok === false && p.overlapping).toEqual(['a.txt'])
   })
 
   it('refuses when an untracked file already sits where the candidate adds one', async () => {
     await writeFile(path.join(repo, 'logo.png'), 'not a png')
-    await expect(adoptIntoWorktree(input())).rejects.toThrow(/logo.png/)
-    expect(await readFile(path.join(repo, 'logo.png'), 'utf8')).toBe('not a png')
+    const p = await preflight(input())
+    expect(p.ok === false && p.overlapping).toEqual(['logo.png'])
   })
 
-  it('reverts to the pre-adoption content, but not over later user edits', async () => {
-    const res = await adoptIntoWorktree(input())
-    await revertWorktreeAdoption({ ...input(), preAdoptCommit: res.preAdoptCommit })
-    expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\n')
+  it('computes the combined tree when only untouched files changed, and the write lands on it exactly', async () => {
+    await writeFile(path.join(repo, 'keep.txt'), 'keep\nlater\n')
+    const { pf, chk } = await adoptDirect(input())
+    expect(pf.ok && pf.targetChanged).toBe(true)
+    expect(pf.ok && pf.expectedTree).not.toBe(cand.change.tree)
+    expect(chk.concurrent).toEqual([])
+    expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('keep\nlater\n')
+    expect(await snapshotTree(repo, scratch, ALWAYS_EXCLUDED)).toBe(pf.ok ? pf.expectedTree : '')
+  })
+
+  it('overlayTree equals the candidate tree on a clean target', async () => {
+    const t = await overlayTree(repo, scratch, base.snapshotTree, cand.change.commit, cand.change.nameStatus)
+    expect(t).toBe(cand.change.tree)
+  })
+
+  it('reports files changed by someone else during the write', async () => {
+    const pf = await preflight(input())
+    if (!pf.ok) throw new Error('unexpected overlap')
+    await writeCandidate(repo, cand.change.commit, cand.change.nameStatus)
+    await writeFile(path.join(repo, 'keep.txt'), 'edited meanwhile\n')
+    const chk = await checkWritten(repo, scratch, { expectedTree: pf.expectedTree, candidateCommit: cand.change.commit, touched: cand.change.nameStatus.map((n) => n.path), before: pf.target })
+    expect(chk.mismatched).toEqual([])
+    expect(chk.concurrent).toEqual(['keep.txt'])
+  })
+
+  it('undo restores what we wrote and leaves later edits alone, listing them', async () => {
+    const { pre } = await adoptDirect(input())
+    await writeFile(path.join(repo, 'a.txt'), 'edited after adopt\n')
+    const touched = cand.change.nameStatus.map((n) => n.path)
+    const undo = await undoAdoption(repo, scratch, { preAdoptCommit: pre, candidateCommit: cand.change.commit, touched })
+    expect(undo.conflicts).toEqual(['a.txt'])
+    expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('edited after adopt\n')
     expect(existsSync(path.join(repo, 'logo.png'))).toBe(false)
     expect(existsSync(path.join(repo, 'src', 'old.ts'))).toBe(true)
-    expect((await git(repo, ['status', '--porcelain'])).trim()).toBe('')
+  })
 
-    const again = await adoptIntoWorktree(input())
-    await writeFile(path.join(repo, 'a.txt'), 'edited after adopt\n')
-    await expect(revertWorktreeAdoption({ ...input(), preAdoptCommit: again.preAdoptCommit })).rejects.toThrow(/edited after adoption/)
-    expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('edited after adopt\n')
+  it('undo of a half-written adoption restores the written paths and accepts the untouched ones', async () => {
+    const pf = await preflight(input())
+    if (!pf.ok) throw new Error('unexpected overlap')
+    const pre = await pinPreAdopt(repo, pf.target)
+    // Only the first path was written before the "crash".
+    await writeCandidate(repo, cand.change.commit, cand.change.nameStatus.slice(0, 1))
+    const undo = await undoAdoption(repo, scratch, { preAdoptCommit: pre, candidateCommit: cand.change.commit, touched: cand.change.nameStatus.map((n) => n.path) })
+    expect(undo.conflicts).toEqual([])
+    expect((await git(repo, ['status', '--porcelain'])).trim()).toBe('')
   })
 
   it('branch mode creates a branch without switching or touching the checkout', async () => {
@@ -175,25 +203,68 @@ describe('adoption', () => {
     expect((await git(repo, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe('main')
     expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\n')
     expect((await git(repo, ['rev-parse', `${commit}^`])).trim()).toBe(head)
-    await expect(adoptAsBranch({ ...input(), branch: 'agent-compare/test-A' })).rejects.toThrow(/already exists/)
+    await expect(adoptAsBranch({ ...input(), branch: 'agent-compare/test-A' })).rejects.toThrow(/已存在/)
   })
 })
 
-describe('copies inside the repository (.agents/worktrees)', () => {
+describe('owned copies', () => {
+  it('removes a copy only with a matching owner mark, never an unregistered directory or the main checkout', async () => {
+    const repo = await initRepo()
+    const scratch = await tmp('ac-scratch')
+    const base = await baselineOf(repo, scratch)
+    const wt = path.join(scratch, 'copy A')
+    await addOwnedWorktree(repo, wt, base.snapshotCommit, owner('A'))
+    expect((await registeredWorktrees(repo)).length).toBe(2)
+
+    expect(await removeOwnedWorktree(repo, wt, { ...owner('A'), token: 'wrong' })).toMatchObject({ removed: false })
+    expect(existsSync(wt)).toBe(true)
+    expect(await removeOwnedWorktree(repo, repo, owner('A'))).toMatchObject({ removed: false })
+    const stray = path.join(scratch, 'stray')
+    await mkdir(stray)
+    await writeFile(path.join(stray, 'x'), 'mine')
+    expect(await removeOwnedWorktree(repo, stray, owner('A'))).toMatchObject({ removed: false, reason: expect.stringMatching(/not a registered worktree/) })
+    expect(existsSync(path.join(stray, 'x'))).toBe(true)
+
+    expect(await removeOwnedWorktree(repo, wt, owner('A'))).toEqual({ removed: true })
+    expect(existsSync(wt)).toBe(false)
+  })
+
+  it('recognises its copy through another spelling of the same path (junction, symlink, 8.3 name)', async () => {
+    const repo = await initRepo()
+    const scratch = await tmp('ac-scratch')
+    const base = await baselineOf(repo, scratch)
+    const real = path.join(scratch, 'real')
+    await mkdir(real)
+    const wt = path.join(real, 'copy A')
+    await addOwnedWorktree(repo, wt, base.snapshotCommit, owner('A'))
+    const alias = path.join(scratch, 'alias')
+    await symlink(real, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    expect(await removeOwnedWorktree(repo, path.join(alias, 'copy A'), owner('A'))).toEqual({ removed: true })
+    expect(existsSync(wt)).toBe(false)
+  })
+
+  it('refuses to create a copy over an existing path', async () => {
+    const repo = await initRepo()
+    const scratch = await tmp('ac-scratch')
+    const base = await baselineOf(repo, scratch)
+    await expect(addOwnedWorktree(repo, scratch, base.snapshotCommit, owner('A'))).rejects.toThrow(/existing path/)
+  })
+})
+
+describe('copies inside the repository (shared-root .agents/worktrees)', () => {
   it('keeps nested candidate copies out of the baseline snapshot and out of git status, and still captures their changes', async () => {
     const repo = await initRepo()
     const scratch = await tmp('ac-scratch')
     const base = await baselineOf(repo, scratch)
     const pool = await ensureWorktreePool(repo)
     const wt = path.join(pool, 'ac-0a1b2c3d-A')
-    await addDetachedWorktree(repo, wt, base.snapshotCommit)
+    await addOwnedWorktree(repo, wt, base.snapshotCommit, owner('A'))
     await writeFile(path.join(wt, 'a.txt'), 'one\nfrom candidate\n')
     await mkdir(path.join(wt, 'node_modules', 'x'), { recursive: true })
     await writeFile(path.join(wt, 'node_modules', 'x', 'i.js'), 'junk')
 
     expect((await git(repo, ['status', '--porcelain'])).trim()).toBe('')
-    const after = await snapshotTree(repo, scratch, ALWAYS_EXCLUDED)
-    expect(after).toBe(base.snapshotTree)
+    expect(await snapshotTree(repo, scratch, ALWAYS_EXCLUDED)).toBe(base.snapshotTree)
 
     const change = await captureChange(wt, base.snapshotCommit, 'cand')
     expect(change.nameStatus).toEqual([{ status: 'M', path: 'a.txt' }])
@@ -220,10 +291,11 @@ describe('line endings', () => {
     const scratch = await tmp('ac-scratch')
     const base = await baselineOf(repo, scratch)
     const wt = path.join(scratch, 'wt')
-    await addDetachedWorktree(repo, wt, base.snapshotCommit)
+    await addOwnedWorktree(repo, wt, base.snapshotCommit, owner('A'))
     await writeFile(path.join(wt, 'a.txt'), 'one\r\ntwo\r\n')
     const change = await captureChange(wt, base.snapshotCommit, 'c')
-    await adoptIntoWorktree({ baseline: base, candidateCommit: change.commit, nameStatus: change.nameStatus, scratchDir: scratch, refPrefix: 'refs/agent-compare/eol' })
+    const { chk } = await adoptDirect({ baseline: base, candidateCommit: change.commit, nameStatus: change.nameStatus, scratchDir: scratch })
+    expect(chk.mismatched).toEqual([])
     expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\r\ntwo\r\n')
   })
 })

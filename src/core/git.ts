@@ -1,5 +1,5 @@
 import { copyFile, mkdir, rm, writeFile, readFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { run, runOk } from './proc.ts'
@@ -77,15 +77,121 @@ export async function dropRefs(repo: string, prefix: string): Promise<void> {
   for (const ref of (out ?? '').split('\n').filter(Boolean)) await gitTry(repo, ['update-ref', '-d', ref])
 }
 
-export async function addDetachedWorktree(repo: string, dir: string, commit: string): Promise<void> {
-  await mkdir(path.dirname(dir), { recursive: true })
-  await git(repo, ['worktree', 'add', '--detach', '--force', dir, commit])
+/** Proof that a copy was created by one run: stored in the copy's git admin dir, outside its files. */
+export interface OwnerMark {
+  readonly runId: string
+  readonly label: string
+  readonly token: string
 }
 
-export async function removeWorktree(repo: string, dir: string): Promise<void> {
+const OWNER_FILE = 'agent-compare-owner.json'
+
+/**
+ * Create a detached worktree for `commit` and mark it as owned. The mark lives
+ * in `<repo>/.git/worktrees/<name>/`, so it is neither project content nor
+ * writable by an agent confined to the copy.
+ */
+export async function addOwnedWorktree(repo: string, dir: string, commit: string, owner: OwnerMark): Promise<void> {
+  if (existsSync(dir)) throw new Error(`refusing to create a copy over an existing path: ${dir}`)
+  await mkdir(path.dirname(dir), { recursive: true })
+  await git(repo, ['worktree', 'add', '--detach', dir, commit])
+  await writeFile(path.join(await worktreeAdminDir(dir), OWNER_FILE), JSON.stringify(owner))
+}
+
+async function worktreeAdminDir(dir: string): Promise<string> {
+  return path.resolve(dir, (await git(dir, ['rev-parse', '--git-dir'])).trim())
+}
+
+/** Absolute paths of every worktree registered in `repo`. */
+export async function registeredWorktrees(repo: string): Promise<string[]> {
+  const out = (await gitTry(repo, ['worktree', 'list', '--porcelain', '-z'])) ?? ''
+  return out.split('\0').filter((l) => l.startsWith('worktree ')).map((l) => path.resolve(l.slice('worktree '.length)))
+}
+
+/**
+ * One spelling per directory: the real path, so 8.3 short names
+ * (`C:\Users\RUNNER~1`), junctions and symlinks compare equal to what git reports.
+ */
+function canonicalPath(p: string): string {
+  let real = path.resolve(p)
+  try { real = realpathSync.native(real) } catch { /* gone or unreadable: compare as given */ }
+  return process.platform === 'win32' ? real.toLowerCase() : real
+}
+
+const samePath = (a: string, b: string): boolean => canonicalPath(a) === canonicalPath(b)
+
+/**
+ * Delete a copy only when all of this holds: it is a registered worktree of
+ * `repo`, it is not the main checkout, and its owner mark matches. Anything
+ * else is left in place and reported.
+ */
+export async function removeOwnedWorktree(repo: string, dir: string, owner: OwnerMark): Promise<{ removed: boolean; reason?: string }> {
+  if (!existsSync(dir)) {
+    await gitTry(repo, ['worktree', 'prune'])
+    return { removed: true }
+  }
+  if (samePath(dir, repo)) return { removed: false, reason: 'is the main checkout' }
+  const registered = await registeredWorktrees(repo)
+  if (!registered.some((w) => samePath(w, dir))) return { removed: false, reason: 'not a registered worktree of the repository' }
+  let mark: OwnerMark | undefined
+  try {
+    mark = JSON.parse(await readFile(path.join(await worktreeAdminDir(dir), OWNER_FILE), 'utf8')) as OwnerMark
+  } catch {
+    mark = undefined
+  }
+  if (mark?.runId !== owner.runId || mark.label !== owner.label || mark.token !== owner.token) return { removed: false, reason: 'owner mark missing or different' }
   await gitTry(repo, ['worktree', 'remove', '--force', '--force', dir])
   if (existsSync(dir)) await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
   await gitTry(repo, ['worktree', 'prune'])
+  return { removed: !existsSync(dir) }
+}
+
+/**
+ * The tree the checkout would have after adoption: `baseTree` (the checkout
+ * now) with the candidate's version of every touched path. Built in a private
+ * index; nothing in the repository changes.
+ */
+export async function overlayTree(repo: string, scratchDir: string, baseTree: string, source: string, nameStatus: ReadonlyArray<{ status: string; path: string }>): Promise<string> {
+  await mkdir(scratchDir, { recursive: true })
+  const env = { GIT_INDEX_FILE: path.join(scratchDir, `overlay-${process.pid}-${Date.now()}`) }
+  try {
+    await git(repo, ['read-tree', baseTree], env)
+    const lines: string[] = []
+    const writes = nameStatus.filter((n) => n.status !== 'D').map((n) => n.path)
+    if (writes.length > 0) {
+      const listed = await git(repo, ['ls-tree', '-z', '--full-tree', source, '--', ...writes.map((p) => `:(literal)${p}`)])
+      for (const rec of listed.split('\0').filter(Boolean)) {
+        const [meta, p] = [rec.slice(0, rec.indexOf('\t')), rec.slice(rec.indexOf('\t') + 1)]
+        const [mode, , sha] = meta.split(' ')
+        lines.push(`${mode} ${sha}\t${p}`)
+      }
+    }
+    for (const n of nameStatus) if (n.status === 'D') lines.push(`0 ${'0'.repeat(40)}\t${n.path}`)
+    if (lines.length > 0) await git(repo, ['update-index', '-z', '--index-info'], env, lines.join('\0') + '\0')
+    return (await git(repo, ['write-tree'], env)).trim()
+  } finally {
+    await rm(env.GIT_INDEX_FILE, { force: true })
+  }
+}
+
+/** Fingerprint of what is staged (the index entries), to prove adoption left it alone. */
+export async function stagedFingerprint(repo: string): Promise<string> {
+  return createHash('sha256').update(await git(repo, ['ls-files', '-s', '-z'])).digest('hex')
+}
+
+/** path → blob sha for the entries of `tree` whose path satisfies `keep`. */
+export async function treeBlobs(repo: string, tree: string, keep: (p: string) => boolean): Promise<Record<string, string>> {
+  const out: Record<string, string> = {}
+  for (const rec of (await git(repo, ['ls-tree', '-r', '-z', '--full-tree', tree])).split('\0').filter(Boolean)) {
+    const tab = rec.indexOf('\t')
+    const p = rec.slice(tab + 1)
+    if (keep(p)) out[p] = rec.slice(0, tab).split(' ')[2]!
+  }
+  return out
+}
+
+export async function readBlob(repo: string, rev: string, file: string): Promise<string | undefined> {
+  return gitTry(repo, ['show', `${rev}:${file}`])
 }
 
 export interface CapturedChange {
@@ -106,9 +212,10 @@ export interface CapturedChange {
 export const ALWAYS_EXCLUDED = [':(exclude,glob)**/node_modules/**', ':(exclude,glob)**/.vite/**', ':(exclude,glob).agents/worktrees/**']
 
 /**
- * Candidate checkouts live inside the repository, in DSH's own worktree pool.
- * A DSH child agent inherits its parent's sandbox workspace (the repository),
- * not its `cwd`; a copy anywhere else is read-only to the agent.
+ * `shared-root` isolation only: copies live inside the repository, in DSH's
+ * worktree pool, because a `ctx.subagents` child inherits its parent's sandbox
+ * root (the repository) and could not write anywhere else. `own-root` copies
+ * live under the plugin home instead.
  */
 export const WORKTREE_POOL = path.join('.agents', 'worktrees')
 
