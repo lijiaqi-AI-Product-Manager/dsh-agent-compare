@@ -222,13 +222,20 @@ describe.concurrent('adoption', () => {
   }, T)
 
   it('rehearses and adopts when the user changed other files, keeping those changes', async () => {
-    const { repo, comparer, runId } = await setup({})
-    await writeFile(path.join(repo, 'keep.txt'), 'keep\nmine\n')
-    await comparer.choose(runId, 'B')
-    const r = await comparer.adopt(runId, 'worktree')
-    expect(r.adoption).toMatchObject({ state: 'adopted', rehearsal: { reused: false } })
-    expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('keep\nmine\n')
-    expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop B</h1>\n')
+    const { repo, comparer, runId, done } = await setup({})
+    try {
+      const candidate = done.candidates.find((c) => c.label === 'B')!
+      expect(candidate.stage, JSON.stringify(candidate.error)).toBe('ready')
+      await writeFile(path.join(repo, 'keep.txt'), 'keep\nmine\n')
+      await comparer.choose(runId, 'B')
+      const r = await comparer.adopt(runId, 'worktree')
+      expect(r.adoption).toMatchObject({ state: 'adopted', rehearsal: { reused: false } })
+      expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('keep\nmine\n')
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop B</h1>\n')
+    } finally {
+      await comparer.cleanup(runId)
+      await comparer.dispose()
+    }
   }, T)
 
   it('blocks on overlap with a later user edit', async () => {
