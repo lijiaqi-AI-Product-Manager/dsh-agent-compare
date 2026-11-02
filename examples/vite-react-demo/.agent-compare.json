@@ -1,0 +1,20 @@
+{
+  "browser": {
+    "path": "/",
+    "failOnConsoleError": true,
+    "steps": [
+      { "label": "初始显示全部 8 个商品", "expectCount": "[data-testid=product-card]", "min": 8, "max": 8 },
+      { "label": "搜索 LAMP（不区分大小写）只剩 1 个", "fill": "input[type=search]", "text": "LAMP" },
+      { "expectCount": "[data-testid=product-card]", "min": 1, "max": 1, "label": "搜索结果为 1 个" },
+      { "label": "点「清空」", "click": "button:has-text(\"清空\")" },
+      { "label": "清空后恢复 8 个", "expectCount": "[data-testid=product-card]", "min": 8, "max": 8 },
+      { "label": "选分类 Desk", "click": "[aria-pressed]:has-text(\"Desk\")" },
+      { "label": "Desk 下有 2 个", "expectCount": "[data-testid=product-card]", "min": 2, "max": 2 },
+      { "label": "Desk + 搜索 mat 组合生效", "fill": "input[type=search]", "text": "mat" },
+      { "expectCount": "[data-testid=product-card]", "min": 1, "max": 1, "label": "组合结果为 1 个" },
+      { "label": "手机宽度", "viewport": { "width": 390, "height": 844 } },
+      { "label": "手机上搜索框可见", "expectVisible": "input[type=search]" },
+      { "label": "手机上分类按钮可见", "expectVisible": "[aria-pressed]:has-text(\"Audio\")" }
+    ]
+  }
+}

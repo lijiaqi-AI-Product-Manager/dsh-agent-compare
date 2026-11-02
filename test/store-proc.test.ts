@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
-import { RunStore } from '../src/core/run-store.ts'
-import { run, spawnSpec, which } from '../src/core/proc.ts'
+import { RunStore, repoKey, StaleRecordError } from '../src/core/run-store.ts'
+import { isAlive, killTree, ownsProcess, run, spawnSpec, waitGone, which } from '../src/core/proc.ts'
 import { freePort, startVitePreview } from '../src/core/preview.ts'
-import { publicView } from '../src/core/orchestrator.ts'
-import { RUN_SCHEMA, type RunRecord } from '../src/core/types.ts'
+import { publicView, verdictOf } from '../src/core/orchestrator.ts'
+import { Comparer } from '../src/core/orchestrator.ts'
+import { RUN_SCHEMA, type Acceptance, type Candidate, type RunRecord } from '../src/core/types.ts'
+import { tmp } from './fixture.ts'
+
+const acceptance: Acceptance = { checks: { commands: [{ name: 'build', argv: ['npm', 'run', 'build'] }], browser: { path: '/' } }, scripts: {}, bound: {}, runtime: { node: 'v0', packageManager: 'npm', platform: 'x' }, source: 'defaults', sha256: 'f'.repeat(64) }
 
 function record(runId: string): RunRecord {
   return {
@@ -16,50 +21,83 @@ function record(runId: string): RunRecord {
     createdAt: Date.now(),
     task: 't',
     baseline: { repoRoot: '/r', headCommit: 'a'.repeat(40), snapshotCommit: 'b'.repeat(40), snapshotTree: 'c'.repeat(40), dirty: false },
-    checks: { commands: [] },
-    checksSha256: 'x',
+    acceptance,
     mode: 'same-model',
+    isolation: 'own-root',
+    budget: { generationMs: 1000 },
     state: 'judging',
     candidates: [
-      { label: 'A', strategy: { id: 'bold', title: 'Bold', instruction: '' }, route: {}, stage: 'ready', timings: {}, summary: 'I went bold', usage: { kind: 'unknown', reason: 'not reported' } },
-      { label: 'B', strategy: { id: 'conservative', title: 'Conservative', instruction: '' }, route: {}, stage: 'failed', timings: {} },
+      { label: 'A', strategy: { id: 'bold', title: 'Bold', instruction: '' }, route: { model: 'm1' }, stage: 'ready', timings: {}, summary: 'I went bold', usage: { kind: 'unknown', reason: 'not reported' } },
+      { label: 'B', strategy: { id: 'conservative', title: 'Conservative', instruction: '' }, route: { model: 'm1' }, stage: 'failed', timings: {} },
     ],
+    rev: 0,
     updatedAt: Date.now(),
   }
 }
 
 describe('run store', () => {
   it('round-trips records atomically and rejects ids that are not run ids', async () => {
-    const store = new RunStore(await mkdtemp(path.join(os.tmpdir(), 'ac-home ')))
+    const store = new RunStore(await tmp('ac-home'))
     await store.save(record('0a1b2c3d'))
     expect((await store.load('0a1b2c3d'))?.task).toBe('t')
     expect(await store.load('../../etc')).toBeUndefined()
     expect((await store.list()).map((r) => r.runId)).toEqual(['0a1b2c3d'])
   })
 
+  it('refuses a save based on a stale revision', async () => {
+    const store = new RunStore(await tmp('ac-home'))
+    const r = record('0a1b2c3d')
+    await store.save(r)
+    expect(r.rev).toBe(1)
+    const stale = { ...r, rev: 0 }
+    await expect(store.save(stale)).rejects.toBeInstanceOf(StaleRecordError)
+    await store.save(r)
+    expect((await store.load('0a1b2c3d'))?.rev).toBe(2)
+  })
+
+  it('treats older-schema records as read-only history', async () => {
+    const store = new RunStore(await tmp('ac-home'))
+    await mkdir(store.runsDir, { recursive: true })
+    await writeFile(store.file('1c1fe140'), JSON.stringify({ schema: 'agent-compare.run/v1', runId: '1c1fe140', task: 'old', createdAt: 1, state: 'revealed', candidates: [{ label: 'A', pid: process.pid, worktree: os.tmpdir() }] }))
+    expect(await store.load('1c1fe140')).toBeUndefined()
+    const all = await store.listAll()
+    expect(all.current).toEqual([])
+    expect(all.legacy).toEqual([{ runId: '1c1fe140', schema: 'agent-compare.run/v1', task: 'old', createdAt: 1, state: 'revealed', legacy: true }])
+    const comparer = new Comparer({ store, runner: { isolation: 'own-root', run: async () => ({ stopReason: 'completed', usage: { kind: 'unknown', reason: '' } }) }, version: 'test' })
+    // Recovery never acts on legacy pids or paths; mutations explain why.
+    expect(await comparer.recover()).toEqual([])
+    expect(isAlive(process.pid)).toBe(true)
+    await expect(comparer.adopt('1c1fe140')).rejects.toThrow(/旧版本/)
+  })
+
   it('takes over a lock left by a dead process and refuses a concurrent holder', async () => {
-    const store = new RunStore(await mkdtemp(path.join(os.tmpdir(), 'ac-home ')))
-    const lock = path.join(store.runsDir, '0a1b2c3d.lock')
+    const store = new RunStore(await tmp('ac-home'))
+    const lock = path.join(store.locksDir, 'run-0a1b2c3d.lock')
     await mkdir(lock, { recursive: true })
     await writeFile(path.join(lock, 'pid'), '999999')
     let inner: Promise<unknown> | undefined
-    const outer = await store.withLock('0a1b2c3d', async () => {
-      inner = store.withLock('0a1b2c3d', async () => 'second').catch((e: Error) => e.message)
+    const outer = await store.withLock('run-0a1b2c3d', async () => {
+      inner = store.withLock('run-0a1b2c3d', async () => 'second').catch((e: Error) => e.message)
       return 'first'
     })
     expect(outer).toBe('first')
     expect(await inner).toMatch(/busy/)
-    // Released afterwards.
-    expect(await store.withLock('0a1b2c3d', async () => 'third')).toBe('third')
+    expect(await store.withLock('run-0a1b2c3d', async () => 'third')).toBe('third')
   })
 
-  it('refuses a lock held by another live process', async () => {
-    const store = new RunStore(await mkdtemp(path.join(os.tmpdir(), 'ac-home ')))
-    const lock = path.join(store.runsDir, '0a1b2c3d.lock')
+  it('refuses a lock held by another live process, and waits for it when asked', async () => {
+    const store = new RunStore(await tmp('ac-home'))
+    const lock = path.join(store.locksDir, 'repo-x.lock')
     await mkdir(lock, { recursive: true })
     // The parent of this test process is alive and is not us.
     await writeFile(path.join(lock, 'pid'), String(process.ppid))
-    await expect(store.withLock('0a1b2c3d', async () => 'x')).rejects.toThrow(/locked by process/)
+    await expect(store.withLock('repo-x', async () => 'x', { busyMessage: 'repository busy' })).rejects.toThrow(/repository busy/)
+  })
+
+  it('keys a repository by its real path, whatever spelling reached it', async () => {
+    const dir = await tmp('ac-key')
+    expect(repoKey(dir)).toBe(repoKey(path.join(dir, '.')))
+    if (process.platform === 'win32') expect(repoKey(dir.toUpperCase())).toBe(repoKey(dir))
   })
 })
 
@@ -67,19 +105,44 @@ describe('public view', () => {
   it('hides strategy, route and summary until the reveal', () => {
     const r = record('0a1b2c3d')
     const before = publicView(r)
-    expect(JSON.stringify(before)).not.toMatch(/bold|Bold|conservative|Conservative/)
+    expect(JSON.stringify(before)).not.toMatch(/bold|Bold|conservative|Conservative|m1/)
     expect(before.candidates[0]?.usage).toEqual({ kind: 'unknown', reason: 'not reported' })
     r.state = 'revealed'
+    r.revealedAt = Date.now()
     const after = publicView(r)
     expect(after.candidates[0]?.strategy?.id).toBe('bold')
     expect(after.candidates[0]?.summary).toBe('I went bold')
+    expect(JSON.stringify(after)).not.toMatch(/snapshotCommit|repoRoot/)
+  })
+})
+
+describe('verdict', () => {
+  const base = (over: Partial<Candidate>): Candidate => ({
+    label: 'A', strategy: { id: 's', title: 's', instruction: '' }, route: {}, stage: 'ready', timings: {},
+    candidateTree: 't', checkedTree: 't', drift: [], acceptanceTouched: [], preview: { url: 'u', port: 1, pid: 1, kind: 'build', cwd: '/' },
+    checks: [{ name: 'build', outcome: 'passed', durationMs: 1, tail: '' }, { name: 'browser', outcome: 'passed', durationMs: 1, tail: '' }],
+    ...over,
+  })
+  it('is eligible only when everything bound held', () => {
+    expect(verdictOf(base({}), acceptance)).toEqual({ eligible: true, reasons: [], warnings: [] })
+    expect(verdictOf(base({ checkedTree: 'other' }), acceptance).eligible).toBe(false)
+    expect(verdictOf(base({ drift: ['x'] }), acceptance).eligible).toBe(false)
+    expect(verdictOf(base({ acceptanceTouched: ['tsconfig.json'] }), acceptance).eligible).toBe(false)
+    expect(verdictOf(base({ preview: { url: 'u', port: 1, pid: 1, kind: 'dev', cwd: '/' } }), acceptance).eligible).toBe(false)
+    expect(verdictOf(base({ checks: [{ name: 'build', outcome: 'failed', durationMs: 1, tail: '' }] }), acceptance).eligible).toBe(false)
+  })
+  it('a skipped page check blocks only when the acceptance scripted it', () => {
+    const skipped = base({ checks: [{ name: 'build', outcome: 'passed', durationMs: 1, tail: '' }, { name: 'browser', outcome: 'skipped', durationMs: 0, tail: '', reason: 'no browser' }] })
+    expect(verdictOf(skipped, acceptance)).toMatchObject({ eligible: true, warnings: [expect.stringMatching(/没有运行/)] })
+    const scripted = { ...acceptance, checks: { ...acceptance.checks, browser: { steps: [{ expectText: 'x' }] } } }
+    expect(verdictOf(skipped, scripted).eligible).toBe(false)
   })
 })
 
 describe('process helpers', () => {
   it('resolves npm on PATH and runs it from a directory with spaces', async () => {
     expect(which('npm')).toBeDefined()
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'ac dir with spaces '))
+    const dir = await tmp('ac dir with spaces')
     const r = await run(['npm', '--version'], { cwd: dir })
     expect(r.code).toBe(0)
     expect(r.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/)
@@ -97,6 +160,21 @@ describe('process helpers', () => {
     expect(r.timedOut).toBe(true)
   })
 
+  it('recognises its own process by command line and nothing else', async () => {
+    const marker = `ac-marker-${process.pid}-${Date.now()}`
+    const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', marker], { stdio: 'ignore' })
+    try {
+      await new Promise((r) => setTimeout(r, 300))
+      expect(await ownsProcess(child.pid!, [marker])).toBe(true)
+      expect(await ownsProcess(child.pid!, [marker, '--port 1'])).toBe(false)
+      expect(await ownsProcess(process.pid, [marker])).toBe(false)
+      expect(await ownsProcess(999_999_999, [marker])).toBe(false)
+    } finally {
+      await killTree(child.pid)
+      expect(await waitGone(child.pid!, 5000)).toBe(true)
+    }
+  }, 30_000)
+
   it('allocates distinct free ports', async () => {
     const a = await freePort()
     const b = await freePort()
@@ -105,7 +183,7 @@ describe('process helpers', () => {
   })
 
   it('fails a preview cleanly when vite is not installed', async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), 'ac-novite '))
-    await expect(startVitePreview(dir)).rejects.toThrow(/vite is not installed/)
+    const dir = await tmp('ac-novite')
+    await expect(startVitePreview(dir)).rejects.toThrow(/没有安装 vite/)
   })
 })

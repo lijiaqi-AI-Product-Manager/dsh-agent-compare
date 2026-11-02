@@ -184,6 +184,43 @@ export function isAlive(pid: number): boolean {
   }
 }
 
+/** The command line of a live process, or undefined when it is gone or cannot be read. */
+export async function processCommandLine(pid: number): Promise<string | undefined> {
+  if (!Number.isInteger(pid) || pid <= 0 || !isAlive(pid)) return undefined
+  const argv = isWin
+    ? ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`]
+    : ['ps', '-o', 'args=', '-p', String(pid)]
+  try {
+    const r = await run(argv, { cwd: process.cwd(), timeoutMs: 15_000 })
+    const line = r.stdout.trim()
+    return r.code === 0 && line !== '' ? line : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * True only when `pid` is alive AND its command line names every marker (for
+ * a preview: the copy's vite binary path and its port). A recycled pid that now
+ * belongs to something else fails this, so it is never killed.
+ */
+export async function ownsProcess(pid: number, markers: readonly string[]): Promise<boolean> {
+  const line = await processCommandLine(pid)
+  if (line === undefined) return false
+  const norm = (s: string): string => (isWin ? s.replace(/\//g, '\\').toLowerCase() : s)
+  return markers.every((m) => norm(line).includes(norm(m)))
+}
+
+/** Wait until `pid` has exited; false when it is still alive after `timeoutMs`. */
+export async function waitGone(pid: number, timeoutMs = 5000): Promise<boolean> {
+  const until = Date.now() + timeoutMs
+  while (isAlive(pid)) {
+    if (Date.now() > until) return false
+    await new Promise((r) => setTimeout(r, 100))
+  }
+  return true
+}
+
 /** Start a long-running process with streaming output. The caller owns its lifetime. */
 export function startLongRunning(argv: readonly string[], opts: { cwd: string; env?: NodeJS.ProcessEnv }): ChildProcess {
   const spec = spawnSpec(argv)

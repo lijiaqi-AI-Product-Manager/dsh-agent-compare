@@ -1,0 +1,38 @@
+name: 问题反馈 / Bug report
+description: 某一步的结果和预期不一致 / A step did not do what it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么 / What happened
+      description: 哪一步（隔离副本、生成、安装、检查、预览、选择、采用、撤销、清理）出了问题，看到了什么。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期 / Expected
+    validations:
+      required: true
+  - type: textarea
+    id: record
+    attributes:
+      label: 运行记录 / Run record
+      description: 可选。`~/.dsh/agent-compare/runs/<runId>.json` 中相关的部分；请先去掉你不想公开的路径和任务内容。
+      render: json
+  - type: input
+    id: versions
+    attributes:
+      label: 版本 / Versions
+      placeholder: dsh-agent-compare 0.2.0-alpha.1 · DSH 0.2.1-rc.3 desktop · Windows 11 · Node 24
+    validations:
+      required: true
+  - type: dropdown
+    id: isolation
+    attributes:
+      label: 面板显示的隔离方式 / Isolation shown in the panel
+      options:
+        - 每个候选只能写自己的副本 (own-root)
+        - 副本在仓库内 (shared-root)
+        - 不确定 / not sure

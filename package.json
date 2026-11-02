@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent-compare",
-  "version": "0.1.0-alpha.3",
+  "version": "0.2.0-alpha.1",
   "description": "Same task, two live builds, pick blind. A DeepSeek Harness plugin that runs two isolated implementations of one front-end task, starts both apps, applies the same checks, lets you choose blind, then adopts the winner safely. · 同一需求，两版真跑，盲选再揭晓。",
   "type": "module",
   "license": "MIT",
@@ -22,14 +22,16 @@
     "lib",
     "cordis.patch.yml",
     "examples/vite-react-demo",
-    "!examples/vite-react-demo/node_modules",
-    "!examples/vite-react-demo/dist",
     "README.md",
     "README.zh.md",
-    "LICENSE"
+    "LICENSE",
+    "!examples/vite-react-demo/node_modules",
+    "!examples/vite-react-demo/dist",
+    "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=22.19"
+    "node": ">=22.19",
+    "dsh": ">=0.2.1-rc.3 <0.3.0"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/wrap-client.mjs",
@@ -55,18 +57,16 @@
     "@deepseek-ai/dsh-client-ui-conversation": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-host-webserver": "^0.2.1-rc.1",
-    "@deepseek-ai/dsh-subagent": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.1",
-    "react": "^18.2.0"
+    "react": "^18.2.0",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-agent": "^0.2.1-rc.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
       "optional": true
     },
     "@deepseek-ai/dsh-tools": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-subagent": {
       "optional": true
     },
     "@deepseek-ai/dsh-host-webserver": {
@@ -79,6 +79,12 @@
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-agent": {
       "optional": true
     }
   },
@@ -103,9 +109,6 @@
         "@deepseek-ai/dsh-client-ui-conversation"
       ],
       "platform": "web"
-    },
-    "engines": {
-      "dsh": ">=0.2.1-rc.1"
     },
     "manifestVersion": 1
   },
