@@ -196,19 +196,32 @@ export function isAlive(pid: number): boolean {
   }
 }
 
-/** The command line of a live process, or undefined when it is gone or cannot be read. */
-export async function processCommandLine(pid: number): Promise<string | undefined> {
-  if (!Number.isInteger(pid) || pid <= 0 || !isAlive(pid)) return undefined
+export type ProcessObservation =
+  | { readonly state: 'gone' }
+  | { readonly state: 'observed'; readonly commandLine: string }
+  | { readonly state: 'unavailable'; readonly reason: string }
+
+/** A missing observation is uncertainty, never proof that a process exited. */
+export async function observeProcess(pid: number): Promise<ProcessObservation> {
+  if (!Number.isInteger(pid) || pid <= 0 || !isAlive(pid)) return { state: 'gone' }
   const argv = isWin
     ? ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`]
     : ['ps', '-o', 'args=', '-p', String(pid)]
   try {
     const r = await run(argv, { cwd: process.cwd(), timeoutMs: 15_000 })
     const line = r.stdout.trim()
-    return r.code === 0 && line !== '' ? line : undefined
+    if (r.code === 0 && line !== '') return { state: 'observed', commandLine: line }
+    if (!isAlive(pid)) return { state: 'gone' }
+    return { state: 'unavailable', reason: r.timedOut ? '读取进程命令行超时' : '当前无法读取进程命令行' }
   } catch {
-    return undefined
+    return isAlive(pid) ? { state: 'unavailable', reason: '当前无法读取进程命令行' } : { state: 'gone' }
   }
+}
+
+/** The command line when observation succeeded; callers needing certainty use observeProcess. */
+export async function processCommandLine(pid: number): Promise<string | undefined> {
+  const observed = await observeProcess(pid)
+  return observed.state === 'observed' ? observed.commandLine : undefined
 }
 
 /**
@@ -218,8 +231,12 @@ export async function processCommandLine(pid: number): Promise<string | undefine
  */
 export async function ownsProcess(pid: number, markers: readonly string[]): Promise<boolean> {
   const line = await processCommandLine(pid)
-  if (line === undefined) return false
-  const norm = (s: string): string => (isWin ? s.replace(/\//g, '\\').toLowerCase() : s)
+  return line !== undefined && commandHasMarkers(line, markers)
+}
+
+/** Complete command markers, including numeric-port boundaries. */
+export function commandHasMarkers(line: string, markers: readonly string[], windows = isWin): boolean {
+  const norm = (s: string): string => (windows ? s.replace(/\//g, '\\').toLowerCase() : s)
   const command = norm(line)
   return markers.length > 0 && markers.every((m) => {
     const marker = norm(m)

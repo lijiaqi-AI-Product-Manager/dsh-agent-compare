@@ -141,6 +141,10 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.6.tgz
 
 步骤类型：`fill`、`click`、`press`、`expectVisible`、`expectCount`、`expectText`、`viewport`；选择器是 Playwright 选择器。完整示例见 [examples/vite-react-demo/.agent-compare.json](examples/vite-react-demo/.agent-compare.json)。
 
+配置会在生成前严格校验。未知字段、不存在的脚本、非法步骤和跨来源页面路径会直接报错。自动绑定根目录 JS/TS 辅助程序、`scripts/`、`tools/`、`config/`、已知配置和已有测试；新增验证配置及 package scripts（包括生命周期钩子）的变化也会使候选不可直接采用。其它位置的验证数据或辅助文件可在基线配置中通过 `"protectedFiles": ["custom/fixture.json"]` 指定，必须是已存在的具体仓库相对路径。
+
+绑定范围不会推断任意程序动态读取的全部文件。程序验收说明已配置检查的结果；需求中的其它质量标准仍需实际体验和代码审查。
+
 ## 兼容范围
 
 | 项目 | 状态 |

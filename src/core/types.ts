@@ -96,7 +96,7 @@ export interface ChecksSpec {
  */
 export interface Acceptance {
   readonly checks: ChecksSpec
-  /** Baseline body of each package script a check runs. */
+  /** Baseline package scripts, including lifecycle and nested commands. */
   readonly scripts: Readonly<Record<string, string>>
   /** Baseline path → blob sha of verification-defining files. */
   readonly bound: Readonly<Record<string, string>>

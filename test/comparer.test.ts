@@ -95,6 +95,22 @@ describe.concurrent('comparison run', () => {
     await comparer.cleanup(runId)
   }, T)
 
+  it('refuses adoption when a broken candidate makes its verification helper always succeed', async () => {
+    const { repo, comparer, runId, done } = await setup({ B: async (dir) => {
+      await writeFile(path.join(dir, 'index.html'), 'BROKEN\n')
+      await writeFile(path.join(dir, 'check.cjs'), "console.log('ok')\n")
+    } })
+    try {
+      const candidate = done.candidates.find(c => c.label === 'B')!
+      expect(candidate.checks?.find(c => c.name === 'test')?.outcome).toBe('passed')
+      expect(candidate.acceptanceTouched).toContain('check.cjs')
+      expect(candidate.verdict?.eligible).toBe(false)
+      await comparer.choose(runId, 'B')
+      await expect(comparer.adopt(runId, 'worktree')).rejects.toThrow(/没有通过共同验收/)
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+    } finally { await comparer.cleanup(runId) }
+  }, T)
+
   it('changing dependencies without the lockfile fails at a frozen install, with no unlocked retry', async () => {
     const { comparer, runId, done } = await setup({
       A: async (dir) => {

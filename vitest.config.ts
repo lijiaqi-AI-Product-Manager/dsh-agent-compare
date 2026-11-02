@@ -5,8 +5,10 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
-    // Comparer tests each run two real installs, builds and servers; keep the load bounded.
-    maxConcurrency: 3,
+    // Each comparison starts two real installs, builds and servers. Keep heavy
+    // files separate so OS identity queries can run on shared two-core runners.
+    fileParallelism: false,
+    maxConcurrency: 2,
     coverage: {
       provider: 'v8',
       include: ['src/core/**/*.ts', 'src/host/**/*.ts'],
