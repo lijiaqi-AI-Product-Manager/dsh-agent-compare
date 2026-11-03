@@ -1,0 +1,50 @@
+# 插件目录与安装
+
+[English](distribution.en.md)
+
+AgentCompare 的仓库名和 npm 包名均为 `dsh-agent-compare`。插件以标准 `dsh.bundle.patch` 配置层分发；Web 客户端入口通过 `dsh.client` 加载。市场可以使用 npm 包或带有预构建 `lib/` 的 GitHub 源码安装，无需额外安装另一个市场作为运行依赖。
+
+## 安装入口
+
+官方桌面版在应用内的「插件 → 添加插件」中安装。Web 版使用自己管理的 profile，命令见 [README](../README.md#安装)。桌面版的 profile 由应用管理，安装到独立的 Web profile 不会让插件出现在桌面版里。
+
+搜索时可使用 `AgentCompare`、`dsh-agent-compare`、`A|B`、双版本比较、真实预览、盲选和审查采用。包内保留中英文说明与 `dsh`、`dsh-plugin`、`deepseek-harness` 等相关关键词。
+
+## 目录来源
+
+以下是各入口公布的收录机制，核对日期为 2026-11-04。它们是独立社区服务；收录和推荐状态以相应服务为准。
+
+| 入口 | 对接方式 |
+|---|---|
+| [Awesome DSH Plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md) | 单个 YAML 条目，由维护者审核；自动关联指回本仓库的 npm 包。 |
+| [dsh-market](https://github.com/dsh-market/dsh-market#submit-your-plugin) | 使用 Awesome DSH Plugin 的目录。 |
+| [开放插件市场](https://github.com/polang233/dsh-plugin-index/blob/main/.github/CONTRIBUTING.md) | 通过收录 Issue 提交；版本审查标签与增长标签按其公开规则生成。 |
+| [1024 Store](https://github.com/imsai-sh/awesome-deepseek-harness-plugins/blob/main/CONTRIBUTING.md) | 单个 JSON 条目；可安装条目需要有效的已发布 npm bundle。 |
+| [DSH Plugins Marketplace](https://github.com/bradeGithub/DSH-Plugins-Marketplace/blob/main/STANDARD.md) | 采集 `dsh-plugin` 话题，并识别 bundle 和安装入口。 |
+| [DSH Market · dsh.market](https://github.com/2BingLing/dsh-market/blob/master/CONTRIBUTING.md) | 话题采集或提交 Issue；作者可补充自己的功能说明。 |
+| [dsh-recommend](https://github.com/zp-home/dsh-recommend/blob/main/.github/ISSUE_TEMPLATE/submit-plugin.yml) | 话题采集；「精选认证」需要单独申请，由维护者批准。 |
+| [DSH Get](https://github.com/bobby-sheng/dshget-data) | 聚合多个公开目录和 GitHub 话题；支持缺失条目与信息更正 Issue。 |
+| [DSH Plugin Registry](https://dshplugin.app/submit) | 提交公开仓库地址进入审核。 |
+| [DSH Plugin Hub](https://dshpluginhub.ai/en/docs/plugin-not-found) | npm 自动发现，可提交包名加速；认领和编辑需要账号授权。 |
+| [dsh.fish](https://dsh.fish/docs/publish/bundle) | 提交 npm bundle 或源码，读取真实 manifest。 |
+| [dsh.pub](https://dsh.pub/zh/submit/) | 使用目录的提交入口，固定公开来源。 |
+
+DSH 原生「发现」读取第三方提供的插件索引，各索引决定自己的版本、分类和标签。索引收录无需修改插件的执行接口。参见 [DSH 插件索引文档](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/plugin-market.md)。
+
+## 市场图片
+
+- 图标：[`assets/icon.png`](../assets/icon.png)，512 × 512 PNG；矢量源文件为 [`assets/icon.svg`](../assets/icon.svg)。
+- 有序截图：仓库根目录 [`screenshots.json`](../screenshots.json)，图片均为仓库内的相对路径。
+- 截图来源：[`manifest.json`](media/screenshots/manifest.json) 记录版本、宿主和图片校验值。
+
+截图使用固定候选样例，展示真实运行的应用、统一检查、交互和采用；本地路径已隐藏。当前截图来自 npm 发布包 0.2.0-alpha.18，在 DSH 0.2.1-rc.5 中录制。模型生成耗时需参考各次真实模型运行记录。
+
+## 数据与权限
+
+任务和相关项目上下文交给用户选择的 DSH 模型；网络目的地和凭据由宿主的模型配置决定。安装依赖会访问目标项目包管理器及锁文件指定的来源。预览在本机回环地址启动。插件没有独立的遥测或自动上传功能。
+
+记录、补丁、截图和日志保存在本地，可能包含项目内容。工作副本按归属证明清理；采用恢复目录会保留用于恢复的原始文件。导出和分享由用户主动执行，发布前应查看内容。执行边界来自宿主，界面展示实际生效的限制。
+
+## 维护
+
+更改源码后运行 `npm run build` 并一起提交 `lib/`。运行 `npm run check:distribution` 检查 manifest、图片和来源映射；CI 用 `npm run check:prebuilt` 防止源码与预构建入口不同步。更改截图后更新截图 manifest；更改文件路径时一起更新 `screenshots.json`。

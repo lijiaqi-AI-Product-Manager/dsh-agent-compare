@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Ship prebuilt runtime files for GitHub installations and check build freshness in CI.
+- Add a square storefront icon, four recorded screenshots, and a standard screenshot declaration.
+- Document directory integration, installation routes, data handling and recommendation applications.
+
 ## 0.2.0-alpha.18 — 2026-11-03
 
 - Retain actual original files before direct adoption, and publish prepared candidate bytes with no-replace links. A late edit or newly occupied path stops the handoff without overwriting either version; HEAD and the staged index remain unchanged.

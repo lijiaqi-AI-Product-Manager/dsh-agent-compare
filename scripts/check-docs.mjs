@@ -8,8 +8,8 @@ import path from 'node:path'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const canonical = ['README.md', 'README.en.md', 'README.ja.md', 'README.ko.md', 'README.es.md', 'README.pt-BR.md', 'README.fr.md', 'README.de.md']
 const guides = [...canonical, 'README.zh.md']
-const referenceDocs = ['docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md']
-const mediaFiles = ['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json']
+const referenceDocs = ['docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md', 'docs/distribution.md', 'docs/distribution.en.md']
+const mediaFiles = ['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json', 'assets/icon.png', 'assets/icon.svg', 'screenshots.json', 'docs/media/screenshots/manifest.json', ...JSON.parse(await readFile(path.join(root, 'screenshots.json'), 'utf8'))]
 const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
 const repository = manifest.repository.url.replace(/^git\+/, '').replace(/\.git$/, '')
 const repositoryFiles = `${repository}/blob/main/`

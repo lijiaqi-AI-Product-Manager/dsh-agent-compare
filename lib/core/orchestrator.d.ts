@@ -1,0 +1,268 @@
+import { type PrepareProjectProcess } from './project-process.ts';
+import { RunStore } from './run-store.ts';
+import { type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts';
+export interface AgentRunRequest {
+    readonly label: CandidateLabel;
+    readonly cwd: string;
+    readonly prompt: string;
+    readonly route: AgentRoute;
+    readonly signal: AbortSignal;
+    /** Opaque value from StartInput.hostContext (DSH: the parent Agent). */
+    readonly hostContext?: unknown;
+    /** Called while the agent works, whenever its observed activity changes. */
+    readonly onProgress?: (p: AgentProgress) => void;
+}
+export interface AgentProgress {
+    readonly steps: number;
+    readonly lastAction?: string;
+    readonly tokens?: number;
+}
+export interface AgentRunResult {
+    readonly stopReason: string;
+    readonly summary?: string;
+    readonly usage: Usage;
+    readonly childId?: string;
+    /** The route the agent actually ran with, when the host reports it. */
+    readonly actualRoute?: AgentRoute;
+}
+/** The one seam to the agent host. DSH implements it with its own sessions; tests script it. */
+export interface AgentRunner {
+    /**
+     * `own-root`: the agent requests a host write boundary rooted in `cwd`,
+     * subject to host platform limitations. `shared-root`: the agent can write wherever its
+     * parent can, so copies must live inside the repository and escapes are only
+     * detected afterwards.
+     */
+    readonly isolation: 'own-root' | 'shared-root';
+    run(request: AgentRunRequest): Promise<AgentRunResult>;
+}
+export interface StartInput {
+    readonly repo: string;
+    readonly task: string;
+    /** `same-model` (default): one route, two strategies. `cross-model`: two routes, one brief. */
+    readonly mode?: 'same-model' | 'cross-model';
+    readonly strategies?: readonly [Strategy, Strategy];
+    /** same-model: routes[0] for both. cross-model: two different routes (required). */
+    readonly routes?: readonly [AgentRoute, AgentRoute];
+    readonly checks?: ChecksSpec;
+    readonly sessionId?: string;
+    readonly follows?: string;
+    readonly origin?: RunRecord['origin'];
+    readonly generationMs?: number;
+    /** Fixed A/B assignment for tests; production shuffles. */
+    readonly assignment?: 'fixed' | 'shuffle';
+    /** Handed to every AgentRunner call; never persisted. */
+    readonly hostContext?: unknown;
+}
+export interface ComparerOptions {
+    readonly store?: RunStore;
+    readonly runner: AgentRunner;
+    readonly version: string;
+    readonly onUpdate?: (record: RunRecord) => void;
+    readonly onRecoveryIssue?: (issue: {
+        runId: string;
+        message: string;
+    }) => void;
+    readonly previewTimeoutMs?: number;
+    /** Disable the headless-browser check (tests without a system browser). */
+    readonly browserChecks?: boolean;
+    /** Comparisons generating at the same time in this process. Default 1. */
+    readonly maxActiveRuns?: number;
+    /** Per-candidate generation budget. Default 30 minutes. */
+    readonly generationMs?: number;
+    /** Required for executable project commands; the host supplies its write boundary. */
+    readonly prepareProjectProcess?: PrepareProjectProcess;
+}
+export declare const DEFAULT_GENERATION_MS: number;
+export declare class Comparer {
+    private readonly opts;
+    readonly store: RunStore;
+    private readonly live;
+    private readonly queues;
+    private readonly startReservations;
+    private readonly operations;
+    private readonly owners;
+    private readonly ownerUses;
+    private readonly lifetime;
+    private closing;
+    private disposal?;
+    constructor(opts: ComparerOptions);
+    /** Validate, snapshot the baseline, bind the acceptance, persist, then work in the background. */
+    start(input: StartInput): Promise<RunRecord>;
+    private startRun;
+    private prepareStart;
+    /** Resolve once every candidate has settled (ready, failed or cancelled). */
+    wait(runId: string): Promise<RunRecord | undefined>;
+    get(runId: string): Promise<RunRecord | undefined>;
+    /** Reconcile a current-protocol orphan when opened after its owner exits.
+     * A foreign live owner and an unmarked older record remain untouched. */
+    observe(runId: string): Promise<RunRecord | undefined>;
+    /** Run `fn` after every earlier operation on the same run in this process. */
+    private serial;
+    private persist;
+    private drive;
+    private driveCandidate;
+    /** Freeze what the copy holds, then run the full acceptance on it. Ends in `ready` or throws. */
+    private sealAndVerify;
+    /**
+     * Seal and verify what a candidate had written when it failed during
+     * generation (stopped by the budget, an earlier version, or a host
+     * restart). Its copy must still be the one this run created.
+     */
+    salvage(runId: string, label: CandidateLabel): Promise<RunRecord>;
+    private salvageRun;
+    /**
+     * Install, run the shared commands, serve the build, and run the browser
+     * acceptance in `dir`, whose files must equal `sealedTree`. Used for each
+     * candidate and for the adoption rehearsal.
+     */
+    private verifyCopy;
+    /**
+     * Compare the user's checkout (copies excluded) with the baseline and record
+     * every differing path. Called when each candidate finishes generating.
+     */
+    private noteOutsideChanges;
+    private stopPreview;
+    /** Stop one candidate or the whole run. Shows "stopping" until each candidate has actually settled. */
+    cancel(runId: string, label?: CandidateLabel): Promise<RunRecord | undefined>;
+    private cancelRun;
+    /** Record the blind choice and reveal at once. Any finished candidate can be picked; adoption rules come later. */
+    choose(runId: string, pick: CandidateLabel | 'none', note?: string): Promise<RunRecord>;
+    /**
+     * Serve a finished candidate again (its preview stopped with a host
+     * restart, or was never started). Uses the copy's existing build output
+     * when there is one; the copy must still be the one this run created.
+     */
+    reopenPreview(runId: string, label: CandidateLabel): Promise<RunRecord>;
+    private reopenRunPreview;
+    /** Report-only adoption check: overlap, eligibility and whether a rehearsal will run. Writes nothing. */
+    adoptPreflight(runId: string): Promise<{
+        ok: boolean;
+        eligible: boolean;
+        reasons: string[];
+        overlapping?: string[];
+        targetChanged?: boolean;
+        rehearsal?: boolean;
+    }>;
+    private preflightAdoption;
+    /**
+     * Land the chosen candidate.
+     *
+     * `worktree` (eligible candidates only): compute the tree the checkout will
+     * have afterwards; when it differs from the checked candidate (the user
+     * changed other files since), build and check it in a scratch copy first.
+     * Only then persist a journal, write, and verify the checkout equals that
+     * tree. HEAD, the index and commits are never touched.
+     *
+     * `branch`: create a branch with the candidate, switching nothing. Allowed
+     * for any finished candidate, so an unverified one can still be inspected.
+     */
+    adopt(runId: string, mode?: 'worktree' | 'branch'): Promise<RunRecord>;
+    private adoptRun;
+    /** Build `tree` in a scratch copy and run the full acceptance on it. */
+    private rehearse;
+    /**
+     * Undo a worktree adoption. Refuses (and lists the paths) when any touched
+     * file was edited after adoption, so nothing the user wrote is overwritten.
+     */
+    revert(runId: string): Promise<RunRecord>;
+    private revertRun;
+    /**
+     * Resolve a run left in `recovery`. `restore` puts every touched path that
+     * still holds our content back to its pre-adopt state (paths edited by
+     * someone else are listed, not touched); `keep` accepts the files as they are.
+     */
+    recoverAdoption(runId: string, action: 'restore' | 'keep'): Promise<RunRecord>;
+    private recoverRunAdoption;
+    /**
+     * Stop previews and delete the copies this run can prove it created. The
+     * record, patches and screenshots stay. Paths whose ownership cannot be
+     * proven are kept and listed in `leftovers`.
+     */
+    cleanup(runId: string): Promise<RunRecord | undefined>;
+    private cleanupRun;
+    /** Stop this run's previews and delete its owned copies; keep the record. */
+    private releaseResources;
+    /**
+     * After a host restart: anything still marked in flight did not finish.
+     * Previews are stopped only when the process is provably ours; an
+     * interrupted write becomes `recovery`, never "done" or "failed".
+     */
+    recover(): Promise<string[]>;
+    private recoverRuns;
+    private recoverRecord;
+    dispose(): Promise<void>;
+    private finishDisposal;
+    private assertOpen;
+    private operation;
+    private ensureOwnership;
+    private withOwnership;
+    private releaseOwnership;
+    /** A snapshot for presentation; every action acquires ownership again. */
+    control(r: RunRecord): Promise<{
+        allowed: boolean;
+        reason?: string;
+        retryable?: boolean;
+    }>;
+    private mustLoad;
+    /** The live record, or a fresh read from disk (another process may have saved). */
+    private fresh;
+    private save;
+    private mutate;
+}
+/** Decide adoption eligibility from recorded facts only. */
+export declare function verdictOf(c: Candidate, acceptance: Acceptance): Verdict;
+export interface PublicCandidate {
+    readonly label: CandidateLabel;
+    readonly stage: CandidateStage;
+    readonly previewUrl?: string;
+    readonly previewKind?: 'build' | 'dev';
+    readonly checks?: Candidate['checks'];
+    readonly execution?: Candidate['execution'];
+    readonly patchStats?: Candidate['patchStats'];
+    readonly touchedFiles?: string[];
+    readonly timings: Candidate['timings'];
+    readonly error?: Candidate['error'];
+    readonly verdict?: Verdict;
+    readonly usage?: Usage;
+    readonly hasScreenshot: boolean;
+    readonly hasMobileScreenshot: boolean;
+    readonly generation?: Candidate['generation'];
+    readonly progress?: Candidate['progress'];
+    /** Failed while generating, and its copy is still there: what it wrote can still be verified. */
+    readonly salvageable: boolean;
+    /** Finished, not being served, and its copy still exists: the preview can be started again. */
+    readonly canReopenPreview: boolean;
+    /** Present only after the reveal. */
+    readonly strategy?: Strategy;
+    readonly route?: AgentRoute;
+    readonly actualRoute?: AgentRoute;
+    readonly summary?: string;
+}
+export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance' | 'adoption'> & {
+    candidates: PublicCandidate[];
+    baseline: {
+        dirty: boolean;
+        headCommit?: string;
+        repoRoot: string;
+    };
+    acceptance: {
+        source: Acceptance['source'];
+        checks: string[];
+        steps: number;
+        sha256: string;
+        frozenInstall: boolean;
+    };
+    adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers'> & {
+        rehearsed?: boolean;
+        rehearsalChecks?: CheckResult[];
+        retainedDirectory?: string;
+        retainedDirectories?: string[];
+    };
+};
+/**
+ * The view the UI and the model see. Before the reveal it carries nothing
+ * that names the strategy or model; summaries are withheld because agents
+ * tend to describe their own approach.
+ */
+export declare function publicView(r: RunRecord): PublicRun;

@@ -1,0 +1,114 @@
+/** Largest patch accepted for one candidate. Bigger changes are refused, never truncated. */
+export declare const MAX_PATCH_CHARS: number;
+export declare function git(cwd: string, args: readonly string[], env?: NodeJS.ProcessEnv, input?: string, limits?: {
+    timeoutMs?: number;
+    signal?: AbortSignal;
+}): Promise<string>;
+export declare function gitTry(cwd: string, args: readonly string[]): Promise<string | undefined>;
+export declare function repoRoot(dir: string): Promise<string>;
+export declare function headCommit(repo: string): Promise<string | undefined>;
+export declare function commitTree(repo: string, tree: string, parents: readonly (string | undefined)[], message: string): Promise<string>;
+/**
+ * Record the working tree of `repo` (HEAD + staged + unstaged + untracked,
+ * minus ignored files) as a tree object, without touching the user's index or
+ * files. A copy of the real index seeds a private index so unchanged files keep
+ * their stat cache and are not re-hashed.
+ */
+export declare function snapshotTree(repo: string, scratchDir: string, extraExcludes?: readonly string[]): Promise<string>;
+export declare function treeOf(repo: string, rev: string): Promise<string>;
+export declare function pinRef(repo: string, ref: string, commit: string): Promise<void>;
+export declare function dropRefs(repo: string, prefix: string): Promise<void>;
+/** Proof that a copy was created by one run: stored in the copy's git admin dir, outside its files. */
+export interface OwnerMark {
+    readonly runId: string;
+    readonly label: string;
+    readonly token: string;
+}
+export interface OwnedCopy {
+    readonly repo: string;
+    readonly owner: OwnerMark;
+}
+/** Discover administration from the trusted repository, never by invoking Git
+ * in a candidate whose .git pointer can be edited by project commands. */
+export declare function ownedWorktreeAdmin(repo: string, dir: string, owner: OwnerMark): Promise<string>;
+/** Explicit arguments keep a pointer changed after attestation from selecting
+ * the original or a sibling index. Each later operation attests again. */
+export declare function ownedGit(dir: string, copy: OwnedCopy, args: readonly string[], env?: NodeJS.ProcessEnv, input?: string): Promise<string>;
+export declare function ownedCopyTree(dir: string, copy: OwnedCopy): Promise<string>;
+/**
+ * Create a detached worktree for `commit` and mark it as owned. The mark lives
+ * in `<repo>/.git/worktrees/<name>/`, so it is neither project content nor
+ * writable by an agent confined to the copy.
+ */
+export declare function addOwnedWorktree(repo: string, dir: string, commit: string, owner: OwnerMark): Promise<void>;
+/** Absolute paths of every worktree registered in `repo`. */
+export declare function registeredWorktrees(repo: string): Promise<string[]>;
+/**
+ * Delete a copy only when all of this holds: it is a registered worktree of
+ * `repo`, it is not the main checkout, and its owner mark matches. Anything
+ * else is left in place and reported.
+ */
+export declare function removeOwnedWorktree(repo: string, dir: string, owner: OwnerMark): Promise<{
+    removed: boolean;
+    reason?: string;
+}>;
+/** Adoption, undo and journal recovery share the repository's trusted common
+ * directory, including callers using different plugin homes. */
+export declare function withRepositoryWrite<T>(repo: string, operation: () => Promise<T>, opts?: {
+    busyMessage?: string;
+}): Promise<T>;
+/**
+ * The tree the checkout would have after adoption: `baseTree` (the checkout
+ * now) with the candidate's version of every touched path. Built in a private
+ * index; nothing in the repository changes.
+ */
+export declare function overlayTree(repo: string, scratchDir: string, baseTree: string, source: string, nameStatus: ReadonlyArray<{
+    status: string;
+    path: string;
+}>): Promise<string>;
+/** Fingerprint of what is staged (the index entries), to prove adoption left it alone. */
+export declare function stagedFingerprint(repo: string): Promise<string>;
+/** path → blob sha for the entries of `tree` whose path satisfies `keep`. */
+export declare function treeBlobs(repo: string, tree: string, keep: (p: string) => boolean): Promise<Record<string, string>>;
+export declare function readBlob(repo: string, rev: string, file: string): Promise<string | undefined>;
+export interface CapturedChange {
+    readonly commit: string;
+    readonly tree: string;
+    readonly patch: string;
+    readonly sha256: string;
+    readonly stats: {
+        files: number;
+        insertions: number;
+        deletions: number;
+        binary: number;
+    };
+    readonly touched: string[];
+    readonly nameStatus: Array<{
+        status: string;
+        path: string;
+    }>;
+}
+/**
+ * Pathspecs for paths never treated as project content, even when the project
+ * does not ignore them. The `glob` form matters: a plain `:(exclude)node_modules`
+ * makes `git add` fail with "paths are ignored" when the project does ignore it.
+ */
+export declare const ALWAYS_EXCLUDED: string[];
+/**
+ * `shared-root` isolation only: copies live inside the repository, in DSH's
+ * worktree pool, because a `ctx.subagents` child inherits its parent's sandbox
+ * root (the repository) and could not write anywhere else. `own-root` copies
+ * live under the plugin home instead.
+ */
+export declare const WORKTREE_POOL: string;
+/** Create the pool on first use with a `*` .gitignore (DSH's convention); an existing pool is left as is. */
+export declare function ensureWorktreePool(repo: string): Promise<string>;
+/**
+ * Freeze what a candidate changed relative to the baseline snapshot: stage
+ * everything (in the candidate's own worktree index), write a commit whose
+ * parent is the snapshot, and render a full-index binary patch.
+ */
+export declare function captureChange(worktree: string, base: string, message: string, copy: OwnedCopy): Promise<CapturedChange>;
+export declare function changedPaths(repo: string, fromTree: string, toTree: string, paths?: readonly string[]): Promise<string[]>;
+export declare function writePatch(file: string, patch: string): Promise<string>;
+export declare function readPatchSha(file: string): Promise<string>;
