@@ -4,10 +4,10 @@
 [![npm version](https://img.shields.io/npm/v/dsh-agent-compare?label=npm&color=0f766e&style=flat&labelColor=334155&logo=npm&logoColor=white)](https://www.npmjs.com/package/dsh-agent-compare)
 [![CI](https://img.shields.io/github/actions/workflow/status/lijiaqi-AI-Product-Manager/dsh-agent-compare/ci.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)
 [![Node.js ^22.22.2 || ^24.15.0 || >=26.0.0](https://img.shields.io/badge/Node.js-22%20%2F%2024%20%2F%2026%2B-238636?style=flat&labelColor=334155&logo=nodedotjs&logoColor=white)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
-[![Tested on DSH 0.2.1-rc.5](https://img.shields.io/badge/DSH%20tested-0.2.1--rc.5-2563eb?style=flat&labelColor=334155)](docs/demo.md)
-[![License: MIT](https://img.shields.io/badge/license-MIT-2563eb?style=flat&labelColor=334155)](LICENSE)
+[![Tested on DSH 0.2.1-rc.5](https://img.shields.io/badge/DSH%20tested-0.2.1--rc.5-2563eb?style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2563eb?style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/LICENSE)
 
-**中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
+**中文** · [English](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md) · [日本語](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.ja.md) · [한국어](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.ko.md) · [Español](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.es.md) · [Português (Brasil)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.pt-BR.md) · [Français](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.fr.md) · [Deutsch](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.de.md)
 
 **同一需求，两版真跑，盲选再揭晓。**
 
@@ -17,11 +17,11 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 ## 看一次完整流程
 
-[![固定候选流程示例：实际操作两版应用，检查、选择并审查采用](docs/media/comparison-preview.gif)](docs/media/comparison-workflow.mp4)
+[![固定候选流程示例：实际操作两版应用，检查、选择并审查采用](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
 固定候选样例，中文界面。应用运行、共同验收与采用实际执行；等待段已剪辑，本地路径已隐藏。
 
-[完整视频（28 秒）](docs/media/comparison-workflow.mp4) · [演示条件与结果](docs/demo.md)
+[完整视频（28 秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [演示条件与结果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <a id="install"></a>
 
@@ -65,7 +65,7 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
 
 右上角的**比较记录**与**使用教程**在新建和已有对话中均可打开。历史保留需求、检查、选择、采用与撤销记录；预览停止后可查看验收截图。
 
-[运行记录、重启与恢复](docs/runs-and-recovery.md) · [支持范围](#兼容范围) · [自定义验收](#repository-acceptance-agent-comparejson)
+[运行记录、重启与恢复](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/runs-and-recovery.md) · [支持范围](#兼容范围) · [自定义验收](#repository-acceptance-agent-comparejson)
 
 <a id="what-it-is-for"></a>
 
@@ -183,7 +183,7 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 }
 ```
 
-步骤类型：`fill`、`click`、`press`、`expectVisible`、`expectCount`、`expectText`、`viewport`；选择器是 Playwright 选择器。完整示例见 [examples/vite-react-demo/.agent-compare.json](examples/vite-react-demo/.agent-compare.json)。
+步骤类型：`fill`、`click`、`press`、`expectVisible`、`expectCount`、`expectText`、`viewport`；选择器是 Playwright 选择器。完整示例见 [examples/vite-react-demo/.agent-compare.json](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/examples/vite-react-demo/.agent-compare.json)。
 
 配置会在生成前严格校验。未知字段、不存在的脚本、非法步骤和跨来源页面路径会直接报错。自动绑定根目录 JS/TS 辅助程序、`scripts/`、`tools/`、`config/`、已知配置和已有测试；新增验证配置及 package scripts（包括生命周期钩子）的变化也会使候选不可直接采用。其它位置的验证数据或辅助文件可在基线配置中通过 `"protectedFiles": ["custom/fixture.json"]` 指定，必须是已存在的具体仓库相对路径。
 
@@ -281,7 +281,7 @@ npm run smoke
 node scripts/preview-ui.mjs
 ```
 
-贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+贡献方式见 [CONTRIBUTING.md](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CONTRIBUTING.md)，版本变化见 [CHANGELOG.md](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md)。
 
 <a id="license"></a>
 

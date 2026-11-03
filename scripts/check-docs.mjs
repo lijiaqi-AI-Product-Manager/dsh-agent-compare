@@ -11,6 +11,9 @@ const guides = [...canonical, 'README.zh.md']
 const referenceDocs = ['docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md']
 const mediaFiles = ['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json']
 const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
+const repository = manifest.repository.url.replace(/^git\+/, '').replace(/\.git$/, '')
+const repositoryFiles = `${repository}/blob/main/`
+const repositoryMedia = repository.replace('https://github.com/', 'https://raw.githubusercontent.com/') + '/main/'
 const expectedTarball = `${manifest.name}-${manifest.version}.tgz`
 const contents = new Map(await Promise.all([...guides, ...referenceDocs].map(async file => [file, await readFile(path.join(root, file), 'utf8')])))
 assert.equal(contents.get('README.md'), contents.get('README.zh.md'), 'The existing Chinese URL must retain the canonical Chinese guide')
@@ -21,16 +24,17 @@ let localLinks = 0
 for (const [file, source] of contents) {
   if (guides.includes(file)) {
     const current = file === 'README.zh.md' ? 'README.md' : file
-    for (const target of canonical) if (target !== current) assert.ok(source.includes(`](${target})`), `${file}: missing language link ${target}`)
+    for (const target of canonical) if (target !== current) assert.ok(source.includes(`](${target})`) || source.includes(`](${repositoryFiles}${target})`), `${file}: missing language link ${target}`)
     assert.ok(source.includes(manifest.version), `${file}: missing current version`)
     const archives = [...source.matchAll(/dsh-agent-compare-[\w.\-]+\.tgz/g)].map(match => match[0])
     assert.ok(archives.length > 0 && archives.every(name => name === expectedTarball), `${file}: missing or stale source-install archive`)
   }
   for (const match of withoutCode(source).matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
     const href = match[1]
-    if (/^https?:\/\//.test(href)) continue
-    assert.ok(!/^[a-z][a-z0-9+.-]*:/i.test(href), `${file}: unsupported link scheme`)
-    const [relative, fragment] = href.split('#'), destination = path.resolve(root, path.dirname(file), decodeURIComponent(relative || path.basename(file)))
+    const repositoryPath = href.startsWith(repositoryFiles) ? href.slice(repositoryFiles.length) : href.startsWith(repositoryMedia) ? href.slice(repositoryMedia.length) : undefined
+    if (/^https?:\/\//.test(href) && repositoryPath === undefined) continue
+    assert.ok(!/^[a-z][a-z0-9+.-]*:/i.test(repositoryPath ?? href), `${file}: unsupported link scheme`)
+    const [relative, fragment] = (repositoryPath ?? href).split('#'), destination = path.resolve(root, repositoryPath === undefined ? path.dirname(file) : '.', decodeURIComponent(relative || path.basename(file)))
     assert.ok(destination.startsWith(root + path.sep), `${file}: local link escapes the repository`)
     assert.ok((await stat(destination)).isFile(), `${file}: missing link target ${href}`)
     if (fragment && destination.endsWith('.md')) {
