@@ -45,7 +45,7 @@ async function makeCandidate(base: Baseline, scratch: string) {
   await rm(path.join(wt, 'src', 'old.ts'))
   await mkdir(path.join(wt, 'node_modules', 'x'), { recursive: true })
   await writeFile(path.join(wt, 'node_modules', 'x', 'index.js'), 'junk')
-  const change = await captureChange(wt, base.snapshotCommit, 'cand')
+  const change = await captureChange(wt, base.snapshotCommit, 'cand', { repo: base.repoRoot, owner: owner('A') })
   return { wt, change }
 }
 
@@ -337,7 +337,7 @@ describe('copies inside the repository (shared-root .agents/worktrees)', () => {
     expect((await git(repo, ['status', '--porcelain'])).trim()).toBe('')
     expect(await snapshotTree(repo, scratch, ALWAYS_EXCLUDED)).toBe(base.snapshotTree)
 
-    const change = await captureChange(wt, base.snapshotCommit, 'cand')
+    const change = await captureChange(wt, base.snapshotCommit, 'cand', { repo, owner: owner('A') })
     expect(change.nameStatus).toEqual([{ status: 'M', path: 'a.txt' }])
     expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\n')
   })
@@ -364,7 +364,7 @@ describe('line endings', () => {
     const wt = path.join(scratch, 'wt')
     await addOwnedWorktree(repo, wt, base.snapshotCommit, owner('A'))
     await writeFile(path.join(wt, 'a.txt'), 'one\r\ntwo\r\n')
-    const change = await captureChange(wt, base.snapshotCommit, 'c')
+    const change = await captureChange(wt, base.snapshotCommit, 'c', { repo, owner: owner('A') })
     const { chk } = await adoptDirect({ baseline: base, candidateCommit: change.commit, nameStatus: change.nameStatus, scratchDir: scratch })
     expect(chk.mismatched).toEqual([])
     expect(await readFile(path.join(repo, 'a.txt'), 'utf8')).toBe('one\r\ntwo\r\n')

@@ -2,7 +2,7 @@ import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, rmdir } from 'node:fs/promises'
-import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch } from './git.ts'
+import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
 import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdopt, preflight, targetChanges, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
@@ -371,7 +371,9 @@ export class Comparer {
     const repo = record.baseline.repoRoot
     const dir = c.dir!
     await enter('sealing')
-    const change = await captureChange(dir, record.baseline.snapshotCommit, `agent-compare candidate ${record.runId}/${c.label}`)
+    if (!c.ownerToken) throw new StageFailure('sealing', '候选缺少副本归属凭据，拒绝封存')
+    const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken } }
+    const change = await captureChange(dir, record.baseline.snapshotCommit, `agent-compare candidate ${record.runId}/${c.label}`, copy)
     if (change.touched.length === 0) {
       // The agent's own account is the only clue to why (e.g. sandbox denials); show its start.
       const why = (c.summary ?? '').replace(/```[\s\S]*?```/g, '').trim().slice(0, 600)
@@ -392,7 +394,7 @@ export class Comparer {
     c.acceptanceTouched = acc.touched
     c.dependencyChange = acc.dependencyChange
 
-    const v = await this.verifyCopy(record.acceptance, dir, change.tree, path.join(artifacts, c.label), signal, enter, async evidence => {
+    const v = await this.verifyCopy(record.acceptance, dir, copy, change.tree, path.join(artifacts, c.label), signal, enter, async evidence => {
       Object.assign(c, evidence)
       await this.persist(record)
     })
@@ -450,8 +452,9 @@ export class Comparer {
       try {
         await this.sealAndVerify(lr, cand, signal, enter)
       } catch (error) {
+        const failedStage = cand.stage
         cand.stage = signal.aborted ? 'cancelled' : 'failed'
-        if (!signal.aborted) cand.error = { stage: error instanceof StageFailure ? error.stage : cand.stage, message: String((error as Error).message ?? error).slice(0, 2000) }
+        if (!signal.aborted) cand.error = { stage: error instanceof StageFailure ? error.stage : failedStage, message: String((error as Error).message ?? error).slice(0, 2000) }
         for (const t of Object.values(cand.timings)) if (t && t.endedAt === undefined) t.endedAt = Date.now()
         await this.stopPreview(lr, label)
         delete cand.preview
@@ -467,7 +470,7 @@ export class Comparer {
    * acceptance in `dir`, whose files must equal `sealedTree`. Used for each
    * candidate and for the adoption rehearsal.
    */
-  private async verifyCopy(acceptance: Acceptance, dir: string, sealedTree: string, shotBase: string, signal: AbortSignal, enter?: (s: CandidateStage) => Promise<void>, onEvidence?: (facts: Partial<Pick<Candidate, 'install' | 'checks' | 'execution'>>) => Promise<void>): Promise<{
+  private async verifyCopy(acceptance: Acceptance, dir: string, copy: OwnedCopy, sealedTree: string, shotBase: string, signal: AbortSignal, enter?: (s: CandidateStage) => Promise<void>, onEvidence?: (facts: Partial<Pick<Candidate, 'install' | 'checks' | 'execution'>>) => Promise<void>): Promise<{
     install: NonNullable<Candidate['install']>
     execution: NonNullable<Candidate['execution']>
     checks: CheckResult[]
@@ -486,7 +489,7 @@ export class Comparer {
       return prepared
     }
     await enter?.('installing')
-    const checkedTree = await copyTree(dir)
+    const checkedTree = await ownedCopyTree(dir, copy)
     if (checkedTree !== sealedTree) throw new StageFailure('installing', '副本内容与封存的版本不一致，拒绝验收')
     const info = await inspectProject(dir)
     if (info.kind === 'unsupported') throw new StageFailure('installing', info.reason ?? '改动后项目不再受支持')
@@ -532,7 +535,7 @@ export class Comparer {
       }
       signal.throwIfAborted()
       // A project that does not ignore its build output would otherwise always "drift" by its own build.
-      const drift = (await changedPaths(dir, sealedTree, await copyTree(dir))).filter((p) => !p.startsWith('dist/'))
+      const drift = (await changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy))).filter((p) => !p.startsWith('dist/'))
       return { install, execution: { enforcement }, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
     } catch (error) {
       await preview.handle.stop()
@@ -611,6 +614,8 @@ export class Comparer {
       if (c === undefined || c.stage !== 'ready') throw new Error('只有已完成验收的候选可以重新打开预览')
       if (lr.previews.has(label) && c.preview !== undefined) return lr.record
       if (c.dir === undefined || !existsSync(c.dir)) throw new Error('这个候选的副本已经清理，只能查看截图')
+      if (!c.ownerToken) throw new Error('候选缺少副本归属凭据，拒绝重新打开预览')
+      await ownedWorktreeAdmin(r.baseline.repoRoot, c.dir, { runId: r.runId, label: c.label, token: c.ownerToken })
       const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(c.dir, 'dist')) ? 'build' : 'dev'
       const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: this.opts.prepareProjectProcess })
       lr.previews.set(label, handle)
@@ -796,7 +801,7 @@ export class Comparer {
     await pinRef(repo, `refs/agent-compare/${r.runId}/rehearsal`, commit)
     await addOwnedWorktree(repo, dir, commit, { runId: r.runId, label: 'R', token })
     try {
-      const v = await this.verifyCopy(r.acceptance, dir, tree, path.join(this.store.artifacts(r.runId), 'R'), this.lifetime.signal)
+      const v = await this.verifyCopy(r.acceptance, dir, { repo, owner: { runId: r.runId, label: 'R', token } }, tree, path.join(this.store.artifacts(r.runId), 'R'), this.lifetime.signal)
       await v.preview?.handle.stop()
       const reasons = [
         ...v.checks.filter((k) => k.outcome === 'failed' || k.outcome === 'timeout').map((k) => `${k.name} 未通过${k.reason ? `（${k.reason.slice(0, 120)}）` : ''}`),
@@ -1188,12 +1193,6 @@ class StageFailure extends Error {
   constructor(readonly stage: CandidateStage, message: string) {
     super(message)
   }
-}
-
-/** The non-ignored content of a copy, as a tree (uses the copy's own index). */
-async function copyTree(dir: string): Promise<string> {
-  await git(dir, ['add', '-A', '--', '.', ...ALWAYS_EXCLUDED])
-  return (await git(dir, ['write-tree'])).trim()
 }
 
 /** Kill a recorded preview only when its process provably is that preview. */

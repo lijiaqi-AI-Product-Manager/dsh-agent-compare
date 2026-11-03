@@ -49,7 +49,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.12'
+const VERSION = '0.2.0-alpha.13'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.

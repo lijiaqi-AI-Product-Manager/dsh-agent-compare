@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions } from '../src/core/orchestrator.ts'
 import { RunStore, StaleRecordError } from '../src/core/run-store.ts'
@@ -53,6 +53,34 @@ async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; ed
 const T = 300_000
 
 describe.concurrent('comparison run', () => {
+  it('fails a redirected candidate without changing the target index, keeps the peer usable and retains ambiguous cleanup', async () => {
+    let before: Buffer | undefined
+    const { repo, store, comparer, runId, done } = await setup({ A: async (dir, req) => {
+      const common = path.resolve(dir, (await git(dir, ['rev-parse', '--git-common-dir'])).trim())
+      before = await readFile(path.join(common, 'index'))
+      await defaultEdit(dir, req)
+      const handle = await open(path.join(dir, '.git'), 'r+')
+      try { await handle.truncate(0); await handle.writeFile(`gitdir: ${common}\n`) } finally { await handle.close() }
+    } })
+    let resumed: Comparer | undefined
+    try {
+      expect(done.candidates[0]).toMatchObject({ stage: 'failed', error: { stage: 'sealing', message: expect.stringContaining('pointer') } })
+      expect(done.candidates[1]!.stage).toBe('ready')
+      expect(await readFile(path.join(repo, '.git/index'))).toEqual(before)
+      await comparer.dispose()
+      resumed = new Comparer({ store: new RunStore(store.home), version: 'test', prepareProjectProcess: prepareFixtureProcess, browserChecks: false, runner: { isolation: 'own-root', run: async () => { throw new Error('No new generation during recovery') } } })
+      await resumed.recover()
+      await resumed.salvage(runId, 'A')
+      expect((await resumed.wait(runId))!.candidates[0]).toMatchObject({ stage: 'failed', error: { stage: 'sealing', message: expect.stringContaining('pointer') } })
+      await resumed.choose(runId, 'B')
+      const adopted = await resumed.adopt(runId)
+      expect(adopted.adoption?.state).toBe('adopted')
+      expect(await readFile(path.join(repo, '.git/index'))).toEqual(before)
+      expect(adopted.leftovers?.join(' ')).toContain('pointer')
+      expect(await readFile(path.join(done.candidates[0]!.dir!, 'index.html'), 'utf8')).toContain('shop A')
+    } finally { await resumed?.dispose(); await comparer.dispose() }
+  }, T)
+
   it('continues the peer when one preparation fails and preserves an unowned directory', async () => {
     const repo = await fixtureRepo()
     const store = new RunStore(await tmp('ac-one-preparation-fails'))

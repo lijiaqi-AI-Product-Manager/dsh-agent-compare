@@ -6,7 +6,7 @@
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件。它把一个前端任务交给两个独立的 Agent，各在一份只属于自己的项目副本里实现；然后**按锁文件安装依赖、构建、把构建产物真的跑起来**，对两边执行**绑定到内容的同一套验收**。你先亲手操作两份真实页面并做出选择，选完立即揭晓各自用的策略或模型。采用前，它会先在你**当前项目的副本里预演**所选版本，验收通过才写回项目，并能撤销或从中断中恢复。
 
-> 状态：**0.2.0-alpha.12，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
+> 状态：**0.2.0-alpha.13，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
 
 ## 适合什么任务
 
@@ -53,6 +53,8 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 ## 隔离与安全：保证什么、不保证什么
 
+封存与验收从原仓库核对副本的 Git 管理目录、双向链接和归属标记，再显式绑定 Git 目录与工作区执行。指针被改写、链接替换、过大或缺失时，拒绝继续封存和重新打开预览；清理会保留归属不明的副本并说明原因。终端遗留的 Git 仓库、index 和配置选择变量不会重定向这些操作，内部显式创建的私有 index 仍可使用。这些检查保护插件的 Git 生命周期操作；项目进程的约束仍由宿主沙箱提供。
+
 | 方面 | 做法 | 边界 |
 |---|---|---|
 | 候选写文件 | 候选会话的目录就是它的副本，由 DSH 沙箱在执行前限制 | DSH 官方把 Windows 沙箱标为 partial；平台临时目录可能可写 |
@@ -82,7 +84,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.12.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.13.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：
