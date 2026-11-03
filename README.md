@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each working in its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.14, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.15, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -58,6 +58,8 @@ Candidate sealing and verification resolve the owned Git administration from the
 | Acceptance | Script bodies, configs and test files are hash-bound; the copy is checked before and after | Requirements that cannot be checked automatically are left to you, never claimed as verified |
 | Dependencies | Always a frozen install when a lockfile exists; package caches stay inside each copy | Projects without a lockfile get an unlocked install, with a warning |
 | Processes | A recorded preview is stopped only when its command line proves it is ours; preview file writes use the same host policy | Network access and process visibility are **not** isolated |
+| Browser state | Each preview launch gets a fresh random `.localhost` hostname; the server stays on `127.0.0.1`. Host probes connect directly to loopback and require a successful HTTP status | Embedded cookies follow browser policy. Login, external backends and shared databases are outside the current scope; an external tab may use different storage. Reopening resets page state, while comparison records and screenshots remain |
+| Embedded navigation | Preview frames permit scripts and forms but cannot navigate the top-level comparison window | This is not a complete hostile-code sandbox; opened pages and network requests still use the browser's policies |
 | Cleanup | Deletes only registered worktrees of that repository with a matching owner mark | Anything else is kept and listed |
 | Older records | Records from 0.1 are shown read-only | Nothing acts on their recorded paths or pids |
 
@@ -78,7 +80,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.14.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.15.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:

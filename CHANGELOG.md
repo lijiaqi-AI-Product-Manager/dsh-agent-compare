@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.15 — 2026-11-03
+
+- Give every preview launch a fresh random localhost subdomain while keeping the server bound to loopback. Separate same-name cookies and origin storage between candidates; retain validation for legacy loopback records.
+- Probe the advertised Host and configured entry path through a direct loopback HTTP transport, require a successful status and stop the owned server on cancellation. Reject non-local stored preview destinations.
+- Constrain embedded navigation without disabling normal scripts and forms. Explain embedded cookie restrictions, external-tab differences and page-state reset; preserve comparison records and screenshots.
+
 ## 0.2.0-alpha.14 — 2026-11-03
 
 - Match retained verification screenshots to the existing desktop/mobile controls. Fit one image within each card, offer original-resolution scrolling, and show explicit loading, missing-image and retryable error states. Ignore obsolete screenshot responses after switching views.

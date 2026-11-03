@@ -9,6 +9,17 @@ import { tmp } from './fixture.ts'
 vi.mock('node:fs/promises', { spy: true })
 
 describe('serialized record validation', () => {
+  it('round-trips independently named local previews and rejects a forged suffix or mismatched port', async () => {
+    const record = fixtureRecord(), store = new RunStore(await tmp('ac-named-preview-record'))
+    record.candidates[0]!.preview = { url: `http://ac-${'a'.repeat(32)}.localhost:4321/base/`, port: 4321, pid: 999999, kind: 'build', cwd: record.candidates[0]!.dir! }
+    await store.save(record)
+    expect((await store.load(record.runId))?.candidates[0]?.preview).toEqual(record.candidates[0]!.preview)
+    for (const url of [`http://ac-${'a'.repeat(32)}.localhost.example.test:4321/`, `http://ac-${'a'.repeat(32)}.localhost:4322/`]) {
+      const changed = structuredClone(record); changed.candidates[0]!.preview!.url = url
+      expect(() => assertRunRecord(changed, record.runId)).toThrow(RecordValidationError)
+    }
+  })
+
   it('accepts complete recorded facts, including browser artifacts and adoption journals', () => {
     const record = fixtureRecord()
     record.rev = 1
