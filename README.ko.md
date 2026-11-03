@@ -10,7 +10,17 @@
 
 AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH) 플러그인입니다. 같은 프런트엔드 작업을 독립된 두 사본에서 구현하고, 의존성 설치·빌드·공통 검증을 실제로 실행합니다. 두 페이지를 직접 사용한 뒤 A, B 또는 둘 다 선택하지 않음을 결정합니다. 적용 전에는 현재 프로젝트와 합친 결과를 임시 사본에서 검증합니다.
 
+## 전체 흐름 보기
+
+[![두 앱을 사용하고 확인한 뒤 적용하는 고정 후보 예시](docs/media/comparison-preview.gif)](docs/media/comparison-workflow.mp4)
+
+고정 후보를 사용한 중국어 화면 예시입니다. 앱 실행·공통 검증·적용은 실제로 수행했으며 대기 구간은 편집하고 로컬 경로는 가렸습니다.
+
+[전체 영상(29초)](docs/media/comparison-workflow.mp4) · [조건과 결과](docs/demo.md)
+
 ## 설치
+
+아래 명령은 직접 실행하는 DSH Web 프로필용입니다. 데스크톱의 `desktop` 프로필은 앱이 관리하므로 앱의 플러그인 페이지를 사용하세요.
 
 개발 기준은 Node 26.13.0, npm 12.2.1입니다. 공식 최신 DSH 패키지 0.2.1-rc.5로 검증합니다. 이미 사용하는 DSH 프로필을 확인하세요.
 

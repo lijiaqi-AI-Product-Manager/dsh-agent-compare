@@ -25,6 +25,7 @@
     "examples/vite-react-demo",
     "README*.md",
     "CONTRIBUTING.md",
+    "docs",
     "LICENSE",
     "!examples/vite-react-demo/node_modules",
     "!examples/vite-react-demo/dist",

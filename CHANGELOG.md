@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Show a complete recorded comparison and adoption workflow in every language guide. Keep fixed-candidate and editing disclosures visible, provide original video and asset hashes, and separate first use from record-recovery details.
+
 - Make Chinese the default repository entry, preserve the existing Chinese URL and full English guide, and add Japanese, Korean, Spanish, Brazilian Portuguese, French and German guides. Put source installation first and keep graphical controls, current evidence and limits consistent.
 - Include localized guides and contributor instructions in the package. Check language navigation, local links and heading targets, versioned installation archives and actual pack contents in CI.
 
