@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recover bounded Windows loose-object sharing conflicts during snapshot and candidate tree writes while preserving independent indexes and permanent errors.
+
 - Pin documented npm installation targets to the published package version, including all language guides.
 
 - Ship prebuilt runtime files for GitHub installations and check build freshness in CI.
