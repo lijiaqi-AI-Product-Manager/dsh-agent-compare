@@ -11,7 +11,7 @@ import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions 
 import { RunStore, StaleRecordError } from '../src/core/run-store.ts'
 import { git, registeredWorktrees, withRepositoryWrite } from '../src/core/git.ts'
 import { fetchPreview } from '../src/core/preview-url.ts'
-import { isAlive, ownsProcess } from '../src/core/proc.ts'
+import { ownsProcess } from '../src/core/proc.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 
 type Edit = (dir: string, req: AgentRunRequest) => Promise<void>
@@ -312,8 +312,17 @@ describe.concurrent('adoption', () => {
     expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ cwd: reopened.candidates[0]!.dir, argv: expect.arrayContaining(['preview']) }))
     expect(p.kind).toBe('build')
     expect(await (await fetchPreview(p.url)).text()).toContain('shop A')
+    const markers = [path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${p.port}`]
+    expect(await ownsProcess(p.pid, markers)).toBe(true)
     await after.cleanup(runId)
-    expect(isAlive(p.pid)).toBe(false)
+    // Concurrent commands can reuse an exited PID. Check the preview's identity,
+    // endpoint, retained record and owned copy after cleanup.
+    expect(await ownsProcess(p.pid, markers)).toBe(false)
+    await expect(fetchPreview(p.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+    const cleaned = (await store.load(runId))!
+    expect(cleaned.candidates.every(candidate => candidate.preview === undefined)).toBe(true)
+    expect(cleaned.leftovers).toBeUndefined()
+    expect(existsSync(reopened.candidates[0]!.dir!)).toBe(false)
   }, T)
 
   it('writes exactly the checked tree, keeps index and HEAD, then releases copies and previews', async () => {
