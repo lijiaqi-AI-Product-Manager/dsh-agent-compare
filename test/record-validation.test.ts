@@ -24,7 +24,7 @@ describe('serialized record validation', () => {
     const record = fixtureRecord()
     record.rev = 1
     record.choice = { pick: 'A', at: 2 }
-    record.adoption = { label: 'A', mode: 'worktree', state: 'adopted', startedAt: 3, preAdoptCommit: '4'.repeat(40), expectedTree: '5'.repeat(40), stagedBefore: '6'.repeat(64), writtenPaths: ['src/App.tsx'] }
+    record.adoption = { label: 'A', mode: 'worktree', state: 'reverting', startedAt: 3, preAdoptCommit: '4'.repeat(40), expectedTree: '5'.repeat(40), stagedBefore: '6'.repeat(64), writtenPaths: ['src/App.tsx'], fileTransfer: { id: '7'.repeat(32), token: '8'.repeat(32) }, transferDirection: 'undo', transferReturn: 'adopted', retainedTransfers: [{ id: '9'.repeat(32), token: 'a'.repeat(32) }] }
     const candidate = record.candidates[0]!
     candidate.preview = { url: 'http://127.0.0.1:1234/base/', port: 1234, pid: 999999, kind: 'build', cwd: candidate.dir! }
     candidate.checks!.push({ name: 'browser', outcome: 'passed', durationMs: 2, tail: '', ...{ screenshot: candidate.patchFile!.replace('.patch', '.png') } })

@@ -49,7 +49,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.17'
+const VERSION = '0.2.0-alpha.18'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -584,7 +584,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       if (pick === undefined) throw new HttpError(400, 'pick must be A, B or none')
       return present(await comparer.choose(runIdOf(b), pick, typeof b.note === 'string' ? b.note.slice(0, 500) : undefined))
     },
-    async preflight(b) { return comparer.adoptPreflight(runIdOf(b)) },
+    async preflight(b) { return { ...await comparer.adoptPreflight(runIdOf(b)), protectedWorktreeApply: true } },
     async adopt(b) { return present(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : 'worktree')) },
     async revert(b) { return present(await comparer.revert(runIdOf(b))) },
     async recover(b) { return present(await comparer.recoverAdoption(runIdOf(b), b.action === 'keep' ? 'keep' : 'restore')) },

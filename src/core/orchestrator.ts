@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, rmdir } from 'node:fs/promises'
 import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
 import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdopt, preflight, targetChanges, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
+import { fileTransferDirectory, newFileTransferRef } from './file-transfer.ts'
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
@@ -701,7 +702,9 @@ export class Comparer {
         return r
       }
 
-      const pf = await preflight({ baseline: r.baseline, candidateCommit: c.candidateCommit, nameStatus, scratchDir: scratch })
+      let pf: Awaited<ReturnType<typeof preflight>>
+      try { pf = await preflight({ baseline: r.baseline, candidateCommit: c.candidateCommit, nameStatus, scratchDir: scratch }) }
+      catch (error) { return blocked(`无法完成采用检查：${(error as Error).message}。`) }
       if (this.closing) return blocked('宿主正在停止，已取消采用。')
       if (!pf.ok) return blocked(`基线之后你改过这些文件，和这一版的改动重叠：${pf.overlapping.slice(0, 10).join('、')}。`, pf.overlapping)
 
@@ -720,7 +723,7 @@ export class Comparer {
       const preAdopt = await pinPreAdopt(repo, pf.target)
       await pinRef(repo, `refs/agent-compare/${runId}/pre-adopt`, preAdopt)
       if (this.closing) return blocked('宿主正在停止，已取消采用。')
-      Object.assign(r.adoption, { state: 'writing', preAdoptCommit: preAdopt, expectedTree: pf.expectedTree, headBefore: pf.target.head, stagedBefore: pf.target.staged, writtenPaths: [] })
+      Object.assign(r.adoption, { state: 'writing', preAdoptCommit: preAdopt, expectedTree: pf.expectedTree, headBefore: pf.target.head, stagedBefore: pf.target.staged, writtenPaths: [], fileTransfer: newFileTransferRef(), transferDirection: 'apply' })
       await this.save(r)
 
       let problem: string | undefined
@@ -730,6 +733,7 @@ export class Comparer {
         attempted = await writeCandidate(repo, c.candidateCommit, nameStatus, {
           expected: pf.target,
           scratchDir: scratch,
+          transfer: r.adoption.fileTransfer!,
           beforeWrite: async (paths) => {
             r.adoption!.writtenPaths = [...paths]
             await this.save(r)
@@ -746,7 +750,7 @@ export class Comparer {
             r.adoption.message = `已写入 ${touched.length} 个文件，内容与验收过的一致；但写入期间这些位置也变了，组合结果没有经过预演：${others.slice(0, 10).join('、')}`
           } else {
             r.adoption.state = 'adopted'
-            r.adoption.message = `已写入 ${touched.length} 个文件，项目现在与${r.adoption.rehearsal?.reused ? '验收过的版本' : '预演通过的版本'}完全一致；未提交，index 和 HEAD 未改动`
+            r.adoption.message = `已写入 ${touched.length} 个文件，项目现在与${r.adoption.rehearsal?.reused ? '验收过的版本' : '预演通过的版本'}完全一致；未提交，index 和 HEAD 未改动。采用前的原始文件已保留，可从记录撤销`
           }
           r.state = 'adopted'
           await this.save(r)
@@ -772,7 +776,7 @@ export class Comparer {
       // Drop the pending intent when its precondition failed before the write began.
       r.adoption.writtenPaths = attempted
       await this.save(r)
-      const undo = await undoAdoption(repo, scratch, { preAdoptCommit: preAdopt, candidateCommit: c.candidateCommit, touched: attempted })
+      const undo = await undoAdoption(repo, scratch, { preAdoptCommit: preAdopt, candidateCommit: c.candidateCommit, touched: attempted, ...(r.adoption.fileTransfer ? { transfer: r.adoption.fileTransfer } : {}) })
       r.adoption.endedAt = Date.now()
       if (undo.conflicts.length === 0) {
         r.adoption.state = 'rolled-back'
@@ -836,7 +840,16 @@ export class Comparer {
       const now = await snapshotTree(repo, this.store.artifacts(runId), ALWAYS_EXCLUDED)
       const edited = await changedPaths(repo, candidateTree, now, a.writtenPaths)
       if (edited.length > 0) throw new AdoptError('overlap', `采用之后你改过这些文件，为避免覆盖，没有撤销：${edited.slice(0, 10).join('、')}`)
-      const undo = await undoAdoption(repo, this.store.artifacts(runId), { preAdoptCommit: a.preAdoptCommit, candidateCommit: c.candidateCommit!, touched: a.writtenPaths })
+      const protectedApply = a.fileTransfer !== undefined && a.transferDirection !== 'undo'
+      if (!protectedApply) {
+        if (a.fileTransfer) (a.retainedTransfers ??= []).push(a.fileTransfer)
+        a.fileTransfer = newFileTransferRef(); a.transferDirection = 'undo'; a.transferReturn = 'adopted'
+      }
+      a.state = 'reverting'; r.state = 'adopting'
+      await this.save(r)
+      const undo = await undoAdoption(repo, this.store.artifacts(runId), { preAdoptCommit: a.preAdoptCommit, candidateCommit: c.candidateCommit!, touched: a.writtenPaths,
+        ...(protectedApply ? { transfer: a.fileTransfer! } : { legacyRestore: a.fileTransfer! }),
+      })
       a.state = undo.conflicts.length === 0 ? 'reverted' : 'needs-recovery'
       a.message = undo.conflicts.length === 0 ? `已撤销：${undo.restored.length} 个文件恢复到采用前的内容` : `部分文件无法恢复：${undo.conflicts.slice(0, 10).join('、')}`
       if (undo.conflicts.length > 0) a.attention = undo.conflicts
@@ -872,15 +885,32 @@ export class Comparer {
           a.message = '中断发生在写入之前，没有文件被改动'
           r.state = 'revealed'
         } else {
-          const undo = await undoAdoption(r.baseline.repoRoot, this.store.artifacts(runId), { preAdoptCommit: a.preAdoptCommit, candidateCommit: c.candidateCommit!, touched: a.writtenPaths })
+          const inverseRollback = a.fileTransfer !== undefined && a.transferDirection === 'undo'
+          const legacy = a.fileTransfer === undefined
+          if (legacy) {
+            a.fileTransfer = newFileTransferRef(); a.transferDirection = 'undo'; a.transferReturn = 'recovery'
+            a.state = 'reverting'; r.state = 'adopting'
+            await this.save(r)
+          }
+          const undo = await undoAdoption(r.baseline.repoRoot, this.store.artifacts(runId), { preAdoptCommit: a.preAdoptCommit, candidateCommit: c.candidateCommit!, touched: a.writtenPaths,
+            ...(legacy ? { legacyRestore: a.fileTransfer! } : { transfer: a.fileTransfer! }),
+          })
           if (undo.conflicts.length === 0) {
-            a.state = 'rolled-back'
-            a.message = `已恢复：${undo.restored.length} 个文件回到采用前的内容`
+            if (inverseRollback && a.transferReturn === 'recovery') {
+              (a.retainedTransfers ??= []).push(a.fileTransfer!)
+              delete a.fileTransfer; delete a.transferDirection; delete a.transferReturn
+              a.state = 'needs-recovery'; r.state = 'recovery'
+              a.message = '已回退上次未完成的恢复，保留该操作开始前的文件；现在可以重新尝试恢复采用'
+            } else {
+              a.state = inverseRollback ? 'adopted' : 'rolled-back'
+              a.message = inverseRollback ? '已回退未完成的撤销，保留撤销开始前的文件；可以重新审查后再撤销' : `已恢复：${undo.restored.length} 个文件回到采用前的内容`
+              r.state = inverseRollback ? 'adopted' : 'revealed'
+            }
             delete a.attention
-            r.state = 'revealed'
           } else {
+            a.state = 'needs-recovery'; r.state = 'recovery'
             a.attention = undo.conflicts
-            a.message = `已恢复 ${undo.restored.length} 个文件；这些文件既不是采用前的内容也不是候选的内容，没有改动它们：${undo.conflicts.slice(0, 10).join('、')}`
+            a.message = `已恢复 ${undo.restored.length} 个文件；另有文件需要处理，当前内容与保留内容均未覆盖：${undo.conflicts.slice(0, 10).join('、')}`
           }
         }
       }
@@ -1013,9 +1043,9 @@ export class Comparer {
       changed = true
     }
     if (r.state === 'adopting' && r.adoption) {
-      if (r.adoption.state === 'writing') {
+      if (r.adoption.state === 'writing' || r.adoption.state === 'reverting') {
         r.adoption.state = 'needs-recovery'
-        r.adoption.message = '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。'
+        r.adoption.message = r.adoption.transferDirection === 'undo' ? '撤销过程中宿主停止了。可以回退未完成的撤销，或保留当前文件。' : '文件交接过程中宿主停止了。可以恢复保留的原始内容，或保留当前文件。'
         r.state = 'recovery'
       } else {
         r.adoption.state = 'blocked'
@@ -1280,7 +1310,7 @@ export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance'
   candidates: PublicCandidate[]
   baseline: { dirty: boolean; headCommit?: string; repoRoot: string }
   acceptance: { source: Acceptance['source']; checks: string[]; steps: number; sha256: string; frozenInstall: boolean }
-  adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore'> & { rehearsed?: boolean; rehearsalChecks?: CheckResult[] }
+  adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers'> & { rehearsed?: boolean; rehearsalChecks?: CheckResult[]; retainedDirectory?: string; retainedDirectories?: string[] }
 }
 
 /**
@@ -1310,6 +1340,9 @@ export function publicView(r: RunRecord): PublicRun {
         ...(a.message === undefined ? {} : { message: a.message }),
         ...(a.attention === undefined ? {} : { attention: a.attention }),
         ...(a.writtenPaths === undefined ? {} : { writtenPaths: a.writtenPaths }),
+        ...(a.transferDirection === undefined ? {} : { transferDirection: a.transferDirection }),
+        ...(a.fileTransfer === undefined ? {} : { retainedDirectory: fileTransferDirectory(baseline.repoRoot, a.fileTransfer) }),
+        ...(a.retainedTransfers?.length ? { retainedDirectories: a.retainedTransfers.map(ref => fileTransferDirectory(baseline.repoRoot, ref)) } : {}),
         ...(a.rehearsal === undefined ? {} : { rehearsed: !a.rehearsal.reused, ...(a.rehearsal.checks ? { rehearsalChecks: a.rehearsal.checks } : {}) }),
       },
     }),

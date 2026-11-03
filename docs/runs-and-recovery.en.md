@@ -18,6 +18,12 @@ Before upgrading, finish or clean up active comparisons and close every older pl
 
 Submissions use the host command executor and session log. Every surface reads the same persisted run by id. Model-facing notes describe the result, choice, adoption, or undo; unavailable conversations and failed injections are retried with history/inbox deduplication. Notes identify the target repository, including when an example differs from the original project.
 
+Direct adoption retains the actual original files before publishing candidate files. A new edit or occupied destination at the handoff boundary stops the operation and retains both contents. The result exposes a self-ignored `.agent-compare-transfer-*` directory inside the project. It contains original project content and a durable journal, survives copy/preview cleanup, and must remain until recovery is complete. Do not upload it as public demonstration material.
+
+Interrupted adoption, undo and older-record recovery have different destinations. “Restore before adoption” restores retained originals; “Roll back unfinished operation” returns to the start of the last undo or recovery and may leave the original adoption requiring another recovery. Conflicting paths are retained for review. Older records also use protected handoff on their first undo or recovery, but bytes not retained by older versions cannot be reconstructed.
+
+Direct application supports ordinary files, up to 10,000 paths and 128 MiB total original/replacement bytes, on a local filesystem with hard-link support. Unsupported cases stop before application and can use branch adoption; there is no overwrite-based fallback. An updated client connected to an older backend blocks direct application and asks for a DSH restart.
+
 `/ab <task>` remains an optional shortcut. Common settings are graphical controls above the composer.
 
 A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); the conversation shows the same A|B card.

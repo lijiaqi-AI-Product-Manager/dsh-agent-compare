@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent-compare",
-  "version": "0.2.0-alpha.17",
+  "version": "0.2.0-alpha.18",
   "description": "同一需求，两版真跑：在 DSH 对话里比较、验证并审查采用。A DeepSeek Harness plugin for two implementations, live previews, shared checks and reviewed adoption.",
   "type": "module",
   "packageManager": "npm@12.2.1",
