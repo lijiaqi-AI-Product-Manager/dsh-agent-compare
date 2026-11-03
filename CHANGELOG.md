@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.13 — 2026-11-03
+
+- Bind candidate sealing and verification to worktree administration discovered from the original repository. Check owner marks, reciprocal links and bounded ordinary metadata files; refuse redirected or damaged pointers and retain ambiguous copies during cleanup.
+- Recheck ownership before reopening a preview and throughout candidate and adoption rehearsal verification. Ignore ambient Git repository, index and config selectors; preserve deliberate private indexes and disable external diff/text conversion during candidate capture.
+
 ## 0.2.0-alpha.12 — 2026-11-03
 
 - Reconcile current-protocol orphaned comparisons when opened or acquired after the previous host exits, including an already-open peer. Preserve live-owner exclusion and older unmarked records; turn interrupted writes into explicit adoption recovery.

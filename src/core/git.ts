@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, writeFile, readFile, lstat, open, readdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
@@ -8,17 +8,23 @@ import { RunStore } from './run-store.ts'
 /** Largest patch accepted for one candidate. Bigger changes are refused, never truncated. */
 export const MAX_PATCH_CHARS = 32 * 1024 * 1024
 
+/** Repository selectors inherited from a terminal must not redirect lifecycle
+ * operations. Only deliberate per-command settings may reintroduce Git vars. */
+function gitEnvironment(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))), ...env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' }
+}
+
 export function git(cwd: string, args: readonly string[], env?: NodeJS.ProcessEnv, input?: string): Promise<string> {
   return runOk(['git', ...args], {
     cwd,
     maxOutput: MAX_PATCH_CHARS,
-    env: { ...process.env, ...env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' },
+    env: gitEnvironment(env),
     ...(input === undefined ? {} : { input }),
   })
 }
 
 export async function gitTry(cwd: string, args: readonly string[]): Promise<string | undefined> {
-  const r = await run(['git', ...args], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' } })
+  const r = await run(['git', ...args], { cwd, env: gitEnvironment() })
   return r.code === 0 ? r.stdout : undefined
 }
 
@@ -88,6 +94,64 @@ export interface OwnerMark {
 
 const OWNER_FILE = 'agent-compare-owner.json'
 
+export interface OwnedCopy { readonly repo: string; readonly owner: OwnerMark }
+
+/** Small metadata files must be ordinary files, with a stable opened identity. */
+async function metadata(file: string): Promise<string> {
+  const before = await lstat(file)
+  if (!before.isFile() || before.isSymbolicLink() || before.size > 16 * 1024) throw new Error('invalid worktree metadata file')
+  const handle = await open(file, 'r')
+  try {
+    const opened = await handle.stat()
+    if (!opened.isFile() || opened.size > 16 * 1024 || before.dev !== opened.dev || before.ino !== opened.ino) throw new Error('worktree metadata changed while opening')
+    const bytes = Buffer.alloc(16 * 1024 + 1)
+    const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
+    const after = await lstat(file), final = await handle.stat()
+    if (bytesRead > 16 * 1024 || after.isSymbolicLink() || after.dev !== opened.dev || after.ino !== opened.ino || final.size !== opened.size || final.mtimeMs !== opened.mtimeMs || bytesRead !== opened.size) throw new Error('worktree metadata changed while reading')
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, bytesRead))
+  } finally { await handle.close() }
+}
+
+const owns = (mark: OwnerMark | undefined, owner: OwnerMark): boolean => mark?.runId === owner.runId && mark.label === owner.label && mark.token === owner.token
+
+/** Discover administration from the trusted repository, never by invoking Git
+ * in a candidate whose .git pointer can be edited by project commands. */
+export async function ownedWorktreeAdmin(repo: string, dir: string, owner: OwnerMark): Promise<string> {
+  if (samePath(repo, dir)) throw new Error('owned copy is the main checkout')
+  const directory = await lstat(dir)
+  if (!directory.isDirectory() || directory.isSymbolicLink()) throw new Error('owned copy directory is linked or missing')
+  const common = path.resolve(repo, (await git(repo, ['rev-parse', '--git-common-dir'])).trim())
+  const pool = path.join(common, 'worktrees'), poolStat = await lstat(pool)
+  if (!poolStat.isDirectory() || poolStat.isSymbolicLink()) throw new Error('worktree administration directory is linked or missing')
+  const matches: string[] = []
+  for (const entry of await readdir(pool, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) continue
+    const admin = path.join(pool, entry.name)
+    let mark: OwnerMark | undefined
+    try { mark = JSON.parse(await metadata(path.join(admin, OWNER_FILE))) as OwnerMark } catch { continue }
+    if (owns(mark, owner)) matches.push(admin)
+  }
+  if (matches.length !== 1) throw new Error('worktree owner mark missing, different or ambiguous')
+  const admin = matches[0]!
+  if (!samePath(path.resolve(admin, (await metadata(path.join(admin, 'commondir'))).trim()), common)) throw new Error('worktree common directory does not match')
+  if (!samePath((await metadata(path.join(admin, 'gitdir'))).trim(), path.join(dir, '.git'))) throw new Error('worktree administration backlink does not match')
+  const pointer = /^gitdir: ([^\r\n]+)\r?\n?$/.exec(await metadata(path.join(dir, '.git')))?.[1]
+  if (!pointer || !samePath(path.resolve(dir, pointer), admin)) throw new Error('candidate Git pointer does not match its owned worktree')
+  return admin
+}
+
+/** Explicit arguments keep a pointer changed after attestation from selecting
+ * the original or a sibling index. Each later operation attests again. */
+export async function ownedGit(dir: string, copy: OwnedCopy, args: readonly string[], env?: NodeJS.ProcessEnv, input?: string): Promise<string> {
+  const admin = await ownedWorktreeAdmin(copy.repo, dir, copy.owner)
+  return git(dir, ['--git-dir', admin, '--work-tree', dir, '-c', 'core.fsmonitor=false', ...args], env, input)
+}
+
+export async function ownedCopyTree(dir: string, copy: OwnedCopy): Promise<string> {
+  await ownedGit(dir, copy, ['add', '-A', '--', '.', ...ALWAYS_EXCLUDED])
+  return (await ownedGit(dir, copy, ['write-tree'])).trim()
+}
+
 /**
  * Create a detached worktree for `commit` and mark it as owned. The mark lives
  * in `<repo>/.git/worktrees/<name>/`, so it is neither project content nor
@@ -143,13 +207,11 @@ async function removeOwnedWorktreeUnlocked(repo: string, dir: string, owner: Own
   if (samePath(dir, repo)) return { removed: false, reason: 'is the main checkout' }
   const registered = await registeredWorktrees(repo)
   if (!registered.some((w) => samePath(w, dir))) return { removed: false, reason: 'not a registered worktree of the repository' }
-  let mark: OwnerMark | undefined
   try {
-    mark = JSON.parse(await readFile(path.join(await worktreeAdminDir(dir), OWNER_FILE), 'utf8')) as OwnerMark
-  } catch {
-    mark = undefined
+    await ownedWorktreeAdmin(repo, dir, owner)
+  } catch (error) {
+    return { removed: false, reason: (error as Error).message }
   }
-  if (mark?.runId !== owner.runId || mark.label !== owner.label || mark.token !== owner.token) return { removed: false, reason: 'owner mark missing or different' }
   await gitTry(repo, ['worktree', 'remove', '--force', '--force', dir])
   if (existsSync(dir)) await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
   await gitTry(repo, ['worktree', 'prune'])
@@ -261,13 +323,13 @@ export async function ensureWorktreePool(repo: string): Promise<string> {
  * everything (in the candidate's own worktree index), write a commit whose
  * parent is the snapshot, and render a full-index binary patch.
  */
-export async function captureChange(worktree: string, base: string, message: string): Promise<CapturedChange> {
-  await git(worktree, ['add', '-A', '--', '.', ...ALWAYS_EXCLUDED])
-  const tree = (await git(worktree, ['write-tree'])).trim()
-  const commit = await commitTree(worktree, tree, [base], message)
-  const patch = await git(worktree, ['diff', '--binary', '--full-index', '--no-color', '--no-ext-diff', base, commit])
-  const numstat = await git(worktree, ['diff', '--numstat', '-z', '--no-renames', base, commit])
-  const nameStatusRaw = await git(worktree, ['diff', '--name-status', '-z', '--no-renames', base, commit])
+export async function captureChange(worktree: string, base: string, message: string, copy: OwnedCopy): Promise<CapturedChange> {
+  const tree = await ownedCopyTree(worktree, copy)
+  const commit = (await ownedGit(worktree, copy, ['commit-tree', tree, '-p', base], AUTHOR_ENV, message)).trim()
+  const diff = ['diff', '--no-ext-diff', '--no-textconv']
+  const patch = await ownedGit(worktree, copy, [...diff, '--binary', '--full-index', '--no-color', base, commit])
+  const numstat = await ownedGit(worktree, copy, [...diff, '--numstat', '-z', '--no-renames', base, commit])
+  const nameStatusRaw = await ownedGit(worktree, copy, [...diff, '--name-status', '-z', '--no-renames', base, commit])
   const stats = { files: 0, insertions: 0, deletions: 0, binary: 0 }
   for (const rec of numstat.split('\0').filter(Boolean)) {
     const [ins, del] = rec.split('\t')
