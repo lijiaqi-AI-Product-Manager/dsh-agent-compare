@@ -8,6 +8,7 @@
  */
 
 export const RUN_SCHEMA = 'agent-compare.run/v2'
+export const RUN_COORDINATION = 'sqlite-run/v1'
 export const LEGACY_SCHEMAS: readonly string[] = ['agent-compare.run/v1']
 
 export type CandidateLabel = 'A' | 'B'
@@ -246,6 +247,8 @@ export interface Adoption {
 
 export interface RunRecord {
   readonly schema: typeof RUN_SCHEMA
+  /** New runs use a host-held OS lease. Older active runs stay read-only. */
+  coordination?: typeof RUN_COORDINATION
   readonly producer: { readonly name: 'dsh-agent-compare'; readonly version: string }
   readonly runId: string
   readonly createdAt: number

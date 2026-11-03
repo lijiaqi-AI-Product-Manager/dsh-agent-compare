@@ -2,16 +2,18 @@ import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, rmdir } from 'node:fs/promises'
-import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, writePatch } from './git.ts'
+import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch } from './git.ts'
 import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdopt, preflight, targetChanges, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
 import { commandHasMarkers, diagnosticText, killTree, observeProcess, waitGone } from './proc.ts'
 import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
-import { BusyError, newRunId, repoKey, RunStore, StaleRecordError } from './run-store.ts'
+import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
+import type { FileLease } from './file-lock.ts'
+import { isRunId } from './record-validation.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
-import { RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
+import { RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
 
 export interface AgentRunRequest {
   readonly label: CandidateLabel
@@ -76,6 +78,7 @@ export interface ComparerOptions {
   readonly runner: AgentRunner
   readonly version: string
   readonly onUpdate?: (record: RunRecord) => void
+  readonly onRecoveryIssue?: (issue: { runId: string; message: string }) => void
   readonly previewTimeoutMs?: number
   /** Disable the headless-browser check (tests without a system browser). */
   readonly browserChecks?: boolean
@@ -107,6 +110,8 @@ export class Comparer {
   private readonly queues = new Map<string, Promise<unknown>>()
   private readonly startReservations = new Set<object>()
   private readonly operations = new Set<Promise<unknown>>()
+  private readonly owners = new Map<string, Promise<FileLease>>()
+  private readonly ownerUses = new Map<string, number>()
   private readonly lifetime = new AbortController()
   private closing = false
   private disposal?: Promise<void>
@@ -167,6 +172,7 @@ export class Comparer {
     const mk = (label: CandidateLabel, i: number): Candidate => ({ label, strategy: strategies[i]!, route: routes[i]!, stage: 'queued', timings: {} })
     const record: RunRecord = {
       schema: RUN_SCHEMA,
+      coordination: RUN_COORDINATION,
       producer: { name: 'dsh-agent-compare', version: this.opts.version },
       runId,
       createdAt: Date.now(),
@@ -188,10 +194,12 @@ export class Comparer {
     this.assertOpen()
     // An identifier collision must not displace a live run or its previews.
     if (this.live.has(runId)) throw new StaleRecordError(runId)
+    await this.ensureOwnership(runId, true)
     // No await between releasing the reservation and publishing the live slot.
     this.startReservations.delete(reservation)
     this.live.set(runId, lr)
     try {
+      this.assertOpen()
       // Creation refuses an existing record before any baseline ref can change.
       await this.persist(record)
       this.assertOpen()
@@ -210,6 +218,7 @@ export class Comparer {
         // Preserve the original error if storage is itself unavailable.
         await this.serial(runId, () => this.store.save(record)).catch(() => {})
       }
+      await this.releaseOwnership(runId)
       throw error
     }
   }
@@ -234,6 +243,7 @@ export class Comparer {
 
   private persist(record: RunRecord): Promise<void> {
     return this.serial(record.runId, async () => {
+      record.coordination = RUN_COORDINATION
       await this.store.save(record)
       this.opts.onUpdate?.(record)
     })
@@ -391,7 +401,7 @@ export class Comparer {
    * restart). Its copy must still be the one this run created.
    */
   salvage(runId: string, label: CandidateLabel): Promise<RunRecord> {
-    return this.operation(() => this.salvageRun(runId, label))
+    return this.operation(() => this.salvageRun(runId, label), runId)
   }
 
   private async salvageRun(runId: string, label: CandidateLabel): Promise<RunRecord> {
@@ -542,7 +552,7 @@ export class Comparer {
 
   /** Stop one candidate or the whole run. Shows "stopping" until each candidate has actually settled. */
   cancel(runId: string, label?: CandidateLabel): Promise<RunRecord | undefined> {
-    return this.operation(() => this.cancelRun(runId, label))
+    return this.operation(() => this.cancelRun(runId, label), runId)
   }
 
   private async cancelRun(runId: string, label?: CandidateLabel): Promise<RunRecord | undefined> {
@@ -565,7 +575,7 @@ export class Comparer {
       r.choice = { pick, at: Date.now(), ...(note === undefined ? {} : { note }) }
       r.state = 'revealed'
       r.revealedAt = Date.now()
-    }))
+    }), runId)
   }
 
   /**
@@ -574,7 +584,7 @@ export class Comparer {
    * when there is one; the copy must still be the one this run created.
    */
   reopenPreview(runId: string, label: CandidateLabel): Promise<RunRecord> {
-    return this.operation(() => this.reopenRunPreview(runId, label))
+    return this.operation(() => this.reopenRunPreview(runId, label), runId)
   }
 
   private async reopenRunPreview(runId: string, label: CandidateLabel): Promise<RunRecord> {
@@ -597,7 +607,7 @@ export class Comparer {
 
   /** Report-only adoption check: overlap, eligibility and whether a rehearsal will run. Writes nothing. */
   adoptPreflight(runId: string): Promise<{ ok: boolean; eligible: boolean; reasons: string[]; overlapping?: string[]; targetChanged?: boolean; rehearsal?: boolean }> {
-    return this.operation(() => this.preflightAdoption(runId))
+    return this.operation(() => this.preflightAdoption(runId), runId)
   }
 
   private async preflightAdoption(runId: string): Promise<{ ok: boolean; eligible: boolean; reasons: string[]; overlapping?: string[]; targetChanged?: boolean; rehearsal?: boolean }> {
@@ -625,12 +635,12 @@ export class Comparer {
    * for any finished candidate, so an unverified one can still be inspected.
    */
   adopt(runId: string, mode: 'worktree' | 'branch' = 'worktree'): Promise<RunRecord> {
-    return this.operation(() => this.adoptRun(runId, mode))
+    return this.operation(() => this.adoptRun(runId, mode), runId)
   }
 
   private async adoptRun(runId: string, mode: 'worktree' | 'branch'): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
-    return this.store.withLock(`repo-${repoKey(first.baseline.repoRoot)}`, () => this.serial(runId, async () => {
+    return withRepositoryWrite(first.baseline.repoRoot, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
       if (r.state !== 'revealed') throw new AdoptError('state', `现在不能采用（${r.state}）`)
       const pick = r.choice?.pick
@@ -791,12 +801,12 @@ export class Comparer {
    * file was edited after adoption, so nothing the user wrote is overwritten.
    */
   revert(runId: string): Promise<RunRecord> {
-    return this.operation(() => this.revertRun(runId))
+    return this.operation(() => this.revertRun(runId), runId)
   }
 
   private async revertRun(runId: string): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
-    return this.store.withLock(`repo-${repoKey(first.baseline.repoRoot)}`, () => this.serial(runId, async () => {
+    return withRepositoryWrite(first.baseline.repoRoot, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
       const a = r.adoption
       if (r.state !== 'adopted' || a?.mode !== 'worktree' || a.preAdoptCommit === undefined || a.writtenPaths === undefined) throw new AdoptError('state', '只有写入工作区的采用可以撤销')
@@ -822,12 +832,12 @@ export class Comparer {
    * someone else are listed, not touched); `keep` accepts the files as they are.
    */
   recoverAdoption(runId: string, action: 'restore' | 'keep'): Promise<RunRecord> {
-    return this.operation(() => this.recoverRunAdoption(runId, action))
+    return this.operation(() => this.recoverRunAdoption(runId, action), runId)
   }
 
   private async recoverRunAdoption(runId: string, action: 'restore' | 'keep'): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
-    return this.store.withLock(`repo-${repoKey(first.baseline.repoRoot)}`, () => this.serial(runId, async () => {
+    return withRepositoryWrite(first.baseline.repoRoot, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
       const a = r.adoption
       if (r.state !== 'recovery' || a === undefined) throw new AdoptError('state', '这次比较没有需要恢复的采用')
@@ -866,7 +876,7 @@ export class Comparer {
    * proven are kept and listed in `leftovers`.
    */
   cleanup(runId: string): Promise<RunRecord | undefined> {
-    return this.operation(() => this.cleanupRun(runId))
+    return this.operation(() => this.cleanupRun(runId), runId)
   }
 
   private async cleanupRun(runId: string): Promise<RunRecord | undefined> {
@@ -934,48 +944,70 @@ export class Comparer {
 
   private async recoverRuns(): Promise<string[]> {
     const touched: string[] = []
-    for (const r of await this.store.list()) {
-      if (this.live.has(r.runId)) continue
-      let changed = false
-      for (const c of r.candidates) {
-        if (!SETTLED.has(c.stage)) {
-          c.error = { stage: c.stage, message: '宿主在这一步进行时停止了' }
-          c.stage = 'interrupted'
-          changed = true
-        }
-        if (c.preview !== undefined) {
-          try {
-            await stopOwnedPreview(c.preview)
-            delete c.preview
-          } catch (error) {
-            const detail = `候选 ${c.label} 预览等待清理：${(error as Error).message}`
-            r.leftovers = [...new Set([...(r.leftovers ?? []), detail])]
-          }
-          changed = true
-        }
-      }
-      if (r.state === 'running') {
-        r.state = 'interrupted'
-        changed = true
-      }
-      if (r.state === 'adopting' && r.adoption) {
-        if (r.adoption.state === 'writing') {
-          r.adoption.state = 'needs-recovery'
-          r.adoption.message = '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。'
-          r.state = 'recovery'
-        } else {
-          r.adoption.state = 'blocked'
-          r.adoption.message = '预演过程中宿主停止了。尚未写入任何文件。'
-          r.state = 'revealed'
-        }
-        changed = true
-      }
-      if (changed) {
-        await this.store.save(r)
-        touched.push(r.runId)
+    for (const summary of await this.store.list()) {
+      if (this.closing) break
+      const runId = summary.runId
+      if (this.live.has(runId)) continue
+      let acquired = false
+      try {
+        await this.withOwnership(runId, () => {
+          acquired = true
+          return this.serial(runId, async () => {
+            // Re-read after acquiring ownership: the listed record may be stale.
+            const r = await this.store.load(runId)
+            if (!r || this.live.has(runId)) return
+            if (await this.recoverRecord(r)) touched.push(runId)
+          })
+        })
+      } catch (error) {
+        if (error instanceof BusyError) continue
+        if (acquired) throw error
+        // A damaged or inaccessible guard must not hide unrelated history.
+        try { this.opts.onRecoveryIssue?.({ runId, message: `无法取得运行归属：${String((error as Error).message).slice(0, 200)}` }) } catch { /* reporting cannot grant ownership */ }
       }
     }
     return touched
+  }
+
+  private async recoverRecord(r: RunRecord): Promise<boolean> {
+    let changed = false
+    for (const c of r.candidates) {
+      if (!SETTLED.has(c.stage)) {
+        c.error = { stage: c.stage, message: '宿主在这一步进行时停止了' }
+        c.stage = 'interrupted'
+        changed = true
+      }
+      if (c.preview !== undefined) {
+        try {
+          await stopOwnedPreview(c.preview)
+          delete c.preview
+        } catch (error) {
+          const detail = `候选 ${c.label} 预览等待清理：${(error as Error).message}`
+          r.leftovers = [...new Set([...(r.leftovers ?? []), detail])]
+        }
+        changed = true
+      }
+    }
+    if (r.state === 'running') {
+      r.state = 'interrupted'
+      changed = true
+    }
+    if (r.state === 'adopting' && r.adoption) {
+      if (r.adoption.state === 'writing') {
+        r.adoption.state = 'needs-recovery'
+        r.adoption.message = '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。'
+        r.state = 'recovery'
+      } else {
+        r.adoption.state = 'blocked'
+        r.adoption.message = '预演过程中宿主停止了。尚未写入任何文件。'
+        r.state = 'revealed'
+      }
+      changed = true
+    }
+    if (changed) {
+      await this.store.save(r)
+    }
+    return changed
   }
 
   dispose(): Promise<void> {
@@ -1010,6 +1042,12 @@ export class Comparer {
         try { await this.persist(lr.record) } catch (error) { errors.push(error) }
       }
     }
+    // Even a failed cleanup must let a fresh host inspect the retained journal.
+    // No owner is released while candidate work or an accepted operation runs.
+    for (const runId of this.owners.keys()) {
+      try { await this.releaseOwnership(runId, true) } catch (error) { errors.push(error) }
+    }
+    this.live.clear()
     if (errors.length) throw new AggregateError(errors, '部分比较资源没有停止或保存，请查看历史记录并重试清理')
   }
 
@@ -1017,13 +1055,75 @@ export class Comparer {
     if (this.closing) throw new BusyError('比较服务正在停止，请等待宿主重新启动后再试')
   }
 
-  private operation<T>(fn: () => Promise<T>): Promise<T> {
-    const pending = Promise.resolve().then(() => { this.assertOpen(); return fn() })
+  private operation<T>(fn: () => Promise<T>, runId?: string): Promise<T> {
+    const pending = Promise.resolve().then(() => { this.assertOpen(); return runId === undefined ? fn() : this.withOwnership(runId, fn) })
     // Add before invoking work, including work that can still be preparing.
     this.operations.add(pending)
     const remove = (): void => { this.operations.delete(pending) }
     void pending.then(remove, remove)
     return pending
+  }
+
+  private async ensureOwnership(runId: string, starting = false): Promise<void> {
+    if (!isRunId(runId)) throw new Error('invalid run identifier')
+    let pending = this.owners.get(runId)
+    if (!pending) {
+      pending = (async () => {
+        const lease = await this.store.acquireLock(`owner-${runId}`, { busyMessage: '另一个宿主正在管理这次比较；请回到原窗口操作，或等它关闭后重试' })
+        try {
+          const r = starting ? undefined : await this.store.load(runId)
+          const reason = r && uncoordinatedReason(r)
+          if (reason) throw new BusyError(reason)
+          return lease
+        } catch (error) { lease.release(); throw error }
+      })()
+      this.owners.set(runId, pending)
+      const acquired = pending
+      void acquired.catch(() => { if (this.owners.get(runId) === acquired) this.owners.delete(runId) })
+    }
+    await pending
+  }
+
+  private async withOwnership<T>(runId: string, fn: () => Promise<T>): Promise<T> {
+    this.ownerUses.set(runId, (this.ownerUses.get(runId) ?? 0) + 1)
+    try { await this.ensureOwnership(runId); this.assertOpen(); return await fn() }
+    finally {
+      const uses = (this.ownerUses.get(runId) ?? 1) - 1
+      if (uses) this.ownerUses.set(runId, uses)
+      else this.ownerUses.delete(runId)
+      await this.releaseOwnership(runId)
+    }
+  }
+
+  private async releaseOwnership(runId: string, force = false): Promise<void> {
+    const pending = this.owners.get(runId)
+    if (!pending) return
+    const lease = await pending.catch(() => undefined)
+    if (!force && (this.live.has(runId) || this.ownerUses.has(runId))) return
+    if (this.owners.get(runId) !== pending) return
+    this.owners.delete(runId)
+    lease?.release()
+  }
+
+  /** A snapshot for presentation; every action acquires ownership again. */
+  async control(r: RunRecord): Promise<{ allowed: boolean; reason?: string; retryable?: boolean }> {
+    if (this.closing) return { allowed: false, reason: '比较服务正在停止' }
+    const reason = uncoordinatedReason(r)
+    if (reason) return { allowed: false, reason }
+    if (this.owners.has(r.runId)) {
+      try { await this.owners.get(r.runId); return { allowed: !this.closing, ...(this.closing ? { reason: '比较服务正在停止' } : {}) } }
+      catch (error) { return { allowed: false, reason: error instanceof BusyError ? error.message : '无法确认管理归属，当前仅可查看。请检查本地锁文件与访问权限后重试。' } }
+    }
+    try {
+      const lease = await this.store.acquireLock(`owner-${r.runId}`, { busyMessage: 'foreign-running-owner' })
+      lease.release()
+      return { allowed: !this.closing, ...(this.closing ? { reason: '比较服务正在停止' } : {}) }
+    } catch (error) {
+      if (error instanceof BusyError) return error.message === 'foreign-running-owner'
+        ? { allowed: false, retryable: true, reason: '另一个宿主正在管理这次比较。此处可查看结果；需要选择、停止、采用或清理时，请回到原窗口，或等它关闭后重试。' }
+        : { allowed: false, reason: error.message }
+      return { allowed: false, reason: '无法确认管理归属，当前仅可查看。请检查本地锁文件与访问权限后重试。' }
+    }
   }
 
   private async mustLoad(runId: string): Promise<RunRecord> {
@@ -1041,6 +1141,7 @@ export class Comparer {
   }
 
   private async save(r: RunRecord): Promise<void> {
+    r.coordination = RUN_COORDINATION
     await this.store.save(r)
     this.opts.onUpdate?.(r)
   }
@@ -1054,6 +1155,13 @@ export class Comparer {
       return r
     })
   }
+}
+
+function uncoordinatedReason(r: RunRecord): string | undefined {
+  if (r.coordination !== RUN_COORDINATION && (r.state === 'running' || r.state === 'adopting' || r.candidates.some(c => !SETTLED.has(c.stage) || c.preview !== undefined))) {
+    return '这条旧记录没有宿主归属凭据，当前仅可查看。请先关闭旧版本实例，保留记录与副本，再处理其未完成资源；当前版本不会推断旧任务已经退出。'
+  }
+  return undefined
 }
 
 class StageFailure extends Error {

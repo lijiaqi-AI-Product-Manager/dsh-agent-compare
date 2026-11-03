@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { parseBrowserCheck } from './acceptance-config.ts'
-import { RUN_SCHEMA, type RunRecord } from './types.ts'
+import { RUN_COORDINATION, RUN_SCHEMA, type RunRecord } from './types.ts'
 
 export const MAX_RECORD_BYTES = 16 * 1024 * 1024
 export const isRunId = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}$/.test(value)
@@ -108,6 +108,7 @@ const adoption = shape({
   writtenPaths: optional(paths), branch: optional(pathText), message: optional(text()), attention: optional(array(text())),
 })
 const record = shape({
+  coordination: optional(oneOf(RUN_COORDINATION)),
   schema: oneOf(RUN_SCHEMA), producer: shape({ name: oneOf('dsh-agent-compare'), version: text(200, false) }), runId: identifier, createdAt: count(), updatedAt: count(), rev: count(), task: text(1048576, false),
   sessionId: optional(text(500, false)), follows: optional(identifier), origin: optional(shape({ kind: oneOf('command', 'tool', 'panel'), id: optional(text(1000, false)) })),
   baseline: shape({ repoRoot: absolutePath, headCommit: optional(gitObject), snapshotCommit: gitObject, snapshotTree: gitObject, dirty: boolean }),

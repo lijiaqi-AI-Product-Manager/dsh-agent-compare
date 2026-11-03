@@ -165,6 +165,14 @@ async function withWorktreeAdministration<T>(repo: string, operation: () => Prom
   return locks.withLock('worktrees', operation, { waitMs: 60_000, busyMessage: '这个仓库的工作区管理操作仍在进行，请稍后重试' })
 }
 
+/** Adoption, undo and journal recovery share the repository's trusted common
+ * directory, including callers using different plugin homes. */
+export async function withRepositoryWrite<T>(repo: string, operation: () => Promise<T>, opts: { busyMessage?: string } = {}): Promise<T> {
+  const common = path.resolve(repo, (await git(repo, ['rev-parse', '--git-common-dir'])).trim())
+  const locks = new RunStore(path.join(canonicalPath(common), 'agent-compare-administration'))
+  return locks.withLock('adoption', operation, opts)
+}
+
 /**
  * The tree the checkout would have after adoption: `baseTree` (the checkout
  * now) with the candidate's version of every touched path. Built in a private

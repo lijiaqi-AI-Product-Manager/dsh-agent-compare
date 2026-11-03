@@ -47,7 +47,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.9'
+const VERSION = '0.2.0-alpha.10'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -357,7 +357,9 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     generationMs: (config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000) * 60_000,
     maxActiveRuns: config.maxActiveRuns ?? 1,
     onUpdate: remember,
+    onRecoveryIssue: issue => ctx.logger.warn(`agent-compare: ${issue.runId}: ${issue.message}`),
   })
+  const present = async (record: RunRecord): Promise<unknown> => ({ ...publicView(record), control: await comparer.control(record) })
   const reconcileMemory = async (): Promise<void> => {
     const latest = new Map<string, RunRecord>()
     for (const record of await store.list()) {
@@ -500,7 +502,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   const view = async (runId: string): Promise<unknown> => {
     const r = await comparer.get(runId)
     if (r === undefined) throw new HttpError(404, 'unknown run')
-    return publicView(r)
+    return present(r)
   }
   const routeOf = (v: unknown): AgentRoute | undefined => {
     if (v === null || typeof v !== 'object') return undefined
@@ -529,7 +531,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     },
     async list(b) {
       const page = await historyPage(store, b)
-      return { ...page, runs: page.runs.map(publicView), isolation: runner.isolation }
+      return { ...page, runs: await Promise.all(page.runs.map(present)), isolation: runner.isolation }
     },
     async get(b) { return view(runIdOf(b)) },
     async models(b) {
@@ -570,29 +572,29 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         origin: { kind: 'panel' },
         ...(minutes === undefined ? {} : { generationMs: minutes * 60_000 }),
       })
-      return publicView(r)
+      return present(r)
     },
     async reopenPreview(b) {
       const l = label(b.label)
       if (l === undefined) throw new HttpError(400, 'label must be A or B')
-      return publicView(await comparer.reopenPreview(runIdOf(b), l))
+      return present(await comparer.reopenPreview(runIdOf(b), l))
     },
     async salvage(b) {
       const l = label(b.label)
       if (l === undefined) throw new HttpError(400, 'label must be A or B')
-      return publicView(await comparer.salvage(runIdOf(b), l))
+      return present(await comparer.salvage(runIdOf(b), l))
     },
     async choose(b) {
       const pick = b.pick === 'none' ? 'none' : label(b.pick)
       if (pick === undefined) throw new HttpError(400, 'pick must be A, B or none')
-      return publicView(await comparer.choose(runIdOf(b), pick, typeof b.note === 'string' ? b.note.slice(0, 500) : undefined))
+      return present(await comparer.choose(runIdOf(b), pick, typeof b.note === 'string' ? b.note.slice(0, 500) : undefined))
     },
     async preflight(b) { return comparer.adoptPreflight(runIdOf(b)) },
-    async adopt(b) { return publicView(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : 'worktree')) },
-    async revert(b) { return publicView(await comparer.revert(runIdOf(b))) },
-    async recover(b) { return publicView(await comparer.recoverAdoption(runIdOf(b), b.action === 'keep' ? 'keep' : 'restore')) },
-    async cancel(b) { const r = await comparer.cancel(runIdOf(b), label(b.label)); return r === undefined ? null : publicView(r) },
-    async cleanup(b) { const r = await comparer.cleanup(runIdOf(b)); return r === undefined ? null : publicView(r) },
+    async adopt(b) { return present(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : 'worktree')) },
+    async revert(b) { return present(await comparer.revert(runIdOf(b))) },
+    async recover(b) { return present(await comparer.recoverAdoption(runIdOf(b), b.action === 'keep' ? 'keep' : 'restore')) },
+    async cancel(b) { const r = await comparer.cancel(runIdOf(b), label(b.label)); return r === undefined ? null : present(r) },
+    async cleanup(b) { const r = await comparer.cleanup(runIdOf(b)); return r === undefined ? null : present(r) },
     async shot(b) {
       const r = await comparer.get(runIdOf(b))
       const c = r?.candidates.find((x) => x.label === label(b.label))

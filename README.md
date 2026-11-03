@@ -4,9 +4,9 @@ English | [中文](README.zh.md)
 
 **Same task. Two live builds. Pick blind.**
 
-AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each confined to its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
+AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each working in its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.9, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.10, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -76,7 +76,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.9.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.10.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
@@ -94,6 +94,10 @@ The upper-right **comparison records** and **tutorial** controls work in both ne
 History defaults to all conversations, with a current-conversation filter, task/repository/run-id search, and 30 records per page. Original records remain retained; older schemas are read-only. If a newly installed client reports an older backend, restart DSH before using the new controls.
 
 Incomplete, unsupported, unreadable or larger-than-16-MiB records are retained read-only with a reason and an issue filter. They do not block unaffected history or drive project/process actions. Stale updates cannot replace damaged records.
+
+A live comparison belongs to the host that started it. Other current-version hosts sharing its local home can inspect history, source changes and real previews; management actions stay read-only until the owner closes. The UI refreshes ownership automatically. Shutdown drains accepted work before releasing ownership, and a crashed process releases its SQLite connection locks so a new host can recover the record. Adoption, undo and journal recovery also share a lock in the repository's Git common directory, including across different plugin homes.
+
+Before upgrading, finish or clean up active comparisons and close every older plugin instance. Mixed-version concurrent mutation is unsupported. New records carry a coordination marker that alpha.9 treats as read-only unavailable data; earlier builds do not understand that boundary. Older unmarked records with potentially active resources stay viewable but cannot be terminated or adopted by inference. Old `.lock` directories are retained and block that key until inspected after older instances stop. SQLite guard files must remain in place on a local filesystem; network-share locking is not a supported configuration.
 
 Submissions use the host command executor and session log. Every surface reads the same persisted run by id. Model-facing notes describe the result, choice, adoption, or undo; unavailable conversations and failed injections are retried with history/inbox deduplication. Notes identify the target repository, including when an example differs from the original project.
 
@@ -173,7 +177,7 @@ The host dependency directory is ignored and excluded from the plugin package. T
 - Automated regressions (see the current CI results for the count), including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
 - Adoption regressions preserve edits made during rehearsal or journal persistence, stop on concurrent HEAD/index changes, guard replacements and deletions, preserve ignored files at addition paths, and roll back only attempted paths. Retrying after resolving an overlap still supports adoption and undo.
 - Startup regressions reserve capacity before asynchronous preparation, permit retry after an initial-save failure and preserve history on identifier collisions. Shutdown drains pending starts, both candidates and journaled adoption. History tests page through 65 actual record files without changing their bytes.
-- Browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation navigation and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. History navigation covers 72 sample entries, pagination, search, late responses, older backends, retry and read-only issue filtering. Twelve light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
+- Browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation navigation and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. History navigation covers 72 sample entries, pagination, search, late responses, older backends, retry and read-only issue filtering. Sixteen light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
 - `node scripts/smoke.mjs`: the built-in case with scripted agents on React 19.3.1, Vite 8.3.5, and Playwright Chromium 156.0.8078.4. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
 - DSH 0.2.1-rc.5, isolated profile: the production command consumes a five-minute generation setting, creates two actual candidate sessions, serves both apps, and completes review and adoption. After reload and returning to normal conversation, a local scripted adapter observes the adopted result in the real main-session request. New and existing header controls remain available, with no page errors. No external model request is made in this check.
 - Development and example dependency audits report zero known advisories. Backend coverage is reported separately by `npm run test:coverage`; browser and native-host integration checks are separate layers and are not included in that percentage.
