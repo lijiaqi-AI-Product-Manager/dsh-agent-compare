@@ -1,7 +1,7 @@
 # AgentCompare
 
 [![Source version](https://img.shields.io/github/package-json/v/lijiaqi-AI-Product-Manager/dsh-agent-compare?label=source&color=0f766e&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
-[![npm: not published](https://img.shields.io/badge/npm-not%20published-64748b?style=flat&labelColor=334155&logo=npm&logoColor=white)](#install)
+[![npm version](https://img.shields.io/npm/v/dsh-agent-compare?label=npm&color=0f766e&style=flat&labelColor=334155&logo=npm&logoColor=white)](https://www.npmjs.com/package/dsh-agent-compare)
 [![CI](https://img.shields.io/github/actions/workflow/status/lijiaqi-AI-Product-Manager/dsh-agent-compare/ci.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)
 [![Node.js ^22.22.2 || ^24.15.0 || >=26.0.0](https://img.shields.io/badge/Node.js-22%20%2F%2024%20%2F%2026%2B-238636?style=flat&labelColor=334155&logo=nodedotjs&logoColor=white)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
 [![Tested on DSH 0.2.1-rc.5](https://img.shields.io/badge/DSH%20tested-0.2.1--rc.5-2563eb?style=flat&labelColor=334155)](docs/demo.md)
@@ -11,7 +11,7 @@
 
 **Same task. Two live builds. Pick blind.**
 
-> **0.2.0-alpha.17, not yet on npm.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+> **0.2.0-alpha.17 · Preview.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
@@ -25,9 +25,17 @@ Fixed-candidate sample with a Chinese interface. Application execution, shared c
 
 ## Install
 
-Until it is on npm, these steps target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page. This project is not yet listed in a plugin market.
+These commands target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page. This project is not yet listed in a plugin market.
 
-Build from source and install:
+Install the npm preview into the default Web profile (the npm badge above shows registry status):
+
+```bash
+dsh plugin --profile web add dsh-agent-compare
+```
+
+For another self-managed profile, replace `web` with its actual name.
+
+Or build from source and install:
 
 ```bash
 git clone https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare.git

@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-alpha.17 — 2026-11-03
+
+- Prepare the first public npm preview with prebuilt Host and Client entries, the bundle patch, executable example and localized installation guides. Keep the supported scope and preview status explicit.
+- Add dynamic project-status badges and verify reopened-preview cleanup by process identity, service shutdown, retained records and owned-copy removal.
 
 - Reset composer results and settings at session boundaries; ignore older completed polling responses while allowing slow reads to make progress. Show setup failures with a retry that preserves the draft.
 - Default expanded comparison to readable adaptive previews, provide more preview height and consolidate the real-address action into each candidate header. Explain adoption finishing and undo processing while retaining action exclusion.
