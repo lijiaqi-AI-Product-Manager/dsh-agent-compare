@@ -9,7 +9,7 @@ import * as processes from '../src/core/proc.ts'
 import { freePort, startVitePreview } from '../src/core/preview.ts'
 import { publicView, verdictOf } from '../src/core/orchestrator.ts'
 import { Comparer } from '../src/core/orchestrator.ts'
-import { RUN_SCHEMA, type Acceptance, type Candidate, type RunRecord } from '../src/core/types.ts'
+import { RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type Candidate, type RunRecord } from '../src/core/types.ts'
 import { tmp } from './fixture.ts'
 
 const acceptance: Acceptance = { checks: { commands: [{ name: 'build', argv: ['npm', 'run', 'build'] }], browser: { path: '/' } }, scripts: {}, bound: {}, runtime: { node: 'v0', packageManager: 'npm', platform: 'x' }, source: 'defaults', sha256: 'f'.repeat(64) }
@@ -17,6 +17,7 @@ const acceptance: Acceptance = { checks: { commands: [{ name: 'build', argv: ['n
 function record(runId: string): RunRecord {
   return {
     schema: RUN_SCHEMA,
+    coordination: RUN_COORDINATION,
     producer: { name: 'dsh-agent-compare', version: 'test' },
     runId,
     createdAt: Date.now(),
@@ -81,14 +82,12 @@ describe('run store', () => {
     await expect(comparer.adopt('1c1fe140')).rejects.toThrow(/旧版本/)
   })
 
-  it('takes over a lock left by a dead process and refuses a concurrent holder', async () => {
+  it('releases a lock after its callback and refuses a concurrent holder', async () => {
     const store = new RunStore(await tmp('ac-home'))
-    const lock = path.join(store.locksDir, 'run-0a1b2c3d.lock')
-    await mkdir(lock, { recursive: true })
-    await writeFile(path.join(lock, 'pid'), '999999')
     let inner: Promise<unknown> | undefined
     const outer = await store.withLock('run-0a1b2c3d', async () => {
       inner = store.withLock('run-0a1b2c3d', async () => 'second').catch((e: Error) => e.message)
+      await inner
       return 'first'
     })
     expect(outer).toBe('first')
@@ -96,13 +95,11 @@ describe('run store', () => {
     expect(await store.withLock('run-0a1b2c3d', async () => 'third')).toBe('third')
   })
 
-  it('refuses a lock held by another live process, and waits for it when asked', async () => {
+  it('reports the requested busy reason for another connection', async () => {
     const store = new RunStore(await tmp('ac-home'))
-    const lock = path.join(store.locksDir, 'repo-x.lock')
-    await mkdir(lock, { recursive: true })
-    // The parent of this test process is alive and is not us.
-    await writeFile(path.join(lock, 'pid'), String(process.ppid))
-    await expect(store.withLock('repo-x', async () => 'x', { busyMessage: 'repository busy' })).rejects.toThrow(/repository busy/)
+    const lease = await store.acquireLock('repo-x')
+    try { await expect(new RunStore(store.home).withLock('repo-x', async () => 'x', { busyMessage: 'repository busy' })).rejects.toThrow(/repository busy/) }
+    finally { lease.release() }
   })
 
   it('keys a repository by its real path, whatever spelling reached it', async () => {

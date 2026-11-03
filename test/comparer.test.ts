@@ -8,8 +8,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions } from '../src/core/orchestrator.ts'
-import { RunStore, repoKey, StaleRecordError } from '../src/core/run-store.ts'
-import { git, registeredWorktrees } from '../src/core/git.ts'
+import { RunStore, StaleRecordError } from '../src/core/run-store.ts'
+import { git, registeredWorktrees, withRepositoryWrite } from '../src/core/git.ts'
 import { isAlive, ownsProcess } from '../src/core/proc.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 
@@ -461,6 +461,7 @@ describe.concurrent('adoption', () => {
     await comparer.choose(runId, 'A')
     await comparer.adopt(runId, 'worktree')
     // Simulate a host stop between the journal and the end of the write.
+    await comparer.dispose()
     const r = (await store.load(runId))!
     r.state = 'adopting'
     r.adoption!.state = 'writing'
@@ -478,7 +479,7 @@ describe.concurrent('adoption', () => {
   it('a second adoption on the same repository is refused while one holds the repository lock', async () => {
     const { repo, store, comparer, runId } = await setup({})
     await comparer.choose(runId, 'A')
-    const res = await store.withLock(`repo-${repoKey(repo)}`, () => comparer.adopt(runId, 'worktree').then(() => 'adopted', (e: Error) => e.message))
+    const res = await withRepositoryWrite(repo, () => comparer.adopt(runId, 'worktree').then(() => 'adopted', (e: Error) => e.message))
     expect(res).toMatch(/正在进行另一项采用/)
     expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
     await comparer.cleanup(runId)
@@ -514,5 +515,7 @@ describe.concurrent('resource ownership', () => {
     // Stopping a preview must not overwrite a revision saved by another writer.
     await expect(comparer.dispose()).rejects.toMatchObject({ errors: [expect.any(StaleRecordError)] })
     expect(await store.load(runId)).toEqual(a)
+    const reclaimed = await new RunStore(store.home).acquireLock(`owner-${runId}`)
+    reclaimed.release()
   }, T)
 })

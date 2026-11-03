@@ -50,6 +50,8 @@ const states = {
   ] }],
   failed: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, { label: 'B', stage: 'failed', timings: { preparing: t(60, 59), generating: t(59, 20), sealing: t(20, 19), installing: t(19, 10) }, error: { stage: 'installing', message: '按锁文件 package-lock.json 冻结安装失败。改了依赖就必须同时更新锁文件，AgentCompare 不会换成非冻结安装。\nnpm ERR! `npm ci` can only install packages when your package.json and package-lock.json are in sync.' } }] }],
   judging: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, B] }],
+  foreign: [{ ...base, state: 'judging', control: { allowed: false, retryable: true, reason: '另一个宿主正在管理这次比较。此处可查看结果；需要选择、停止、采用或清理时，请回到原窗口，或等它关闭后重试。' }, candidates: [A, B] }],
+  'old-owner': [{ ...base, state: 'running', control: { allowed: false, reason: '这条旧记录没有宿主归属凭据，当前仅可查看。请先关闭旧版本实例并保留原始记录。' }, candidates: [{ label: 'A', stage: 'generating', timings: { generating: t(60) } }, { ...B, previewUrl: undefined, canReopenPreview: true }] }],
   unverified: [{ ...base, state: 'judging', candidates: [{ ...A, checks: [{ name: 'build', outcome: 'passed', durationMs: 1000 }, { name: 'browser', outcome: 'skipped', durationMs: 0, reason: 'no browser' }], verdict: { eligible: true, reasons: [], warnings: ['页面检查未运行'] } }, B] }],
   revealed: [{ ...base, state: 'revealed', checksFavoured: 'A', choice: { pick: 'B' }, revealedAt: now, candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   partial: [{ ...base, state: 'revealed', choice: { pick: 'A' }, revealedAt: now, candidates: [{ ...A, ...strat.A, usage: { kind: 'reported', inputTokens: 10, outputTokens: 2, cacheReadTokens: 100, cacheWriteTokens: 50 } }, { ...B, ...strat.B, usage: { kind: 'unknown', reason: 'provider omitted usage' } }] }],

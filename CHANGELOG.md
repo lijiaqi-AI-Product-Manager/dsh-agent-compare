@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.10 — 2026-11-03
+
+- Hold a process-backed lease for each live comparison. Another host can inspect its history and previews but cannot interrupt, select, adopt or clean up its resources. Recover orphaned current-protocol runs only after ownership becomes available.
+- Keep SQLite guard files stable and let connection termination release locks. Retain older PID-directory locks for inspection; preserve unmarked older runs with potentially active resources as read-only history.
+- Coordinate adoption, undo and journal recovery in the Git common directory across plugin homes and linked checkouts. Show management ownership in the conversation and disable unavailable actions without hiding previews or source review.
+
 ## 0.2.0-alpha.9 — 2026-11-03
 
 - Validate stored records before recovery, rendering or actions. Retain malformed, unsupported, oversized and unreadable entries as read-only history with an explanation and a dedicated filter.

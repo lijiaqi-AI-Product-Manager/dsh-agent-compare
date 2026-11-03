@@ -1,11 +1,12 @@
-import { link, lstat, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { link, lstat, mkdir, open, readdir, rename, rm } from 'node:fs/promises'
 import { createHash, randomBytes } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { isAlive } from './proc.ts'
 import { LEGACY_SCHEMAS, RUN_SCHEMA, type RunRecord } from './types.ts'
 import { assertRunRecord, isRunId, MAX_RECORD_BYTES, RecordValidationError } from './record-validation.ts'
+import { BusyError, tryFileLease, type FileLease } from './file-lock.ts'
+export { BusyError } from './file-lock.ts'
 
 /** Short root: Windows paths stay well under MAX_PATH even inside deep copies. */
 export function defaultHome(): string {
@@ -41,13 +42,6 @@ export class StaleRecordError extends Error {
   constructor(runId: string) {
     super(`run ${runId} was changed by another operation; reload and try again`)
     this.name = 'StaleRecordError'
-  }
-}
-
-export class BusyError extends Error {
-  constructor(what: string) {
-    super(what)
-    this.name = 'BusyError'
   }
 }
 
@@ -213,47 +207,29 @@ export class RunStore {
     return { current: current.sort((a, b) => b.createdAt - a.createdAt), legacy: legacy.sort((a, b) => b.createdAt - a.createdAt) }
   }
 
-  /**
-   * Cross-process lock on `key` (`run-<id>`, `repo-<key>`). A lock whose owner
-   * process is gone is taken over. With `waitMs` a held lock is waited for;
-   * without it a held lock throws BusyError at once.
-   */
+  /** Cross-process lock. Its persistent SQLite guard is never removed. */
   async withLock<T>(key: string, fn: () => Promise<T>, opts: { waitMs?: number; busyMessage?: string } = {}): Promise<T> {
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(key)) throw new Error('invalid lock identifier')
-    const until = Date.now() + (opts.waitMs ?? 0)
-    for (;;) {
-      if (!this.held.has(key) && (await this.tryAcquire(key))) break
-      if (Date.now() >= until) throw new BusyError(opts.busyMessage ?? `${key} is busy (another operation is in progress)`)
-      await new Promise((r) => setTimeout(r, 40))
-    }
-    try {
-      return await fn()
-    } finally {
-      this.held.delete(key)
-      await rm(path.join(this.locksDir, `${key}.lock`), { recursive: true, force: true })
-    }
+    const lease = await this.acquireLock(key, opts)
+    try { return await fn() } finally { lease.release() }
   }
 
-  private readonly held = new Set<string>()
-
-  private async tryAcquire(key: string): Promise<boolean> {
-    const dir = path.join(this.locksDir, `${key}.lock`)
-    await mkdir(this.locksDir, { recursive: true })
-    try {
-      await mkdir(dir)
-    } catch {
-      const owner = Number((await readFile(path.join(dir, 'pid'), 'utf8').catch(() => '')).trim())
-      if (!Number.isFinite(owner) || owner <= 0) {
-        // No pid yet: the owner is between mkdir and writeFile, or died right there.
-        const age = Date.now() - ((await stat(dir).catch(() => undefined))?.mtimeMs ?? Date.now())
-        if (age < 10_000) return false
-      } else if (owner === process.pid || isAlive(owner)) return false
-      await rm(dir, { recursive: true, force: true })
-      try { await mkdir(dir) } catch { return false }
+  /** Hold across asynchronous work, including the lifetime of a live run. */
+  async acquireLock(key: string, opts: { waitMs?: number; busyMessage?: string } = {}): Promise<FileLease> {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(key)) throw new Error('invalid lock identifier')
+    if (!Number.isSafeInteger(opts.waitMs ?? 0) || (opts.waitMs ?? 0) < 0) throw new Error('invalid lock wait')
+    const until = performance.now() + (opts.waitMs ?? 0)
+    for (;;) {
+      // A PID does not prove an older instance has finished with this path.
+      // Retain old directory locks for inspection instead of deleting them.
+      try {
+        await lstat(path.join(this.locksDir, `${key}.lock`))
+        throw new BusyError('发现旧版本留下的操作锁；请关闭旧实例并检查锁目录后再试')
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+      const lease = await tryFileLease(path.join(this.locksDir, `${key}.sqlite`))
+      if (lease) return lease
+      if (performance.now() >= until) throw new BusyError(opts.busyMessage ?? `${key} is busy (another operation is in progress)`)
+      await new Promise((r) => setTimeout(r, 40))
     }
-    this.held.add(key)
-    await writeFile(path.join(dir, 'pid'), String(process.pid))
-    return true
   }
 }
 

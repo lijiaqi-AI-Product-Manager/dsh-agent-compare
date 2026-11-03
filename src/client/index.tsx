@@ -46,6 +46,7 @@ interface Cand {
 }
 interface Adoption { state: string; mode: string; message?: string; branch?: string; attention?: string[]; rehearsed?: boolean; rehearsalChecks?: Check[] }
 interface Run {
+  control?: { allowed: boolean; reason?: string; retryable?: boolean }
   runId: string
   task: string
   state: string
@@ -754,6 +755,7 @@ function StarNudge(): React.ReactElement | null {
 }
 type Act = (method: string, extra?: Record<string, unknown>) => void
 function ActionBar({ run, busy, act, onDone, onContinue }: { run: Run; busy: boolean; act: Act; onDone?: () => void; onContinue?: () => void }): React.ReactElement | null {
+  if (run.control?.allowed === false) return <div className="ac-bar" role="status" aria-label="比较操作权限"><span className="ac-bar-text"><strong>当前仅可查看。</strong>{run.control.reason}</span></div>
   const pick = run.choice?.pick
   const picked = run.candidates.find((c) => c.label === pick)
   const total = Math.max(...run.candidates.map(elapsed))
@@ -879,7 +881,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     try { setRun(await call<Run>('get', { runId })); setErr(undefined) } catch (e) { setErr((e as Error).message) }
   }, [runId])
   useEffect(() => { void refresh() }, [refresh])
-  const live = run !== undefined && (LIVE_POLL.has(run.state) || run.candidates.some((c) => busyStage(c.stage)))
+  const live = run !== undefined && (run.control?.retryable === true || LIVE_POLL.has(run.state) || run.candidates.some((c) => busyStage(c.stage)))
   useEffect(() => {
     // Live runs refresh quickly; settled ones slowly, so a card in the chat follows actions taken elsewhere.
     const t = setInterval(() => { void refresh() }, live ? 1500 : 6000)
@@ -887,6 +889,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   }, [live, refresh])
   useTick(run?.state === 'running')
   const act: Act = (method, extra = {}) => {
+    if (run?.control?.allowed === false) { setErr(run.control.reason ?? '当前仅可查看这次比较'); return }
     setBusy(true)
     setErr(undefined)
     if (method === 'reviewAdoption') {
@@ -899,6 +902,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       .finally(() => { setBusy(false); void refresh() })
   }
   if (run === undefined) return <div className={compact ? 'ac-inline-note' : 'ac-empty'}>{err ?? '正在读取这次比较…'}</div>
+  const blocked = busy || run.control?.allowed === false
   const revealed = REVEALED.has(run.state) || run.choice !== undefined
   const continueConversation = sessionId ? (): void => {
     if (!leaveMode(sessionId)) { setErr('消息正在提交，请等它结束后继续对话。'); return }
@@ -910,12 +914,12 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     <>
       {err && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err}</div>}
       <div className="ac-action-dock"><ActionBar run={run} busy={busy} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
-      {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>重试清理</button></div></section>}
-      {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={busy || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
+      {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>重试清理</button></div></section>}
+      {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />
       <div className="ac-compare-tools"><div className="ac-seg" aria-label="比较布局">{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: '并排比较', A: '专注 A', B: '专注 B' }[v]}</button>)}</div><div className="ac-seg" aria-label="预览尺寸"><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>适应窗口</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>桌面 1280</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>手机 390</button></div><span className="ac-meta">{device === 'adaptive' ? '直接在对话中操作真实页面' : '相同视口 · 按可用宽度缩放'}</span></div>
       <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
-        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={busy} act={act} device={device} hidden={layout !== 'side' && layout !== c.label} />)}
+        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} hidden={layout !== 'side' && layout !== c.label} />)}
       </div>
     </>
   )
