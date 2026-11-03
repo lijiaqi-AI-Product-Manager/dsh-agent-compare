@@ -194,7 +194,7 @@ export class Comparer {
     this.assertOpen()
     // An identifier collision must not displace a live run or its previews.
     if (this.live.has(runId)) throw new StaleRecordError(runId)
-    await this.ensureOwnership(runId, true)
+    await this.ensureOwnership(runId, 'start')
     // No await between releasing the reservation and publishing the live slot.
     this.startReservations.delete(reservation)
     this.live.set(runId, lr)
@@ -231,6 +231,21 @@ export class Comparer {
 
   async get(runId: string): Promise<RunRecord | undefined> {
     return this.live.get(runId)?.record ?? this.store.load(runId)
+  }
+
+  /** Reconcile a current-protocol orphan when opened after its owner exits.
+   * A foreign live owner and an unmarked older record remain untouched. */
+  async observe(runId: string): Promise<RunRecord | undefined> {
+    const r = await this.get(runId)
+    if (!r || this.closing) return r
+    const pending = this.owners.get(runId)
+    if (pending) {
+      try { await pending; return this.get(runId) }
+      catch (error) { if (error instanceof BusyError) return this.get(runId); throw error }
+    }
+    if (r.coordination !== RUN_COORDINATION || !needsRecovery(r)) return r
+    try { return await this.operation(() => this.get(runId), runId) }
+    catch (error) { if (error instanceof BusyError) return this.get(runId); throw error }
   }
 
   /** Run `fn` after every earlier operation on the same run in this process. */
@@ -958,7 +973,7 @@ export class Comparer {
             if (!r || this.live.has(runId)) return
             if (await this.recoverRecord(r)) touched.push(runId)
           })
-        })
+        }, 'recover')
       } catch (error) {
         if (error instanceof BusyError) continue
         if (acquired) throw error
@@ -1064,16 +1079,17 @@ export class Comparer {
     return pending
   }
 
-  private async ensureOwnership(runId: string, starting = false): Promise<void> {
+  private async ensureOwnership(runId: string, mode: 'start' | 'recover' | 'action' = 'action'): Promise<void> {
     if (!isRunId(runId)) throw new Error('invalid run identifier')
     let pending = this.owners.get(runId)
     if (!pending) {
       pending = (async () => {
         const lease = await this.store.acquireLock(`owner-${runId}`, { busyMessage: '另一个宿主正在管理这次比较；请回到原窗口操作，或等它关闭后重试' })
         try {
-          const r = starting ? undefined : await this.store.load(runId)
+          const r = mode === 'start' ? undefined : await this.store.load(runId)
           const reason = r && uncoordinatedReason(r)
           if (reason) throw new BusyError(reason)
+          if (mode === 'action' && r && await this.recoverRecord(r)) this.opts.onUpdate?.(r)
           return lease
         } catch (error) { lease.release(); throw error }
       })()
@@ -1084,9 +1100,9 @@ export class Comparer {
     await pending
   }
 
-  private async withOwnership<T>(runId: string, fn: () => Promise<T>): Promise<T> {
+  private async withOwnership<T>(runId: string, fn: () => Promise<T>, mode: 'recover' | 'action' = 'action'): Promise<T> {
     this.ownerUses.set(runId, (this.ownerUses.get(runId) ?? 0) + 1)
-    try { await this.ensureOwnership(runId); this.assertOpen(); return await fn() }
+    try { await this.ensureOwnership(runId, mode); this.assertOpen(); return await fn() }
     finally {
       const uses = (this.ownerUses.get(runId) ?? 1) - 1
       if (uses) this.ownerUses.set(runId, uses)
@@ -1158,10 +1174,14 @@ export class Comparer {
 }
 
 function uncoordinatedReason(r: RunRecord): string | undefined {
-  if (r.coordination !== RUN_COORDINATION && (r.state === 'running' || r.state === 'adopting' || r.candidates.some(c => !SETTLED.has(c.stage) || c.preview !== undefined))) {
+  if (r.coordination !== RUN_COORDINATION && needsRecovery(r)) {
     return '这条旧记录没有宿主归属凭据，当前仅可查看。请先关闭旧版本实例，保留记录与副本，再处理其未完成资源；当前版本不会推断旧任务已经退出。'
   }
   return undefined
+}
+
+function needsRecovery(r: RunRecord): boolean {
+  return r.state === 'running' || r.state === 'adopting' || r.candidates.some(c => !SETTLED.has(c.stage) || c.preview !== undefined)
 }
 
 class StageFailure extends Error {

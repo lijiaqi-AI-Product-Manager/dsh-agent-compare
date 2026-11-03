@@ -7,6 +7,7 @@ import { Comparer, type AgentRunner } from '../src/core/orchestrator.ts'
 import { RunStore, BusyError } from '../src/core/run-store.ts'
 import { RUN_COORDINATION } from '../src/core/types.ts'
 import { addOwnedWorktree, git, withRepositoryWrite } from '../src/core/git.ts'
+import { startVitePreview } from '../src/core/preview.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 import { fixtureRecord } from './record-fixture.ts'
 
@@ -15,6 +16,74 @@ function signal() { let resolve!: () => void; const promise = new Promise<void>(
 function peer(store: RunStore) { return new Comparer({ store: new RunStore(store.home), runner: idleRunner, version: 'test', prepareProjectProcess: prepareFixtureProcess, browserChecks: false }) }
 
 describe('live run ownership', () => {
+  it.each(['cancel', 'observe'] as const)('reconciles an already-open peer after owner exit through %s', async method => {
+    const store = new RunStore(await tmp('ac-owner-released')), record = fixtureRecord(), updates: string[] = []
+    record.state = 'running'; record.candidates.forEach(c => { c.stage = 'generating' })
+    await store.save(record)
+    const lease = await store.acquireLock(`owner-${record.runId}`)
+    const current = new Comparer({ store: new RunStore(store.home), runner: idleRunner, version: 'test', onUpdate: r => { updates.push(r.state) } })
+    try {
+      const bytes = await readFile(store.file(record.runId), 'utf8')
+      expect(await current.recover()).toEqual([])
+      expect((await current.observe(record.runId))?.state).toBe('running')
+      expect(await readFile(store.file(record.runId), 'utf8')).toBe(bytes)
+      lease.release()
+      const result = (await current[method](record.runId))!
+      expect(result.state).toBe('interrupted')
+      expect(result.candidates.map(c => c.stage)).toEqual(['interrupted', 'interrupted'])
+      expect(result.rev).toBe(record.rev + 1)
+      expect(updates).toEqual(['interrupted'])
+    } finally { lease.release(); await current.dispose() }
+  })
+
+  it('shows a journal interrupted after startup as recovery when opened', async () => {
+    const store = new RunStore(await tmp('ac-late-journal')), record = fixtureRecord()
+    record.state = 'adopting'; record.choice = { pick: 'A', at: 1 }
+    record.adoption = { label: 'A', mode: 'worktree', state: 'writing', startedAt: 1, preAdoptCommit: '4'.repeat(40), expectedTree: '5'.repeat(40), writtenPaths: [] }
+    await store.save(record)
+    const lease = await store.acquireLock(`owner-${record.runId}`), current = peer(store)
+    try {
+      expect(await current.recover()).toEqual([])
+      lease.release()
+      const result = await current.observe(record.runId)
+      expect(result?.state).toBe('recovery')
+      expect(result?.adoption?.state).toBe('needs-recovery')
+      expect((await store.load(record.runId))?.adoption?.preAdoptCommit).toBe(record.adoption.preAdoptCommit)
+    } finally { lease.release(); await current.dispose() }
+  })
+
+  it('coalesces observation and an action while ownership recovery is being saved', async () => {
+    const store = new RunStore(await tmp('ac-observe-race')), record = fixtureRecord(), entered = signal(), finish = signal()
+    record.state = 'running'; record.candidates.forEach(c => { c.stage = 'generating' })
+    await store.save(record)
+    const current = peer(store), original = current.store.save.bind(current.store)
+    const save = vi.spyOn(current.store, 'save').mockImplementation(async r => { entered.resolve(); await finish.promise; await original(r) })
+    const first = current.observe(record.runId); void first.catch(() => {})
+    try {
+      await entered.promise
+      const second = current.observe(record.runId), stop = current.cancel(record.runId)
+      finish.resolve()
+      const results = await Promise.all([first, second, stop])
+      expect(results.map(r => r?.state)).toEqual(['interrupted', 'interrupted', 'interrupted'])
+      expect(results.map(r => r?.rev)).toEqual([record.rev + 1, record.rev + 1, record.rev + 1])
+      expect(save).toHaveBeenCalledTimes(1)
+    } finally { finish.resolve(); save.mockRestore(); await current.dispose() }
+  })
+
+  it('stops a provably owned orphan preview when its record is opened', async () => {
+    const store = new RunStore(await tmp('ac-late-preview')), repo = await fixtureRepo(), record = fixtureRecord()
+    const preview = await startVitePreview(repo, { kind: 'dev', timeoutMs: 120000, prepareProjectProcess: prepareFixtureProcess })
+    record.candidates[0]!.preview = { url: preview.url, port: preview.port, pid: preview.pid, kind: 'dev', cwd: repo }
+    await store.save(record)
+    const current = peer(store)
+    try {
+      const result = await current.observe(record.runId)
+      expect(result?.candidates[0]?.preview).toBeUndefined()
+      await expect(fetch(preview.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+    } finally { await preview.stop(); await current.dispose() }
+  }, 180000)
+
   it('retains a record with a damaged guard while recovering unrelated work', async () => {
     const store = new RunStore(await tmp('ac-bad-owner-guard')), bad = fixtureRecord(), good = fixtureRecord('11111111')
     for (const record of [bad, good]) { record.state = 'running'; record.candidates.forEach(c => { c.stage = 'generating' }); await store.save(record) }
@@ -153,6 +222,7 @@ describe('live run ownership', () => {
     try {
       expect(await other.recover()).toEqual([])
       expect(await other.control(record)).toMatchObject({ allowed: false, reason: expect.stringContaining('旧记录') })
+      expect((await other.observe(record.runId))?.state).toBe('running')
       await expect(other.cancel(record.runId)).rejects.toBeInstanceOf(BusyError)
       expect(await readFile(store.file(record.runId), 'utf8')).toBe(bytes)
     } finally { await other.dispose() }

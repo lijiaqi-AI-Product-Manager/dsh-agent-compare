@@ -238,6 +238,33 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'continuing the conversation must close expanded inspection')
   check(await page.locator('#draft').evaluate(el => document.activeElement === el), 'continuing must focus the original composer')
 
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await open('judging')
+  let beforeGet = (await requests('get')).length
+  await page.evaluate(() => { window.__getPlans.push({ value: window.__runSnapshot(), delayMs: 1200 }) })
+  await page.waitForFunction(count => window.__requests.filter(request => request.method === 'get').length > count, beforeGet)
+  await page.getByRole('button', { name: '选 A', exact: true }).click()
+  await page.getByRole('button', { name: '审查并采用 A', exact: true }).waitFor()
+  await page.waitForTimeout(1400)
+  check(await page.getByRole('button', { name: '审查并采用 A', exact: true }).isVisible(), 'a delayed pre-choice read must not replace the selected result even when the transport ignores abort')
+  check(await page.getByRole('button', { name: '选 A', exact: true }).count() === 0, 'an obsolete read must not restore choice controls')
+  beforeGet = (await requests('get')).length
+  await page.evaluate(() => { const old = window.__runSnapshot(); old.rev = 0; old.state = 'judging'; delete old.choice; window.__getPlans.push({ value: old }) })
+  await page.waitForFunction(count => window.__requests.filter(request => request.method === 'get').length > count, beforeGet)
+  await page.waitForTimeout(150)
+  check(await page.getByRole('button', { name: '审查并采用 A', exact: true }).isVisible(), 'a later request containing an older revision must not regress the result')
+  beforeGet = (await requests('get')).length
+  await page.evaluate(() => { const wrong = window.__runSnapshot(); wrong.runId = 'e1e1e1e1'; wrong.rev = 999; window.__getPlans.push({ value: wrong }) })
+  await page.waitForFunction(count => window.__requests.filter(request => request.method === 'get').length > count, beforeGet)
+  await page.getByRole('alert').filter({ hasText: '收到的记录与当前比较不一致' }).waitFor()
+  check(await page.getByRole('button', { name: '审查并采用 A', exact: true }).isVisible(), 'an identity mismatch must retain the last valid result and explain the failure')
+  await open('judging', '&error=choose')
+  beforeGet = (await requests('get')).length
+  await page.getByRole('button', { name: '选 A', exact: true }).click()
+  await page.getByRole('alert').filter({ hasText: '请求失败，请重试' }).waitFor()
+  await page.waitForFunction(count => window.__requests.filter(request => request.method === 'get').length > count, beforeGet)
+  check(await page.getByRole('alert').filter({ hasText: '请求失败，请重试' }).isVisible(), 'successful background reads must not erase a failed management action')
+
   for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport)
     for (const state of ['start', 'running', 'judging', 'failed', 'blocked', 'recovery']) {

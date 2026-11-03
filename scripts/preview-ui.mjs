@@ -23,7 +23,7 @@ const checks = (ok) => [
   { name: 'browser', outcome: ok ? 'passed' : 'failed', durationMs: 6400, steps: steps(!ok), ...(ok ? {} : { reason: '验收步骤未通过：点「清空」（找不到按钮）' }) },
 ]
 const acceptance = { source: 'repository', checks: ['typecheck', 'build', 'browser'], steps: 12, frozenInstall: true, sha256: 'abc' }
-const base = { runId: '0a1b2c3d', task: '给商品列表加上搜索框和分类筛选，手机上也要好用。要求：搜索不区分大小写；分类可与搜索组合；有「清空」按钮；390px 手机可用。', mode: 'same-model', isolation: 'own-root', createdAt: now - 95000, baseline: { dirty: true, repoRoot: 'D:\\Projects\\demo-shop' }, acceptance }
+const base = { runId: '0a1b2c3d', rev: 1, task: '给商品列表加上搜索框和分类筛选，手机上也要好用。要求：搜索不区分大小写；分类可与搜索组合；有「清空」按钮；390px 手机可用。', mode: 'same-model', isolation: 'own-root', createdAt: now - 95000, baseline: { dirty: true, repoRoot: 'D:\\Projects\\demo-shop' }, acceptance }
 const reported = { kind: 'reported', totalTokens: 48210 }
 const A = { label: 'A', stage: 'ready', execution: { enforcement: 'full' }, previewUrl: 'http://127.0.0.1:4318/a', previewKind: 'build', checks: checks(true), verdict: { eligible: true, reasons: [], warnings: [] }, patchStats: { files: 2, insertions: 48, deletions: 9, binary: 0 }, timings: done, usage: reported, hasScreenshot: false }
 const B = { label: 'B', stage: 'ready', execution: { enforcement: 'partial' }, previewUrl: 'http://127.0.0.1:4318/b', previewKind: 'build', checks: checks(false), verdict: { eligible: false, reasons: ['页面验收未通过'], warnings: ['改动了依赖（已按锁文件安装）'] }, patchStats: { files: 3, insertions: 121, deletions: 4, binary: 0 }, timings: done, usage: { kind: 'reported', totalTokens: 71533 }, hasScreenshot: false }
@@ -79,6 +79,7 @@ const history = ${JSON.stringify(retainedHistory(state))}, legacy = ${JSON.strin
 const templateRun = ${JSON.stringify({ ...base, state: 'judging', candidates: [A, B] })};
 const models = [{ provider:'deepseek', providerName:'DeepSeek', id:'deepseek-chat', name:'DeepSeek V3' }, { provider:'deepseek', providerName:'DeepSeek', id:'deepseek-reasoner', name:'DeepSeek R1' }];
 window.__requests = []; window.__commands = []; window.__edits = []; window.__commandAcks = [];
+window.__getPlans = []; window.__runSnapshot = () => structuredClone(runs[0]);
 const realFetch = window.fetch;
 function listHistory(body) {
   const scope = body.scope ?? (body.sessionId ? 'session' : 'all');
@@ -103,10 +104,14 @@ window.fetch = async (url, init) => {
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true}
     : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false} : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
   const selected = runs.findIndex(r=>r.runId===body.runId);
-  if (m[1] === 'choose' && selected >= 0) { runs[selected] = {...runs[selected],state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
-  if (m[1] === 'adopt' && selected >= 0) { runs[selected] = {...runs[selected],state:'adopted',adoption:{state:'adopted',mode:body.mode,message:'已采用'}}; value=runs[selected]; }
+  if (m[1] === 'choose' && selected >= 0) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
+  if (m[1] === 'adopt' && selected >= 0) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'adopted',adoption:{state:'adopted',mode:body.mode,message:'已采用'}}; value=runs[selected]; }
   if (m[1] === 'cleanup' && selected >= 0) { runs[selected] = {...runs[selected],leftovers:undefined}; value=runs[selected]; }
-  return new Response(JSON.stringify({ok:true,value}),{headers:{'content-type':'application/json'}});
+  // Delayed snapshots intentionally ignore abort, exercising the client's own guards.
+  const plan=m[1]==='get'?window.__getPlans.shift():undefined;
+  const snapshot=JSON.stringify({ok:true,value:plan?.value??value});
+  if(plan?.delayMs)await new Promise(resolve=>setTimeout(resolve,plan.delayMs));
+  return new Response(snapshot,{headers:{'content-type':'application/json'}});
 };
 window.__ModuleLoader__ = {load:({factory})=>{
   const mod=factory(id=>{if(id==='react')return React;throw new Error('unexpected require '+id)}), regs={};

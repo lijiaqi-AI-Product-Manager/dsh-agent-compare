@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent-compare",
-  "version": "0.2.0-alpha.11",
+  "version": "0.2.0-alpha.12",
   "description": "Same task, two live builds, pick blind. A DeepSeek Harness plugin that runs two isolated implementations of one front-end task, starts both apps, applies the same checks, lets you choose blind, then adopts the winner safely. · 同一需求，两版真跑，盲选再揭晓。",
   "type": "module",
   "packageManager": "npm@12.2.1",

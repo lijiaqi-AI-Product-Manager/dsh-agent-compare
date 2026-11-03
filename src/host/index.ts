@@ -29,6 +29,7 @@ import { historyPage, HistoryQueryError } from './history.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, type ProjectSandbox } from './project-process.ts'
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
+import { readComparisonStatus } from './status.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -48,7 +49,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.11'
+const VERSION = '0.2.0-alpha.12'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -301,7 +302,7 @@ class SubagentRunner implements AgentRunner {
   }
 }
 
-function brief(r: RunRecord): unknown {
+function brief(r: RunRecord): Record<string, unknown> {
   const v = publicView(r)
   return {
     runId: v.runId,
@@ -433,14 +434,12 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
 
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'agent_compare_status',
-    description: 'Report the state of an AgentCompare run (or the latest one for this conversation): candidate stages, checks, adoption eligibility, the user\'s choice and adoption result. Strategy names appear only after the user chose.',
+    description: 'Report the state of an AgentCompare run (or the latest one for this main conversation): candidate stages, checks, adoption eligibility, the user\'s choice and adoption result. Reconcile interruption and owned previews when a previous host has exited. Strategy names appear only after the user chose.',
     parameters: { run_id: { type: 'string', description: 'Run id; omit for the latest run of this conversation.' } },
     output: { schema: { type: 'json' }, render: (_a: unknown, v: unknown) => [{ type: 'text', text: JSON.stringify(v, null, 2) }] },
     async execute(args: { run_id?: string }, exec: ToolExec) {
-      const r = args.run_id !== undefined
-        ? await comparer.get(args.run_id)
-        : (await store.list()).find((x) => x.sessionId === exec.agent?.session.id)
-      return r === undefined ? { error: 'no such run' } : brief(r)
+      const status = await readComparisonStatus(comparer, exec.agent, args.run_id, exec.signal)
+      return 'error' in status ? status : { ...brief(status.record), control: status.control }
     },
   })), 'agent-compare: agent_compare_status tool')
 
@@ -496,7 +495,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   const resolveConversation = conversationResolver({ attached: () => agents?.list() ?? [], controller: () => ctx.get('sessionController') as SessionController<AgentLike> | undefined, guard })
   const agentFor = (b: Record<string, unknown>, signal: AbortSignal): Promise<AgentLike> => resolveConversation(b.sessionId, signal)
   const view = async (runId: string): Promise<unknown> => {
-    const r = await comparer.get(runId)
+    const r = await comparer.observe(runId)
     if (r === undefined) throw new HttpError(404, 'unknown run')
     return present(r)
   }
