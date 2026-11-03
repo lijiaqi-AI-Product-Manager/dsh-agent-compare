@@ -1,33 +1,43 @@
 # AgentCompare
 
 [![Source version](https://img.shields.io/github/package-json/v/lijiaqi-AI-Product-Manager/dsh-agent-compare?label=source&color=0f766e&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
-[![npm: not published](https://img.shields.io/badge/npm-not%20published-64748b?style=flat&labelColor=334155&logo=npm&logoColor=white)](#설치)
+[![npm version](https://img.shields.io/npm/v/dsh-agent-compare?label=npm&color=0f766e&style=flat&labelColor=334155&logo=npm&logoColor=white)](https://www.npmjs.com/package/dsh-agent-compare)
 [![CI](https://img.shields.io/github/actions/workflow/status/lijiaqi-AI-Product-Manager/dsh-agent-compare/ci.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)
 [![Node.js ^22.22.2 || ^24.15.0 || >=26.0.0](https://img.shields.io/badge/Node.js-22%20%2F%2024%20%2F%2026%2B-238636?style=flat&labelColor=334155&logo=nodedotjs&logoColor=white)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
-[![Tested on DSH 0.2.1-rc.5](https://img.shields.io/badge/DSH%20tested-0.2.1--rc.5-2563eb?style=flat&labelColor=334155)](docs/demo.md)
-[![License: MIT](https://img.shields.io/badge/license-MIT-2563eb?style=flat&labelColor=334155)](LICENSE)
+[![Tested on DSH 0.2.1-rc.5](https://img.shields.io/badge/DSH%20tested-0.2.1--rc.5-2563eb?style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2563eb?style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/LICENSE)
 
-[中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어** · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
+[中文](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.md) · [English](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md) · [日本語](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.ja.md) · **한국어** · [Español](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.es.md) · [Português (Brasil)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.pt-BR.md) · [Français](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.fr.md) · [Deutsch](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.de.md)
 
 **하나의 요구, 실제로 실행되는 두 구현. 먼저 사용하고 선택한 뒤 전략을 확인하세요.**
 
-> **0.2.0-alpha.17이며 npm에는 아직 게시되지 않았습니다.** 아래는 소스 설치 방법입니다. 현재 대상은 Git 저장소 루트의 로컬 Vite 프런트엔드입니다.
+> **0.2.0-alpha.17 · 미리보기 버전.** Git 저장소 루트의 로컬 Vite 프런트엔드를 대상으로 하며 현재 DSH 모델을 재사용합니다.
 
 AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH) 플러그인입니다. 같은 프런트엔드 작업을 독립된 두 사본에서 구현하고, 의존성 설치·빌드·공통 검증을 실제로 실행합니다. 두 페이지를 직접 사용한 뒤 A, B 또는 둘 다 선택하지 않음을 결정합니다. 적용 전에는 현재 프로젝트와 합친 결과를 임시 사본에서 검증합니다.
 
 ## 전체 흐름 보기
 
-[![두 앱을 사용하고 확인한 뒤 적용하는 고정 후보 예시](docs/media/comparison-preview.gif)](docs/media/comparison-workflow.mp4)
+[![두 앱을 사용하고 확인한 뒤 적용하는 고정 후보 예시](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
 고정 후보를 사용한 중국어 화면 예시입니다. 앱 실행·공통 검증·적용은 실제로 수행했으며 대기 구간은 편집하고 로컬 경로는 가렸습니다.
 
-[전체 영상(28초)](docs/media/comparison-workflow.mp4) · [조건과 결과](docs/demo.md)
+[전체 영상(28초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 ## 설치
 
 아래 명령은 직접 실행하는 DSH Web 프로필용입니다. 데스크톱의 `desktop` 프로필은 앱이 관리하므로 앱의 플러그인 페이지를 사용하세요.
 
 개발 기준은 Node 26.13.0, npm 12.2.1입니다. 공식 최신 DSH 패키지 0.2.1-rc.5로 검증합니다. 이미 사용하는 DSH 프로필을 확인하세요.
+
+npm 미리보기 버전을 기본 Web 프로필에 추가합니다. 공개 상태는 위의 npm 배지에서 확인하세요.
+
+```bash
+dsh plugin --profile web add dsh-agent-compare
+```
+
+다른 자체 관리 프로필을 쓰면 `web`을 실제 이름으로 바꾸세요.
+
+소스에서 빌드하여 설치할 수도 있습니다.
 
 ```bash
 git clone https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare.git
@@ -67,7 +77,7 @@ Git 커밋이 적어도 하나 필요합니다. 무시된 파일을 제외한 �
 
 기준점의 `typecheck`, `lint`, `test`, `build`와 설정한 페이지 검증을 양쪽에 적용합니다. 잠금 파일이 있으면 고정 설치를 수행하고 실패했다고 느슨한 설치로 재시도하지 않습니다. 후보가 검증 스크립트나 설정을 바꿔 통과한 결과는 직접 적용의 근거가 되지 않습니다.
 
-저장소 루트의 [`.agent-compare.json` 예제](examples/vite-react-demo/.agent-compare.json)로 입력·클릭·개수·문자열·화면 크기 검사를 추가할 수 있습니다. 정의는 생성 전에 검증하고 기준점에 묶습니다. 명시적 페이지 인수 검사가 실행되지 않으면 직접 적용할 수 없습니다. 기본 페이지 로드 검사만 실행하지 못한 경우에는 미검증 경고를 표시합니다. HTTP 응답, 빌드 통과, 기능 충족, 사용자의 선호는 각각 다른 사실입니다.
+저장소 루트의 [`.agent-compare.json` 예제](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/examples/vite-react-demo/.agent-compare.json)로 입력·클릭·개수·문자열·화면 크기 검사를 추가할 수 있습니다. 정의는 생성 전에 검증하고 기준점에 묶습니다. 명시적 페이지 인수 검사가 실행되지 않으면 직접 적용할 수 없습니다. 기본 페이지 로드 검사만 실행하지 못한 경우에는 미검증 경고를 표시합니다. HTTP 응답, 빌드 통과, 기능 충족, 사용자의 선호는 각각 다른 사실입니다.
 
 ## 적용·취소·복구
 
@@ -87,7 +97,7 @@ Git 커밋이 적어도 하나 필요합니다. 무시된 파일을 제외한 �
 
 worktree는 완전한 보안 샌드박스가 아닙니다. DSH의 파일 쓰기 경계를 사용하며 Windows에서는 **partial**로 보고합니다. 파일 읽기와 네트워크는 격리하지 않습니다. 포함된 페이지의 Cookie는 브라우저 정책을 따르고 외부 탭에서는 저장소 맥락이 달라질 수 있습니다. 로그인, 외부 백엔드, 공유 데이터베이스는 현재 범위 밖입니다.
 
-npm 설치와 검증은 실행했습니다. pnpm/yarn의 전체 경로와 macOS는 아직 확인하지 않았습니다. 최신 호스트에서 외부 모델로 적용 후 대화를 이어가는 전체 흐름, 모델 제공자 조합, 실제 시간과 비용은 추가 검증이 필요합니다. [영문 호환 범위](README.en.md#compatibility)에 구체적인 환경을 구분해 둡니다.
+npm 설치와 검증은 실행했습니다. pnpm/yarn의 전체 경로와 macOS는 아직 확인하지 않았습니다. 최신 호스트에서 외부 모델로 적용 후 대화를 이어가는 전체 흐름, 모델 제공자 조합, 실제 시간과 비용은 추가 검증이 필요합니다. [영문 호환 범위](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility)에 구체적인 환경을 구분해 둡니다.
 
 ## 비용과 확인된 근거
 
@@ -97,7 +107,7 @@ npm 설치와 검증은 실행했습니다. pnpm/yarn의 전체 경로와 macOS�
 
 ## 기여와 라이선스
 
-[Issue](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues)에는 버전, OS, 재현 단계, 기대와 실제 결과를 적어 주세요. 자격 증명·비공개 코드·전체 로컬 경로는 공개하지 마세요. [기여 안내](CONTRIBUTING.md)와 [변경 기록](CHANGELOG.md)을 참고할 수 있습니다.
+[Issue](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues)에는 버전, OS, 재현 단계, 기대와 실제 결과를 적어 주세요. 자격 증명·비공개 코드·전체 로컬 경로는 공개하지 마세요. [기여 안내](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CONTRIBUTING.md)와 [변경 기록](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md)을 참고할 수 있습니다.
 
 ```bash
 npm ci
@@ -106,4 +116,4 @@ npm test
 npm run test:ui
 ```
 
-[MIT](LICENSE). 유용한 결과를 얻었다면 Star나 재현 가능한 사례로 도울 수 있습니다. 공유와 Star는 선택 사항입니다.
+[MIT](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/LICENSE). 유용한 결과를 얻었다면 Star나 재현 가능한 사례로 도울 수 있습니다. 공유와 Star는 선택 사항입니다.

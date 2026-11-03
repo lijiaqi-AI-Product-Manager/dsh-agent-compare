@@ -1,33 +1,43 @@
 # AgentCompare
 
 [![Source version](https://img.shields.io/github/package-json/v/lijiaqi-AI-Product-Manager/dsh-agent-compare?label=source&color=0f766e&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
-[![npm: not published](https://img.shields.io/badge/npm-not%20published-64748b?style=flat&labelColor=334155&logo=npm&logoColor=white)](#instalação)
+[![npm version](https://img.shields.io/npm/v/dsh-agent-compare?label=npm&color=0f766e&style=flat&labelColor=334155&logo=npm&logoColor=white)](https://www.npmjs.com/package/dsh-agent-compare)
 [![CI](https://img.shields.io/github/actions/workflow/status/lijiaqi-AI-Product-Manager/dsh-agent-compare/ci.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)
 [![Node.js ^22.22.2 || ^24.15.0 || >=26.0.0](https://img.shields.io/badge/Node.js-22%20%2F%2024%20%2F%2026%2B-238636?style=flat&labelColor=334155&logo=nodedotjs&logoColor=white)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
-[![Tested on DSH 0.2.1-rc.5](https://img.shields.io/badge/DSH%20tested-0.2.1--rc.5-2563eb?style=flat&labelColor=334155)](docs/demo.md)
-[![License: MIT](https://img.shields.io/badge/license-MIT-2563eb?style=flat&labelColor=334155)](LICENSE)
+[![Tested on DSH 0.2.1-rc.5](https://img.shields.io/badge/DSH%20tested-0.2.1--rc.5-2563eb?style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2563eb?style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/LICENSE)
 
-[中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · **Português (Brasil)** · [Français](README.fr.md) · [Deutsch](README.de.md)
+[中文](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.md) · [English](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md) · [日本語](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.ja.md) · [한국어](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.ko.md) · [Español](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.es.md) · **Português (Brasil)** · [Français](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.fr.md) · [Deutsch](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.de.md)
 
 **Uma tarefa. Duas implementações em execução. Experimente, escolha e descubra a estratégia.**
 
-> **0.2.0-alpha.17, ainda não publicado no npm.** A instalação disponível é a partir do código-fonte. O escopo inicial são projetos Vite locais na raiz de um repositório Git.
+> **0.2.0-alpha.17 · Prévia.** Projetos Vite locais na raiz de um repositório Git. Reutiliza o modelo atual do DSH.
 
 AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Dois agentes trabalham em cópias independentes da mesma tarefa de interface. O plugin instala dependências, compila, serve as duas aplicações e executa critérios comuns de verificação. Você testa as páginas antes de escolher A, B ou nenhuma. Antes de aplicar uma versão, ele verifica a combinação com o estado atual do seu projeto.
 
 ## Veja o fluxo completo
 
-[![Exemplo com candidatos fixos: experimentar, verificar, escolher e aplicar](docs/media/comparison-preview.gif)](docs/media/comparison-workflow.mp4)
+[![Exemplo com candidatos fixos: experimentar, verificar, escolher e aplicar](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
 Exemplo com candidatos fixos e interface em chinês. A execução dos aplicativos, as verificações comuns e a aplicação das alterações são reais; as esperas foram cortadas e os caminhos locais ocultados.
 
-[Vídeo completo (28 segundos)](docs/media/comparison-workflow.mp4) · [Condições e resultados](docs/demo.md)
+[Vídeo completo (28 segundos)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Condições e resultados](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 ## Instalação
 
 Os comandos abaixo são para um perfil DSH Web gerenciado pelo usuário. O perfil `desktop` é gerenciado pelo aplicativo de desktop; use a página de plugins do aplicativo.
 
 A referência de desenvolvimento é Node 26.13.0 com npm 12.2.1. As verificações atuais usam o pacote oficial DSH 0.2.1-rc.5. Identifique o perfil que você já utiliza no DSH.
+
+Instale a prévia do npm no perfil Web padrão. O selo do npm indica o estado de publicação:
+
+```bash
+dsh plugin --profile web add dsh-agent-compare
+```
+
+Para outro perfil gerenciado por você, substitua `web` pelo nome real.
+
+Também é possível compilar e instalar a partir do código-fonte:
 
 ```bash
 git clone https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare.git
@@ -67,7 +77,7 @@ O repositório precisa ter pelo menos um commit. Um index privado registra alter
 
 As verificações vêm da base: `typecheck`, `lint`, `test`, `build` e a verificação de página configurada. Havendo lockfile, a instalação é congelada; uma falha não provoca nova tentativa sem congelamento. Alterar testes ou configurações para fazer uma versão passar não é uma aprovação válida para aplicação direta.
 
-Um [`.agent-compare.json` na raiz](examples/vite-react-demo/.agent-compare.json) permite definir ações e expectativas comuns: preencher, clicar, conferir texto, visibilidade, quantidade e tamanho da tela. A definição é validada antes da geração. Se uma aceitação explícita de página não rodar, a aplicação direta é bloqueada. Se apenas a checagem básica de carregamento não puder rodar, isso aparece como aviso. Resposta HTTP, compilação, funcionamento e preferência pessoal são resultados diferentes.
+Um [`.agent-compare.json` na raiz](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/examples/vite-react-demo/.agent-compare.json) permite definir ações e expectativas comuns: preencher, clicar, conferir texto, visibilidade, quantidade e tamanho da tela. A definição é validada antes da geração. Se uma aceitação explícita de página não rodar, a aplicação direta é bloqueada. Se apenas a checagem básica de carregamento não puder rodar, isso aparece como aviso. Resposta HTTP, compilação, funcionamento e preferência pessoal são resultados diferentes.
 
 ## Aplicação, desfazer e recuperar
 
@@ -87,7 +97,7 @@ Registros antigos ou danificados permanecem somente para leitura, com explicaç�
 
 Um worktree não é uma barreira completa de segurança. O plugin usa a política de escrita do DSH; no Windows, a proteção é informada como **partial**. Leituras de arquivos e rede não são isoladas. Cookies em páginas incorporadas seguem a política do navegador, e uma aba externa pode ter outro contexto de armazenamento. Login, backends externos e bancos de dados compartilhados ficam fora do escopo atual.
 
-A instalação e a verificação com npm foram executadas. macOS e o fluxo completo com pnpm/yarn ainda não foram verificados. Combinações de provedores com dois modelos e medições atuais de desempenho com um modelo externo também precisam de validação. Veja a [matriz detalhada](README.en.md#compatibility).
+A instalação e a verificação com npm foram executadas. macOS e o fluxo completo com pnpm/yarn ainda não foram verificados. Combinações de provedores com dois modelos e medições atuais de desempenho com um modelo externo também precisam de validação. Veja a [matriz detalhada](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
 
 ## Tempo, custo e evidências
 
@@ -97,7 +107,7 @@ A [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/w
 
 ## Contribuição e licença
 
-Ao abrir uma [Issue](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues), informe versões, sistema, passos e resultados esperados e observados. Não publique credenciais, código privado ou caminhos locais completos. Consulte [CONTRIBUTING.md](CONTRIBUTING.md) e [CHANGELOG.md](CHANGELOG.md).
+Ao abrir uma [Issue](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues), informe versões, sistema, passos e resultados esperados e observados. Não publique credenciais, código privado ou caminhos locais completos. Consulte [CONTRIBUTING.md](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CONTRIBUTING.md) e [CHANGELOG.md](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md).
 
 ```bash
 npm ci
@@ -106,4 +116,4 @@ npm test
 npm run test:ui
 ```
 
-Licença [MIT](LICENSE). Se o resultado for útil, você pode apoiar com uma Star ou um caso reproduzível. Compartilhar e dar Star são decisões opcionais.
+Licença [MIT](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/LICENSE). Se o resultado for útil, você pode apoiar com uma Star ou um caso reproduzível. Compartilhar e dar Star são decisões opcionais.

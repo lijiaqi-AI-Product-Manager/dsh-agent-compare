@@ -5,6 +5,10 @@
   "type": "module",
   "packageManager": "npm@12.2.1",
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "main": "lib/host/index.js",
   "types": "lib/host/index.d.ts",
   "exports": {
