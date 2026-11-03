@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { run, runOk } from './proc.ts'
 import { RunStore } from './run-store.ts'
+import { withGitObjectWriteRetry } from './git-object-write.ts'
 
 /** Largest patch accepted for one candidate. Bigger changes are refused, never truncated. */
 export const MAX_PATCH_CHARS = 32 * 1024 * 1024
@@ -66,8 +67,8 @@ export async function snapshotTree(repo: string, scratchDir: string, extraExclud
     if (existsSync(realIndex)) await copyFile(realIndex, tmpIndex)
     else if (await headCommit(repo)) await git(repo, ['read-tree', 'HEAD'], env)
     const pathspec = ['--', '.', ...extraExcludes]
-    await git(repo, ['add', '-A', ...pathspec], env)
-    return (await git(repo, ['write-tree'], env)).trim()
+    await withGitObjectWriteRetry(() => git(repo, ['add', '-A', ...pathspec], env))
+    return (await withGitObjectWriteRetry(() => git(repo, ['write-tree'], env))).trim()
   } finally {
     await rm(allocation, { recursive: true, force: true })
   }
@@ -149,8 +150,8 @@ export async function ownedGit(dir: string, copy: OwnedCopy, args: readonly stri
 }
 
 export async function ownedCopyTree(dir: string, copy: OwnedCopy): Promise<string> {
-  await ownedGit(dir, copy, ['add', '-A', '--', '.', ...ALWAYS_EXCLUDED])
-  return (await ownedGit(dir, copy, ['write-tree'])).trim()
+  await withGitObjectWriteRetry(() => ownedGit(dir, copy, ['add', '-A', '--', '.', ...ALWAYS_EXCLUDED]))
+  return (await withGitObjectWriteRetry(() => ownedGit(dir, copy, ['write-tree']))).trim()
 }
 
 /**
@@ -260,7 +261,7 @@ export async function overlayTree(repo: string, scratchDir: string, baseTree: st
     }
     for (const n of nameStatus) if (n.status === 'D') lines.push(`0 ${'0'.repeat(40)}\t${n.path}`)
     if (lines.length > 0) await git(repo, ['update-index', '-z', '--index-info'], env, lines.join('\0') + '\0')
-    return (await git(repo, ['write-tree'], env)).trim()
+    return (await withGitObjectWriteRetry(() => git(repo, ['write-tree'], env))).trim()
   } finally {
     if (path.dirname(allocation) !== scratch) throw new Error('Private index escaped its scratch directory')
     await rm(allocation, { recursive: true, force: true })
