@@ -16,7 +16,7 @@ AgentCompare es un complemento de [DeepSeek Harness](https://github.com/deepseek
 
 Ejemplo con candidatos fijos e interfaz en chino. Las aplicaciones, las comprobaciones comunes y la aplicación de cambios son reales; se recortan las esperas y se ocultan las rutas locales.
 
-[Vídeo completo (29 segundos)](docs/media/comparison-workflow.mp4) · [Condiciones y resultados](docs/demo.md)
+[Vídeo completo (28 segundos)](docs/media/comparison-workflow.mp4) · [Condiciones y resultados](docs/demo.md)
 
 ## Instalación
 

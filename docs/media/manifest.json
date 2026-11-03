@@ -1,16 +1,16 @@
 {
   "schema": "agentcompare.demo/v1",
   "source": {
-    "version": "0.2.0-alpha.16",
-    "commit": "c11e3ff7bc4e91bfec48f0906e216bb23bbb0b86",
+    "version": "0.2.0-alpha.17",
+    "commit": "9d036c5d53377c9da2878e226580a3caba0d9baa",
     "host": "0.2.1-rc.5",
     "node": "26.13.0",
     "browser": "Chromium 156.0.8078.4"
   },
   "method": "Fixed candidates, real application execution and adoption. No external model request.",
   "editing": {
-    "rawSeconds": 120.56,
-    "workflowSeconds": 29.44,
+    "rawSeconds": 117.6,
+    "workflowSeconds": 28.16,
     "previewSeconds": 12.6,
     "waitingPeriodsCut": true,
     "localPathsHidden": true
@@ -36,18 +36,18 @@
   "files": [
     {
       "path": "comparison-workflow.mp4",
-      "bytes": 836957,
-      "sha256": "ae5c00066c76a91f1525822572e850e148bc6e981d08af621b35dc347c605632"
+      "bytes": 832484,
+      "sha256": "8084eb127dc286e84179018543864daef69b529c032c05f927a46a72412d131a"
     },
     {
       "path": "comparison-preview.gif",
-      "bytes": 696649,
-      "sha256": "28429d099b9e01adb474ee7a50e884b5c7de1e752286ba62075e7fe27ff7d08b"
+      "bytes": 724525,
+      "sha256": "49f1aa70d43b139000d08b045affeae4d662021f882a4f8f9b876778f59e5567"
     },
     {
       "path": "social-preview.png",
-      "bytes": 140719,
-      "sha256": "bef800cb2250f4410abf7283ca97f2d610ac1c1f15c3563962851285550ea201"
+      "bytes": 134997,
+      "sha256": "6747b64ebd3b45075b0de3ffb1d615e68e0a51d1db3ec019c1ead00b42497dd7"
     }
   ]
 }

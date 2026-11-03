@@ -16,7 +16,7 @@ AgentCompare ist ein Plugin für [DeepSeek Harness](https://github.com/deepseek-
 
 Beispiel mit festen Kandidaten und chinesischer Oberfläche. Anwendungen, gemeinsame Prüfungen und Übernahme werden tatsächlich ausgeführt; Wartezeiten sind gekürzt und lokale Pfade ausgeblendet.
 
-[Vollständiges Video (29 Sekunden)](docs/media/comparison-workflow.mp4) · [Bedingungen und Ergebnisse](docs/demo.md)
+[Vollständiges Video (28 Sekunden)](docs/media/comparison-workflow.mp4) · [Bedingungen und Ergebnisse](docs/demo.md)
 
 ## Installation
 

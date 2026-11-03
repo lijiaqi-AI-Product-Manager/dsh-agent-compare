@@ -16,7 +16,7 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 고정 후보를 사용한 중국어 화면 예시입니다. 앱 실행·공통 검증·적용은 실제로 수행했으며 대기 구간은 편집하고 로컬 경로는 가렸습니다.
 
-[전체 영상(29초)](docs/media/comparison-workflow.mp4) · [조건과 결과](docs/demo.md)
+[전체 영상(28초)](docs/media/comparison-workflow.mp4) · [조건과 결과](docs/demo.md)
 
 ## 설치
 

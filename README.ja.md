@@ -16,7 +16,7 @@ AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 固定した候補によるフロー例です。画面は中国語。アプリの実行、共通チェック、採用は実際に行い、待機部分を編集しています。ローカルパスは非表示です。
 
-[動画全編（29秒）](docs/media/comparison-workflow.mp4) · [条件と結果](docs/demo.md)
+[動画全編（28秒）](docs/media/comparison-workflow.mp4) · [条件と結果](docs/demo.md)
 
 ## インストール
 

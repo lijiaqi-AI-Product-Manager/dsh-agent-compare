@@ -16,7 +16,7 @@ AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-har
 
 Fixed-candidate sample with a Chinese interface. Application execution, shared checks and adoption are real; waiting periods are cut and local paths are hidden.
 
-[Full video (29 seconds)](docs/media/comparison-workflow.mp4) · [Method and results](docs/demo.md)
+[Full video (28 seconds)](docs/media/comparison-workflow.mp4) · [Method and results](docs/demo.md)
 
 ## Install
 
