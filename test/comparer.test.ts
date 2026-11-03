@@ -11,7 +11,7 @@ import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions 
 import { RunStore, StaleRecordError } from '../src/core/run-store.ts'
 import { git, registeredWorktrees, withRepositoryWrite } from '../src/core/git.ts'
 import { fetchPreview } from '../src/core/preview-url.ts'
-import { ownsProcess } from '../src/core/proc.ts'
+import { commandHasMarkers, observeProcess, ownsProcess, type ProcessObservation } from '../src/core/proc.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 
 type Edit = (dir: string, req: AgentRunRequest) => Promise<void>
@@ -302,27 +302,45 @@ describe.concurrent('adoption', () => {
     await comparer.dispose()
     const prepare = vi.fn(prepareFixtureProcess)
     const after = new Comparer({ prepareProjectProcess: prepare, store, runner: scripted({}), version: 'test', browserChecks: false, previewTimeoutMs: 120_000 })
-    await after.recover()
-    const recovered = (await store.load(runId))!
-    expect(recovered.candidates[0]!.preview).toBeUndefined()
-    expect(await ownsProcess(previous.pid, [path.join(previous.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${previous.port}`])).toBe(false)
-    await expect(fetchPreview(previous.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
-    const reopened = await after.reopenPreview(runId, 'A')
-    const p = reopened.candidates[0]!.preview!
-    expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ cwd: reopened.candidates[0]!.dir, argv: expect.arrayContaining(['preview']) }))
-    expect(p.kind).toBe('build')
-    expect(await (await fetchPreview(p.url)).text()).toContain('shop A')
-    const markers = [path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${p.port}`]
-    expect(await ownsProcess(p.pid, markers)).toBe(true)
-    await after.cleanup(runId)
-    // Concurrent commands can reuse an exited PID. Check the preview's identity,
-    // endpoint, retained record and owned copy after cleanup.
-    expect(await ownsProcess(p.pid, markers)).toBe(false)
-    await expect(fetchPreview(p.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
-    const cleaned = (await store.load(runId))!
-    expect(cleaned.candidates.every(candidate => candidate.preview === undefined)).toBe(true)
-    expect(cleaned.leftovers).toBeUndefined()
-    expect(existsSync(reopened.candidates[0]!.dir!)).toBe(false)
+    let cleanupFinished = false
+    try {
+      await after.recover()
+      const recovered = (await store.load(runId))!
+      expect(recovered.candidates[0]!.preview).toBeUndefined()
+      expect(await ownsProcess(previous.pid, [path.join(previous.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${previous.port}`])).toBe(false)
+      await expect(fetchPreview(previous.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+      const reopened = await after.reopenPreview(runId, 'A')
+      const p = reopened.candidates[0]!.preview!
+      expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ cwd: reopened.candidates[0]!.dir, argv: expect.arrayContaining(['preview']) }))
+      expect(p.kind).toBe('build')
+      expect(await (await fetchPreview(p.url)).text()).toContain('shop A')
+      const markers = [path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${p.port}`]
+      // System inspection can be unavailable briefly under load. A confirmed
+      // mismatch or exit must fail immediately, with the observation preserved.
+      const observations: ProcessObservation[] = []
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const observation = await observeProcess(p.pid)
+        observations.push(observation)
+        if (observation.state !== 'unavailable') break
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 200))
+      }
+      const observed = observations.at(-1)!
+      const diagnostic = JSON.stringify({ pid: p.pid, markers, observations })
+      expect(observed, diagnostic).toMatchObject({ state: 'observed' })
+      if (observed.state === 'observed') expect(commandHasMarkers(observed.commandLine, markers), diagnostic).toBe(true)
+      await after.cleanup(runId)
+      cleanupFinished = true
+      // Concurrent commands can reuse an exited PID. Check the preview's identity,
+      // endpoint, retained record and owned copy after cleanup.
+      expect(await ownsProcess(p.pid, markers)).toBe(false)
+      await expect(fetchPreview(p.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+      const cleaned = (await store.load(runId))!
+      expect(cleaned.candidates.every(candidate => candidate.preview === undefined)).toBe(true)
+      expect(cleaned.leftovers).toBeUndefined()
+      expect(existsSync(reopened.candidates[0]!.dir!)).toBe(false)
+    } finally {
+      if (!cleanupFinished) await after.cleanup(runId)
+    }
   }, T)
 
   it('writes exactly the checked tree, keeps index and HEAD, then releases copies and previews', async () => {
