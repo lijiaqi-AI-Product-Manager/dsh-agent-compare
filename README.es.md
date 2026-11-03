@@ -36,7 +36,7 @@ La referencia de desarrollo es Node 26.13.0 y npm 12.2.1. Las comprobaciones act
 Instala la versión preliminar de npm en el perfil Web predeterminado. La insignia de npm indica el estado de publicación:
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare
+dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
 ```
 
 Para otro perfil autogestionado, sustituye `web` por su nombre real.

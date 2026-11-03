@@ -34,7 +34,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm preview into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare
+dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
 ```
 
 For another self-managed profile, replace `web` with its actual name.

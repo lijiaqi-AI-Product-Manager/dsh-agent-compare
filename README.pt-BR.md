@@ -36,7 +36,7 @@ A referência de desenvolvimento é Node 26.13.0 com npm 12.2.1. As verificaçõ
 Instale a prévia do npm no perfil Web padrão. O selo do npm indica o estado de publicação:
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare
+dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
 ```
 
 Para outro perfil gerenciado por você, substitua `web` pelo nome real.

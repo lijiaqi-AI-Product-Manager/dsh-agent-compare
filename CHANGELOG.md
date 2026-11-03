@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Pin documented npm installation targets to the published package version, including all language guides.
+
 - Ship prebuilt runtime files for GitHub installations and check build freshness in CI.
 - Add a square storefront icon, four recorded screenshots, and a standard screenshot declaration.
 - Document directory integration, installation routes, data handling and recommendation applications.
