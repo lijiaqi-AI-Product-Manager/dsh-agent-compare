@@ -25,7 +25,11 @@ These are the services' published submission mechanisms, checked on 2026-11-04. 
 | [dsh-recommend](https://github.com/zp-home/dsh-recommend/blob/main/.github/ISSUE_TEMPLATE/submit-plugin.yml) | Topic discovery; curated certification requires an application and maintainer approval. |
 | [DSH Get](https://github.com/bobby-sheng/dshget-data) | Aggregates public catalogs and GitHub topics; accepts correction and missing-entry Issues. |
 | [DSH Plugin Registry](https://dshplugin.app/submit) | Submit a public repository for review. |
+| [Harness Registry · dshdesk](https://github.com/majiayu000/dsh-plugin-registry/blob/main/docs/registry-governance.md) | Topic discovery and manifest checks, with a listing Issue for review requests. |
 | [DSH Plugin Hub](https://dshpluginhub.ai/en/docs/plugin-not-found) | npm discovery and manual package submission; account authorization is required to claim and edit a listing. |
+| [DeepseekPlugin](https://deepseekplugin.org/en/docs/submit-plugin) | Submit a public repository URL; recognition publishes a listing with repository details and installation instructions. |
+| [dshmarketplace.dev](https://github.com/DshMarketPlace/dshmarketplace#contributing) | Submit a repository and use case through its website for manual review. |
+| [DSH Learn](https://dshlearn.com/submit) | Resource submissions require a public repository, the problem solved and maintainer contact information. |
 | [dsh.fish](https://dsh.fish/docs/publish/bundle) | Submit an npm bundle or repository; reads the actual manifest. |
 | [dsh.pub](https://dsh.pub/zh/submit/) | Submit through the directory, with a pinned public source. |
 

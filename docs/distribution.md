@@ -25,7 +25,11 @@ AgentCompare 的仓库名和 npm 包名均为 `dsh-agent-compare`。插件以标
 | [dsh-recommend](https://github.com/zp-home/dsh-recommend/blob/main/.github/ISSUE_TEMPLATE/submit-plugin.yml) | 话题采集；「精选认证」需要单独申请，由维护者批准。 |
 | [DSH Get](https://github.com/bobby-sheng/dshget-data) | 聚合多个公开目录和 GitHub 话题；支持缺失条目与信息更正 Issue。 |
 | [DSH Plugin Registry](https://dshplugin.app/submit) | 提交公开仓库地址进入审核。 |
+| [Harness Registry · dshdesk](https://github.com/majiayu000/dsh-plugin-registry/blob/main/docs/registry-governance.md) | 话题自动发现与 manifest 检查，支持通过收录 Issue 申请审核。 |
 | [DSH Plugin Hub](https://dshpluginhub.ai/en/docs/plugin-not-found) | npm 自动发现，可提交包名加速；认领和编辑需要账号授权。 |
+| [DeepseekPlugin](https://deepseekplugin.org/en/docs/submit-plugin) | 提交公开仓库 URL，识别通过后发布；读取仓库说明和安装命令。 |
+| [dshmarketplace.dev](https://github.com/DshMarketPlace/dshmarketplace#contributing) | 网页提交仓库和用途说明，人工审核后收录。 |
+| [DSH Learn](https://dshlearn.com/submit) | 资源投稿表单需要公开仓库、解决的问题与维护者联系信息。 |
 | [dsh.fish](https://dsh.fish/docs/publish/bundle) | 提交 npm bundle 或源码，读取真实 manifest。 |
 | [dsh.pub](https://dsh.pub/zh/submit/) | 使用目录的提交入口，固定公开来源。 |
 
