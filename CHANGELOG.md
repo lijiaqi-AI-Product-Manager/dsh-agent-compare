@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Make Chinese the default repository entry, preserve the existing Chinese URL and full English guide, and add Japanese, Korean, Spanish, Brazilian Portuguese, French and German guides. Put source installation first and keep graphical controls, current evidence and limits consistent.
+- Include localized guides and contributor instructions in the package. Check language navigation, local links and heading targets, versioned installation archives and actual pack contents in CI.
+
 ## 0.2.0-alpha.15 — 2026-11-03
 
 - Give every preview launch a fresh random localhost subdomain while keeping the server bound to loopback. Separate same-name cookies and origin storage between candidates; retain validation for legacy loopback records.

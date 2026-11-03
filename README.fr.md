@@ -1,0 +1,94 @@
+# AgentCompare
+
+[中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · **Français** · [Deutsch](README.de.md)
+
+**Une demande. Deux réalisations exécutées. Essayez, choisissez, puis découvrez la stratégie.**
+
+[![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
+
+> **0.2.0-alpha.16, pas encore publié sur npm.** L'installation proposée utilise les sources. Le périmètre initial comprend les projets Vite locaux placés à la racine d'un dépôt Git.
+
+AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Deux agents réalisent la même tâche d'interface dans des copies indépendantes du projet. L'extension installe les dépendances, compile, sert les deux applications et leur applique des critères communs. Vous manipulez les pages avant de choisir A, B ou aucune. Avant l'adoption, la proposition est vérifiée avec l'état actuel de votre projet.
+
+## Installation
+
+La référence de développement est Node 26.13.0 et npm 12.2.1. Les vérifications actuelles utilisent le paquet officiel DSH 0.2.1-rc.5. Repérez le profil DSH que vous utilisez déjà.
+
+```bash
+git clone https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare.git
+cd dsh-agent-compare
+npm ci
+npm pack
+```
+
+Remplacez `<your-profile>` par le nom réel de votre profil :
+
+```bash
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
+```
+
+Redémarrez DSH. Avant une mise à jour, terminez les comparaisons actives et fermez les anciennes instances qui partagent leurs fichiers. Les modifications simultanées par plusieurs versions de l'extension ne sont pas prises en charge.
+
+## Première comparaison
+
+1. Cliquez sur **A|B**, en bas à gauche du champ de conversation. Les réglages s'ouvrent au-dessus du champ existant.
+2. Le mode par défaut réutilise le modèle courant avec deux stratégies ; aucun second compte n'est nécessaire. Le mode à deux modèles propose ceux déjà configurés dans DSH.
+3. Choisissez à l'écran la durée maximale de génération par proposition : 5 à 120 minutes, 30 par défaut. Saisissez uniquement votre demande et envoyez-la, sans paramètres à mémoriser.
+4. La carte de conversation affiche la progression et deux applications interactives. Des vues bureau et mobile, un affichage centré sur A ou B et une grande fenêtre sont disponibles.
+5. Choisissez avec `选 A`, `选 B` ou `都不满意` — A, B ou aucune. La stratégie ou le modèle réel, les résultats et l'usage disponible sont révélés après le choix.
+6. `审查并采用` ouvre l'examen du dépôt cible et des conditions préalables. Une confirmation distincte écrit les fichiers. `继续主对话` quitte le mode de comparaison et rend le focus au champ initial.
+
+`试跑内置示例` crée une boutique dans un dépôt distinct et ne touche pas à votre projet. L'adoption vise ce dépôt d'exemple. Les commandes `比较记录` — historique — et `使用教程` — guide — sont présentes dans les nouvelles conversations comme dans les anciennes.
+
+## Quelles tâches comparer ?
+
+Recherche, filtres, formulaires, pages de présentation, tableaux de bord et refontes de composants : des tâches dont la qualité se juge aussi à l'usage. Pour un défaut à réponse précise ou une transformation mécanique, un seul agent avec des tests est généralement préférable.
+
+Avec un modèle, une stratégie conserve davantage l'existant et l'autre repense l'interaction. Avec deux modèles, demande, instructions et critères restent communs. Les deux partent du même état de code. Un choix ne constitue pas un classement général des modèles.
+
+## Exécution et critères communs
+
+Le dépôt doit posséder au moins un commit. Un index privé capture les changements non commités et les fichiers non suivis, hors exclusions. Le HEAD et l'index d'origine sont préservés. Chaque proposition possède son worktree et sa session ; sa différence est conservée sous forme de patch binaire avec empreinte.
+
+Les contrôles proviennent de la base : `typecheck`, `lint`, `test`, `build` et les vérifications de page configurées. Un fichier de verrouillage impose une installation figée ; un échec ne déclenche pas de repli vers une installation non figée. Modifier les tests ou leur configuration pour faire passer sa propre proposition n'autorise pas son adoption directe.
+
+Un [`.agent-compare.json` à la racine](examples/vite-react-demo/.agent-compare.json) permet de fixer saisies, clics, texte, visibilité, nombres d'éléments et dimensions. Sa définition est validée avant la génération. Une vérification explicite d'acceptation de page non exécutée bloque l'adoption directe. Si seul le contrôle élémentaire de chargement manque, un avertissement le signale. Réponse HTTP, compilation, fonctionnalité et préférence personnelle sont des résultats distincts.
+
+## Adoption, annulation et reprise
+
+L'adoption combine l'arbre de travail actuel et les chemins modifiés par la proposition. Les chevauchements détectés arrêtent l'opération. Si d'autres fichiers ont changé, la combinaison est répétée et vérifiée dans une copie temporaire. Le contenu, HEAD et l'index sont revérifiés avant l'écriture ; un journal de récupération est conservé.
+
+L'adoption dans l'arbre de travail ne crée pas automatiquement de commit, ne pousse rien et ne change pas de branche. Elle prend en compte ajouts, suppressions et fichiers binaires. Une proposition qui ne remplit pas les critères peut être enregistrée dans une branche d'inspection. Lors d'une annulation ou d'une reprise après interruption, les modifications ultérieures détectées restent des conflits à examiner.
+
+Le verrou du dépôt coordonne les opérations de l'extension, sans verrouiller votre éditeur. Suspendez vos modifications pendant la courte phase d'écriture.
+
+## Historique et état des pages
+
+L'historique affiche toutes les conversations par défaut, avec filtre sur la conversation courante, recherche par demande, dépôt ou identifiant et pages de 30 entrées. Résultat, choix et adoption sont conservés. Les notes sont transmises à la même conversation et réessayées si elle est indisponible. Les longs journaux ne sont pas injectés intégralement dans le contexte principal.
+
+Les anciens fichiers ou enregistrements endommagés restent en lecture seule avec une explication. Après un redémarrage, les captures sont identifiées comme des images statiques, pas des applications actives. Une copie conservée peut être relancée. Chaque ouverture utilise une nouvelle adresse `.localhost`, séparant cookies et stockage par origine entre propositions. L'état temporaire de la page est réinitialisé ; l'historique et les captures restent disponibles.
+
+## Compatibilité et limites
+
+Un worktree n'est pas une frontière de sécurité complète. La politique d'écriture de DSH est utilisée ; Windows la signale comme **partial**. Lectures de fichiers et réseau ne sont pas isolés. Les cookies intégrés suivent les politiques du navigateur ; un onglet externe peut employer un autre contexte de stockage. Connexion à un compte, services backend externes et bases partagées sont hors périmètre.
+
+L'installation et les vérifications npm ont été exécutées. macOS et le parcours complet pnpm/yarn restent non vérifiés. Les combinaisons de fournisseurs avec deux modèles, ainsi que les performances actuelles d'une livraison complète avec un modèle externe, demandent encore des mesures. Consultez la [matrice détaillée](README.en.md#compatibility).
+
+## Durée, coût et preuves
+
+Chaque proposition consomme de la génération. Le parallélisme ne garantit ni gain de temps ni économie. Vous pouvez arrêter une proposition ou les deux. À l'échéance, les modifications déjà écrites sont vérifiées. Si l'usage n'est pas fourni, il est indiqué comme inconnu, jamais comme nul.
+
+La [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) couvre Windows/Linux, Node et le navigateur. Certaines intégrations actuelles exécutent de vraies sessions, outils et applications avec un adaptateur local à réponses fixes. Elles vérifient l'exécution du système, pas la qualité d'un modèle externe. Les cas historiques avec un modèle réel correspondent à DSH 0.2.1-rc.3 et ne constituent ni classement ni promesse de performance.
+
+## Contribution et licence
+
+Dans une [Issue](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues), indiquez les versions, le système, les étapes et les résultats attendu et observé. Ne publiez pas de secrets, code privé ou chemins locaux complets. Voir [CONTRIBUTING.md](CONTRIBUTING.md) et [CHANGELOG.md](CHANGELOG.md).
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run test:ui
+```
+
+Licence [MIT](LICENSE). Si le résultat vous aide, une Star ou un cas reproductible peut soutenir le projet. Le partage et les Stars restent facultatifs.

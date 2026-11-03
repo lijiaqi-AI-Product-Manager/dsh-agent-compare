@@ -1,0 +1,94 @@
+# AgentCompare
+
+[中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · **Português (Brasil)** · [Français](README.fr.md) · [Deutsch](README.de.md)
+
+**Uma tarefa. Duas implementações em execução. Experimente, escolha e descubra a estratégia.**
+
+[![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
+
+> **0.2.0-alpha.16, ainda não publicado no npm.** A instalação disponível é a partir do código-fonte. O escopo inicial são projetos Vite locais na raiz de um repositório Git.
+
+AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Dois agentes trabalham em cópias independentes da mesma tarefa de interface. O plugin instala dependências, compila, serve as duas aplicações e executa critérios comuns de verificação. Você testa as páginas antes de escolher A, B ou nenhuma. Antes de aplicar uma versão, ele verifica a combinação com o estado atual do seu projeto.
+
+## Instalação
+
+A referência de desenvolvimento é Node 26.13.0 com npm 12.2.1. As verificações atuais usam o pacote oficial DSH 0.2.1-rc.5. Identifique o perfil que você já utiliza no DSH.
+
+```bash
+git clone https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare.git
+cd dsh-agent-compare
+npm ci
+npm pack
+```
+
+Substitua `<your-profile>` pelo nome real do seu perfil:
+
+```bash
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
+```
+
+Reinicie o DSH. Antes de atualizar, finalize as comparações ativas e feche instâncias antigas que usam os mesmos registros. Não há suporte a alterações simultâneas por versões diferentes do plugin.
+
+## Primeira comparação
+
+1. Clique em **A|B** no canto inferior esquerdo da caixa de conversa. Os ajustes aparecem acima do campo existente.
+2. O padrão usa o modelo atual com duas estratégias, sem exigir uma segunda conta. No modo de dois modelos, escolha entre os modelos já configurados no DSH.
+3. Escolha na interface o limite de geração de cada versão: 5–120 minutos, com padrão de 30. Escreva apenas o pedido e envie. Não é necessário digitar parâmetros.
+4. O cartão da conversa mostra o progresso e as duas aplicações interativas. Há visualização de desktop e celular, foco em A ou B e uma janela maior.
+5. Use `选 A`, `选 B` ou `都不满意` para escolher A, B ou nenhuma. Depois aparecem a estratégia ou o modelo real, as verificações e o uso informado.
+6. Em `审查并采用`, confira o repositório de destino e as condições de aplicação. Uma confirmação separada escreve os arquivos. `继续主对话` encerra o modo de comparação e volta ao campo original.
+
+`试跑内置示例` cria um repositório separado com uma loja de exemplo, sem alterar seu projeto. A aplicação do resultado também ocorre nesse exemplo. `比较记录` abre o histórico e `使用教程` abre o guia, tanto em conversas novas quanto existentes.
+
+## Quando vale comparar
+
+Busca e filtros, formulários, páginas de apresentação, painéis e reformulação de componentes: tarefas em que usar o resultado ajuda a julgar sua qualidade. Para um bug com resposta clara ou uma refatoração mecânica, um agente com testes costuma ser mais adequado.
+
+Com um modelo, uma estratégia preserva a estrutura e a outra reconsidera a interação. Com dois modelos, mantêm-se pedido, instruções e verificações. As duas versões partem do mesmo código. Uma escolha não determina qual modelo é melhor em geral.
+
+## Execução e verificação comum
+
+O repositório precisa ter pelo menos um commit. Um index privado registra alterações sem commit e arquivos não rastreados, exceto os excluídos. O HEAD e o index originais são preservados. Cada versão tem seu worktree e sua sessão; a diferença é guardada como patch binário com hash.
+
+As verificações vêm da base: `typecheck`, `lint`, `test`, `build` e a verificação de página configurada. Havendo lockfile, a instalação é congelada; uma falha não provoca nova tentativa sem congelamento. Alterar testes ou configurações para fazer uma versão passar não é uma aprovação válida para aplicação direta.
+
+Um [`.agent-compare.json` na raiz](examples/vite-react-demo/.agent-compare.json) permite definir ações e expectativas comuns: preencher, clicar, conferir texto, visibilidade, quantidade e tamanho da tela. A definição é validada antes da geração. Se uma aceitação explícita de página não rodar, a aplicação direta é bloqueada. Se apenas a checagem básica de carregamento não puder rodar, isso aparece como aviso. Resposta HTTP, compilação, funcionamento e preferência pessoal são resultados diferentes.
+
+## Aplicação, desfazer e recuperar
+
+O plugin combina seu estado atual com os caminhos alterados pela versão escolhida. Sobreposições detectadas interrompem a aplicação. Se você mudou outros arquivos, a combinação passa por um ensaio em uma cópia temporária. Antes de escrever, conteúdo, HEAD e index são conferidos novamente, e um registro de recuperação é salvo.
+
+A aplicação na árvore de trabalho não faz commit, push nem troca de branch automaticamente. Arquivos novos, removidos e binários fazem parte da diferença. Uma versão que não atende aos critérios pode ser salva em uma branch para análise. Ao desfazer ou recuperar uma interrupção, edições posteriores detectadas são mantidas como conflitos.
+
+O bloqueio do repositório coordena operações do plugin; ele não bloqueia o editor. Pause as edições durante a breve etapa de escrita.
+
+## Histórico e estado das páginas
+
+O histórico começa com todas as conversas, com filtro da conversa atual, busca por pedido, repositório ou identificador e páginas de 30 registros. Resultado, escolha e aplicação são preservados. As notas são entregues à mesma conversa, com novas tentativas se ela estiver indisponível. Logs longos não são inseridos integralmente no contexto principal.
+
+Registros antigos ou danificados permanecem somente para leitura, com explicação. Depois de reiniciar, capturas salvas são identificadas como imagens estáticas. Se a cópia ainda existe, a prévia pode ser reaberta. Cada abertura usa um endereço `.localhost` novo, separando cookies e armazenamento por origem entre as versões. O estado temporário da página é reiniciado; registros e capturas continuam disponíveis.
+
+## Compatibilidade e limites
+
+Um worktree não é uma barreira completa de segurança. O plugin usa a política de escrita do DSH; no Windows, a proteção é informada como **partial**. Leituras de arquivos e rede não são isoladas. Cookies em páginas incorporadas seguem a política do navegador, e uma aba externa pode ter outro contexto de armazenamento. Login, backends externos e bancos de dados compartilhados ficam fora do escopo atual.
+
+A instalação e a verificação com npm foram executadas. macOS e o fluxo completo com pnpm/yarn ainda não foram verificados. Combinações de provedores com dois modelos e medições atuais de desempenho com um modelo externo também precisam de validação. Veja a [matriz detalhada](README.en.md#compatibility).
+
+## Tempo, custo e evidências
+
+Cada versão consome geração; paralelismo não garante economia de tempo ou dinheiro. É possível parar uma ou ambas. Quando o limite termina, o plugin verifica o que já foi escrito. Uso não informado aparece como desconhecido, nunca como custo zero.
+
+A [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) cobre Windows/Linux, Node e navegador. Parte das integrações atuais usa um adaptador local de respostas fixas, com sessões, ferramentas e aplicações reais. Isso demonstra execução, sem medir a qualidade de um modelo externo. Os casos históricos com modelos reais são do DSH 0.2.1-rc.3 e não devem virar ranking ou promessa de desempenho.
+
+## Contribuição e licença
+
+Ao abrir uma [Issue](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues), informe versões, sistema, passos e resultados esperados e observados. Não publique credenciais, código privado ou caminhos locais completos. Consulte [CONTRIBUTING.md](CONTRIBUTING.md) e [CHANGELOG.md](CHANGELOG.md).
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run test:ui
+```
+
+Licença [MIT](LICENSE). Se o resultado for útil, você pode apoiar com uma Star ou um caso reproduzível. Compartilhar e dar Star são decisões opcionais.

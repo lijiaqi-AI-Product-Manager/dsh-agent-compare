@@ -19,6 +19,8 @@ npm ci
 npm run typecheck && npm test
 ```
 
+Run `npm run check:docs` after documentation or version changes. The Chinese entry and `README.zh.md` remain identical; eight language guides share the current archive version and are included in the package. This check validates local links, heading targets, language navigation and the actual package file list.
+
 The comparer tests use an offline fixture project (a stub `vite` installed through `file:`), so they need no network. They do start real processes and take a few minutes on Windows.
 
 ```bash
