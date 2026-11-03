@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mkdir, open, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import * as proc from '../src/core/proc.ts'
 import { addOwnedWorktree, captureChange, git, ownedCopyTree, ownedWorktreeAdmin, removeOwnedWorktree, snapshotTree } from '../src/core/git.ts'
@@ -85,7 +86,7 @@ describe('candidate Git administration boundary', () => {
     const poison = { GIT_DIR: f.siblingAdmin, GIT_WORK_TREE: f.sibling, GIT_INDEX_FILE: f.indexes[0]!, GIT_COMMON_DIR: path.join(f.repo, '.git'), GIT_NAMESPACE: 'foreign', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.worktree', GIT_CONFIG_VALUE_0: f.sibling }
     for (const [key, value] of Object.entries(poison)) vi.stubEnv(key, value)
     try {
-      expect(path.resolve((await git(f.repo, ['rev-parse', '--show-toplevel'])).trim())).toBe(f.repo)
+      expect(realpathSync.native((await git(f.repo, ['rev-parse', '--show-toplevel'])).trim())).toBe(realpathSync.native(f.repo))
       const change = await captureChange(f.dir, f.head, 'Candidate', f.copy)
       expect(change.touched).toEqual(['page.txt'])
       const scratch = await tmp('ac-private-index')
