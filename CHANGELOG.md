@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.11 — 2026-11-03
+
+- Restore persisted ordinary conversations through the host Session domain before loading comparison preferences, project details or models. Keep native permissions and session identity; do not create a replacement conversation or send a model prompt.
+- Share concurrent restoration requests, allow an individual caller to cancel without cancelling another caller's restoration, and retain explicit missing-session, writer-conflict and unsupported-host errors.
+
 ## 0.2.0-alpha.10 — 2026-11-03
 
 - Hold a process-backed lease for each live comparison. Another host can inspect its history and previews but cannot interrupt, select, adopt or clean up its resources. Recover orphaned current-protocol runs only after ownership becomes available.

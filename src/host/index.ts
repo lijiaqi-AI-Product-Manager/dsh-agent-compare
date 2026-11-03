@@ -28,6 +28,7 @@ import { ConversationMemory } from './memory.ts'
 import { historyPage, HistoryQueryError } from './history.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, type ProjectSandbox } from './project-process.ts'
+import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -47,7 +48,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.10'
+const VERSION = '0.2.0-alpha.11'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -492,13 +493,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     return id
   }
   const label = (v: unknown): 'A' | 'B' | undefined => (v === 'A' || v === 'B' ? v : undefined)
-  const agentFor = (b: Record<string, unknown>): AgentLike => {
-    const sid = typeof b.sessionId === 'string' ? b.sessionId : undefined
-    const agent = agents?.list().find((a) => a.session.id === sid)
-    if (agent === undefined) throw new HttpError(409, '请先打开这个对话；候选会作为它的子会话运行')
-    guard(agent)
-    return agent
-  }
+  const resolveConversation = conversationResolver({ attached: () => agents?.list() ?? [], controller: () => ctx.get('sessionController') as SessionController<AgentLike> | undefined, guard })
+  const agentFor = (b: Record<string, unknown>, signal: AbortSignal): Promise<AgentLike> => resolveConversation(b.sessionId, signal)
   const view = async (runId: string): Promise<unknown> => {
     const r = await comparer.get(runId)
     if (r === undefined) throw new HttpError(404, 'unknown run')
@@ -510,12 +506,12 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     return typeof o.model === 'string' && o.model !== '' ? { ...(typeof o.provider === 'string' ? { provider: o.provider } : {}), model: o.model } : undefined
   }
   const api: Record<string, Handler> = {
-    async preferences(b) {
-      const agent = agentFor(b)
+    async preferences(b, signal) {
+      const agent = await agentFor(b, signal)
       return b.value === undefined ? preferences.load(agent.session.id) : preferences.save(agent.session.id, b.value)
     },
-    async setup(b) {
-      const agent = agentFor(b)
+    async setup(b, signal) {
+      const agent = await agentFor(b, signal)
       let project: { path: string; supported: boolean; reason?: string } | undefined
       const cwd = agent.session.header.cwd
       if (cwd) {
@@ -534,8 +530,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       return { ...page, runs: await Promise.all(page.runs.map(present)), isolation: runner.isolation }
     },
     async get(b) { return view(runIdOf(b)) },
-    async models(b) {
-      const agent = agentFor(b)
+    async models(b, signal) {
+      const agent = await agentFor(b, signal)
       const controller = (agent.ctx.get('sessionController') ?? ctx.get('sessionController')) as { modelCatalog(): Promise<{ groups: Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>; failures: Array<{ name: string; message: string }> }> } | undefined
       if (controller) {
         const catalog = await controller.modelCatalog()
@@ -551,7 +547,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       return { current: currentRoute(agent), models }
     },
     async start(b, signal) {
-      const agent = agentFor(b)
+      const agent = await agentFor(b, signal)
       const task = typeof b.task === 'string' ? b.task : ''
       const mode = b.mode === 'cross-model' ? 'cross-model' : 'same-model'
       const pair = Array.isArray(b.models) ? b.models.map(routeOf) : []
@@ -627,7 +623,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         const body = await readBody(req)
         json(res, 200, { ok: true, value: await handler(body, ctl.signal) })
       } catch (error) {
-        const status = error instanceof HttpError ? error.status : error instanceof HistoryQueryError ? 400 : error instanceof RecordUnavailableError || (error as Error).name === 'BusyError' ? 409 : 500
+        const status = error instanceof HttpError || error instanceof SessionAccessError ? error.status : error instanceof HistoryQueryError ? 400 : error instanceof RecordUnavailableError || (error as Error).name === 'BusyError' ? 409 : 500
         json(res, status, { ok: false, error: (error as Error).message })
       }
     },
