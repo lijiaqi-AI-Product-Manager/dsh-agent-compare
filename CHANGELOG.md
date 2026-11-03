@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reset composer results and settings at session boundaries; ignore older completed polling responses while allowing slow reads to make progress. Show setup failures with a retry that preserves the draft.
+- Default expanded comparison to readable adaptive previews, provide more preview height and consolidate the real-address action into each candidate header. Explain adoption finishing and undo processing while retaining action exclusion.
+
 - Show a complete recorded comparison and adoption workflow in every language guide. Keep fixed-candidate and editing disclosures visible, provide original video and asset hashes, and separate first use from record-recovery details.
 
 - Make Chinese the default repository entry, preserve the existing Chinese URL and full English guide, and add Japanese, Korean, Spanish, Brazilian Portuguese, French and German guides. Put source installation first and keep graphical controls, current evidence and limits consistent.

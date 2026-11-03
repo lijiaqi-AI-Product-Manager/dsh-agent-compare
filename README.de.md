@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
 
-> **0.2.0-alpha.16, noch nicht auf npm veröffentlicht.** Derzeit erfolgt die Installation aus dem Quellcode. Der anfängliche Umfang sind lokale Vite-Projekte im Stammverzeichnis eines Git-Repositorys.
+> **0.2.0-alpha.17, noch nicht auf npm veröffentlicht.** Derzeit erfolgt die Installation aus dem Quellcode. Der anfängliche Umfang sind lokale Vite-Projekte im Stammverzeichnis eines Git-Repositorys.
 
 AgentCompare ist ein Plugin für [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), kurz DSH. Zwei Agenten bearbeiten dieselbe Frontend-Aufgabe in getrennten Projektkopien. Das Plugin installiert Abhängigkeiten, baut beide Anwendungen, startet sie und führt gemeinsame Prüfungen aus. Du bedienst die Seiten, bevor du A, B oder keine auswählst. Vor der Übernahme wird die Kombination mit deinem aktuellen Projekt geprüft.
 
@@ -16,7 +16,7 @@ AgentCompare ist ein Plugin für [DeepSeek Harness](https://github.com/deepseek-
 
 Beispiel mit festen Kandidaten und chinesischer Oberfläche. Anwendungen, gemeinsame Prüfungen und Übernahme werden tatsächlich ausgeführt; Wartezeiten sind gekürzt und lokale Pfade ausgeblendet.
 
-[Vollständiges Video (29 Sekunden)](docs/media/comparison-workflow.mp4) · [Bedingungen und Ergebnisse](docs/demo.md)
+[Vollständiges Video (28 Sekunden)](docs/media/comparison-workflow.mp4) · [Bedingungen und Ergebnisse](docs/demo.md)
 
 ## Installation
 
@@ -34,7 +34,7 @@ npm pack
 Ersetze `<your-profile>` durch den tatsächlichen Profilnamen:
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
 ```
 
 Starte DSH neu. Beende vor einem Update aktive Vergleiche und schließe ältere Instanzen, die dieselben Aufzeichnungen verwenden. Gleichzeitige Änderungen durch unterschiedliche Plugin-Versionen werden nicht unterstützt.

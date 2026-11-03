@@ -447,7 +447,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-compare-tools{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 20px 0}.ac-compare-tools .ac-seg button{font-size:12px;height:28px;padding:0 12px}
 .ac-preview-limits{margin:8px 20px 0;font-size:12px;color:var(--ac-fg2);flex:none}.ac-preview-limits summary{cursor:pointer}.ac-preview-limits p{max-width:900px;line-height:1.6;margin:6px 0 0}
 .ac-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;min-height:0;flex:none;padding:16px 20px 20px;gap:16px}.ac-grid.focus{grid-template-columns:minmax(0,1fr)}
-.ac-card{min-width:0;min-height:360px}.ac-card[hidden]{display:none}.ac-card-head{min-height:128px;gap:8px;padding:14px}.ac-card .ac-empty,.ac-card .ac-fail{min-height:240px}
+.ac-card{min-width:0;min-height:360px}.ac-card[hidden]{display:none}.ac-card-head{gap:6px;padding:12px}.ac-card .ac-empty,.ac-card .ac-fail{min-height:240px}.ac-card-head .ac-preview-open{margin-left:auto;flex:none}
 .ac-evidence>summary,.ac-patch>summary{font-size:12px;color:var(--ac-fg2)}.ac-evidence[open]{display:flex;flex-direction:column;gap:8px}.ac-evidence .ac-verdict{margin-top:8px}
 .ac-patch pre{max-height:340px;max-width:100%;overflow:auto;white-space:pre;font:11px/1.6 ui-monospace,monospace;background:var(--ac-l1);border:1px solid var(--ac-border);border-radius:8px;padding:12px}
 .ac-patch .ac-meta{overflow-wrap:anywhere;margin-top:8px}.ac-checks{min-height:22px}.ac-strategy{margin-left:0;flex-basis:100%;overflow-wrap:anywhere;font-weight:500;color:var(--ac-fg2)}
@@ -455,7 +455,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-preview-surface{position:relative;flex:none;background:white;border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--ac-border)}
 .ac-frame{position:absolute;left:0;top:0;transform-origin:top left;display:block;max-width:none;min-height:0;border:0;background:white}
 .ac-guide{max-width:800px;padding:36px;gap:24px}.ac-guide-steps{counter-reset:step;list-style:none!important;padding:0!important;gap:22px!important}.ac-guide-steps li{padding-left:38px;position:relative;counter-increment:step}.ac-guide-steps li:before{content:counter(step);position:absolute;left:0;top:0;width:24px;height:24px;display:grid;place-items:center;background:var(--ac-l2);border-radius:8px;color:var(--ac-fg2);font-size:12px}.ac-guide-steps b{font-size:14px;color:var(--ac-fg)}.ac-guide-steps p{margin:6px 0 0;line-height:1.8;font-size:13px}
-.ac-inline .ac-compare-tools{display:flex;padding:12px 12px 0}.ac-inline .ac-preview-stage{display:flex;min-height:0}.ac-inline .ac-browser{height:auto;min-height:0}.ac-inline .ac-card-head{min-height:102px;padding:12px;gap:6px}.ac-inline .ac-card{min-height:0}.ac-inline .ac-action-dock{position:static}.ac-inline .ac-url{display:flex}.ac-inline .ac-lights{display:none}
+.ac-inline .ac-compare-tools{display:flex;padding:12px 12px 0}.ac-inline .ac-preview-stage{display:flex;min-height:0}.ac-inline .ac-browser{height:auto;min-height:0}.ac-inline .ac-card-head{padding:10px 12px;gap:6px}.ac-inline .ac-card{min-height:0}.ac-inline .ac-action-dock{position:static}
 .ac-composer-settings{flex:none;border:1px solid var(--ac-border-strong);border-radius:12px;padding:12px 14px;background:var(--ac-bg);display:flex;flex-direction:column;gap:10px;margin:0 0 8px}
 .ac-conversation-run{flex:none;width:100%;border:1px solid var(--ac-border-strong);background:var(--ac-bg);border-radius:12px;margin:0 0 10px;overflow:hidden}
 .ac-conversation-run-head{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--ac-border);font-size:12px}.ac-conversation-run-scroll{max-height:min(760px,60vh);max-height:clamp(170px,calc(100dvh - 360px),760px);overflow:auto;overscroll-behavior:contain}.ac-conversation-run .ac-inline{margin:0;border:0;border-radius:0;overflow:visible}.ac-conversation-run .ac-action-dock{position:sticky;top:0}.ac-preview-label{font-weight:700;color:var(--ac-fg);font-size:12px}
@@ -584,10 +584,10 @@ function Activity({ p }: { p: NonNullable<Cand['progress']> }): React.ReactEleme
   )
 }
 type PreviewDevice = 'adaptive' | 'desktop' | 'phone'
-function LivePreview({ c, device }: { c: Cand; device: PreviewDevice }): React.ReactElement {
+function LivePreview({ c, device, compact }: { c: Cand; device: PreviewDevice; compact: boolean }): React.ReactElement {
   const holder = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
-  const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: 320 } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
+  const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: compact ? 320 : 480 } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
   useEffect(() => {
     const el = holder.current
     if (!el) return
@@ -611,7 +611,7 @@ function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): Rea
     </>}
   </details>
 }
-function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; hidden?: boolean }): React.ReactElement {
+function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, hidden }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; compact: boolean; hidden?: boolean }): React.ReactElement {
   const usage = c.usage?.kind !== 'reported' ? '用量未知' : [
     c.usage.totalTokens === undefined ? '总用量未知' : `${c.usage.totalTokens.toLocaleString()} tokens`,
     ...([['inputTokens', '未缓存输入'], ['outputTokens', '输出'], ['cacheReadTokens', '缓存读取'], ['cacheWriteTokens', '缓存写入']] as const)
@@ -626,8 +626,10 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: 
         <div className="ac-row">
           <span className="ac-label">{c.label}</span>
           <StagePill c={c} />
+          {c.previewKind === 'dev' && live && <span className="ac-pill warn" title="构建没有通过，这是开发模式，只供观察">开发模式</span>}
           <span className="ac-meta">{fmt(elapsed(c))}</span>
           {run.state === 'running' && busyStage(c.stage) && c.stage !== 'stopping' && <button className="ac-btn sm" disabled={busy} onClick={() => act('cancel', { label: c.label })}>停止这一版</button>}
+          {live && <a className="ac-icon-btn ac-preview-open" href={c.previewUrl} target="_blank" rel="noreferrer" title={`在浏览器标签页中打开 ${c.previewUrl}；Cookie 与存储上下文可能和嵌入预览不同`} aria-label={`在浏览器中打开 ${c.label}`}><IconExternal /></a>}
           {revealed && c.strategy && <span className="ac-strategy">{c.strategy.title}{model ? ` · ${model}` : ''}</span>}
         </div>
         {busyStage(c.stage) && <Track c={c} />}
@@ -647,14 +649,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: 
       </div>
       {live ? (
         <div className="ac-browser">
-          <div className="ac-chrome">
-            <span className="ac-preview-label">{c.label}</span>
-            <span className="ac-lights"><i /><i /><i /></span>
-            {c.previewKind === 'dev' && <span className="ac-pill warn" title="构建没有通过，这是开发模式，只供观察">开发模式</span>}
-            <span className="ac-url" title={c.previewUrl}>{c.previewUrl}</span>
-            <a className="ac-icon-btn" href={c.previewUrl} target="_blank" rel="noreferrer" title="在浏览器标签页中打开；Cookie 与存储上下文可能和嵌入预览不同" aria-label={`在浏览器中打开 ${c.label}`}><IconExternal /></a>
-          </div>
-          <LivePreview c={c} device={device} />
+          <LivePreview c={c} device={device} compact={compact} />
         </div>
       ) : c.error ? (
         <div className={`ac-fail${c.stage === 'interrupted' ? ' interrupted' : ''}`}>
@@ -685,6 +680,8 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [setup, setSetup] = useState<Setup>()
+  const [setupError, setSetupError] = useState<string>()
+  const [setupRetry, setSetupRetry] = useState(0)
   const [error, setError] = useState<string>()
   const state = inputShell(sessionId)?.state?.getSnapshot()
   const enabled = p.enabled || state?.claim?.name === 'ab'
@@ -696,12 +693,17 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
   }, [sessionId])
   useEffect(() => {
     if (!enabled || mode.collapsed) return
-    let active = true
-    const refresh = (): void => { if (document.visibilityState !== 'hidden') call<Setup>('setup', { sessionId }).then(value => { if (active) setSetup(value) }, () => {}) }
+    // A completed newer read supersedes older reads; slow polling must still make progress.
+    let active = true, request = 0, applied = 0
+    const refresh = (): void => {
+      if (document.visibilityState === 'hidden') return
+      const version = ++request
+      call<Setup>('setup', { sessionId }).then(value => { if (active && version >= applied) { applied = version; setSetup(value); setSetupError(undefined) } }, (error: Error) => { if (active && version >= applied) { applied = version; setSetup(undefined); setSetupError(error.message) } })
+    }
     refresh()
     const timer = setInterval(refresh, 4000)
     return () => { active = false; clearInterval(timer) }
-  }, [enabled, mode.collapsed, session, sessionId])
+  }, [enabled, mode.collapsed, session, sessionId, setupRetry])
   useEffect(() => { if (enabled && p.mode === 'cross-model') void loadModels() }, [enabled, p.mode, loadModels])
   useEffect(() => {
     if (!p.enabled || !mode.loaded || !state || !['plain', 'claimed'].includes(state.phase)) return
@@ -731,12 +733,17 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {p.mode === 'cross-model' ? <div className="ac-models">{[0, 1].map(i => <label key={i}>{i === 0 ? '模型一' : '模型二'}<select disabled={loading || busy} value={p.models[i]?.model ? `${p.models[i]?.provider}/${p.models[i]?.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const pair: [Route, Route] = [...p.models]; pair[i] = item ? { provider: item.provider, model: item.id } : {}; saveMode(sessionId, { ...p, models: pair }) }}><option value="">选择已配置的模型</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={p.models[1-i]?.provider === m.provider && p.models[1-i]?.model === m.id}>{m.name} · {m.providerName}</option>)}</select></label>)}{loading ? <span className="ac-meta" role="status">正在读取模型…</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>重试模型列表</button></span> : models.length < 2 ? <span className="ac-meta">当前可读取的模型不足两个，可先使用同一模型的两种策略。</span> : null}</div>
       : <div className="ac-meta">当前模型：{routeText(setup?.current) || (setup ? '请先在输入框右下角选择模型' : '正在读取…')}{setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}> · 项目：{setup.project.path}</span> : ''}</div>}
     <div className="ac-settings-foot">到时验收已写的改动 · 两版分别消耗用量 · {mode.saving ? '正在保存设置…' : '设置已保存在此对话'}</div></>}
+    {setupError && !mode.collapsed && <div className="ac-feedback" role="alert">无法读取当前模型与项目：{setupError}<button className="ac-text-btn" onClick={() => { setSetupError(undefined); setSetupRetry(value => value + 1) }}>重新读取模型与项目</button></div>}
     {(error || mode.error) && <div className="ac-feedback" role="alert">{error ?? mode.error}<button className="ac-text-btn" onClick={() => { void loadMode(sessionId); setError(undefined) }}>重新读取设置</button></div>}
   </section>
 }
 
 /** A command-only blank session has no Chat timeline yet; its comparison still belongs in the conversation. */
 function ComposerDock({ sessionId, session }: { sessionId: string; session?: { blank?: boolean } }): React.ReactElement {
+  // The host may reuse a slot component across sessions; its local state must not follow it.
+  return <ComposerDockState key={sessionId} sessionId={sessionId} {...(session ? { session } : {})} />
+}
+function ComposerDockState({ sessionId, session }: { sessionId: string; session?: { blank?: boolean } }): React.ReactElement {
   const mode = useAbMode(sessionId)
   const [latest, setLatest] = useState<Run>()
   const [collapsed, setCollapsed] = useState(false)
@@ -744,10 +751,11 @@ function ComposerDock({ sessionId, session }: { sessionId: string; session?: { b
   const blank = session?.blank === true
   useEffect(() => {
     if (!blank) return
-    let active = true
+    let active = true, request = 0, applied = 0
     const refresh = (): void => {
       if (document.visibilityState === 'hidden') return
-      call<ListResult>('list', { sessionId }).then(value => { if (active) { setLatest(value.runs[0]); setError(undefined) } }, (e: Error) => { if (active) setError(e.message) })
+      const version = ++request
+      call<ListResult>('list', { sessionId }).then(value => { if (active && version >= applied) { applied = version; setLatest(value.runs[0]); setError(undefined) } }, (e: Error) => { if (active && version >= applied) { applied = version; setError(e.message) } })
     }
     refresh()
     const timer = setInterval(refresh, mode.runId ? 6000 : 1500)
@@ -777,7 +785,7 @@ function StarNudge(): React.ReactElement | null {
   )
 }
 type Act = (method: string, extra?: Record<string, unknown>) => void
-function ActionBar({ run, busy, act, onDone, onContinue }: { run: Run; busy: boolean; act: Act; onDone?: () => void; onContinue?: () => void }): React.ReactElement | null {
+function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; busy: boolean; pending?: string | undefined; act: Act; onDone?: () => void; onContinue?: () => void }): React.ReactElement | null {
   if (run.control?.allowed === false) return <div className="ac-bar" role="status" aria-label="比较操作权限"><span className="ac-bar-text"><strong>当前仅可查看。</strong>{run.control.reason}</span></div>
   const pick = run.choice?.pick
   const picked = run.candidates.find((c) => c.label === pick)
@@ -812,7 +820,7 @@ function ActionBar({ run, busy, act, onDone, onContinue }: { run: Run; busy: boo
       const eligible = picked?.verdict?.eligible === true
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text">{pick === 'none' || picked === undefined ? '这次两版都没选。可以换个描述再来一次。' : eligible ? '采用前会先在你当前项目的副本里预演并验收；不提交，不动 index。' : '这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。'}</span>
+          <span className="ac-bar-text">{pick === 'none' || picked === undefined ? '这次两版都没选。可以换个描述再来一次。' : eligible ? '先核对目标与改动，必要时在副本中预演；确认后才写入。' : '这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。'}</span>
           <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>结束并清理</button>
           {picked !== undefined && <button className="ac-btn" disabled={busy} onClick={() => act('adopt', { mode: 'branch' })} title="只新建分支（含一个提交），不切换、不改当前文件">另存为分支</button>}
           {picked !== undefined && eligible && <button className="ac-btn primary" disabled={busy} onClick={() => act('reviewAdoption')}>审查并采用 {pick}</button>}
@@ -833,8 +841,8 @@ function ActionBar({ run, busy, act, onDone, onContinue }: { run: Run; busy: boo
       )
     case 'adopted':
       return (
-        <div className="ac-bar">
-          <span className="ac-bar-text">采用记录已保存。<span className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的仓库'}</span> <StarNudge /></span>
+        <div className="ac-bar" {...(busy && pending ? { role: 'status', 'aria-label': '采用操作状态' } : {})}>
+          <span className="ac-bar-text">{busy && pending ? <><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{pending === 'adopt' ? '改动已写入，正在整理记录、预览与副本；完成后可撤销或继续。' : pending === 'revert' ? '正在撤销采用并核对项目，请稍候…' : '正在处理这次比较，请稍候…'}</> : <>采用记录已保存。<span className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的仓库'}</span> <StarNudge /></>}</span>
           {run.adoption?.mode === 'worktree' && <button className="ac-btn" disabled={busy} onClick={() => act('revert')}>撤销采用</button>}
           {onContinue && <button className="ac-btn primary" disabled={busy} onClick={onContinue} title="退出比较模式，在原输入框中继续。比较记录仍然保留。">继续主对话</button>}
           {onDone && <button className="ac-btn" disabled={busy} onClick={onDone}>完成</button>}
@@ -895,12 +903,13 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const [err, setErr] = useState<string>()
   const [readErr, setReadErr] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<string>()
   const activeId = useRef(runId)
   activeId.current = runId
   const mounted = useRef(true)
-  const reads = useRef<{ version: number; controller?: AbortController }>({ version: 0 })
+  const reads = useRef<{ version: number; pending: boolean; controller?: AbortController }>({ version: 0, pending: false })
   const action = useRef({ version: 0, pending: false })
-  const [device, setDevice] = useState<PreviewDevice>(compact ? 'adaptive' : 'desktop')
+  const [device, setDevice] = useState<PreviewDevice>('adaptive')
   const [layout, setLayout] = useState<'side' | 'A' | 'B'>('side')
   const [preflight, setPreflight] = useState<{ ok: boolean; reasons: string[]; overlapping?: string[]; rehearsal?: boolean }>()
   const publish = useCallback((next: Run, expectedId: string): void => {
@@ -908,10 +917,13 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     setRun(previous => previous?.runId === next.runId && typeof previous.rev === 'number' && typeof next.rev === 'number'
       && Number.isSafeInteger(previous.rev) && Number.isSafeInteger(next.rev) && previous.rev > next.rev ? previous : next)
   }, [])
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
+    // Polls share an outstanding read; an explicit action refresh supersedes that read.
+    if (!force && reads.current.pending && !reads.current.controller?.signal.aborted) return
     const version = ++reads.current.version, controller = new AbortController()
     reads.current.controller?.abort()
     reads.current.controller = controller
+    reads.current.pending = true
     const current = (): boolean => mounted.current && activeId.current === runId && version === reads.current.version && !controller.signal.aborted
     try {
       const next = await call<Run>('get', { runId }, controller.signal)
@@ -919,17 +931,18 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       if (!next || next.runId !== runId) throw new Error('收到的记录与当前比较不一致，请刷新后重试')
       publish(next, runId); setReadErr(undefined)
     } catch (error) { if (current()) setReadErr((error as Error).message) }
+    finally { if (version === reads.current.version) reads.current.pending = false }
   }, [runId, publish])
   useEffect(() => {
     mounted.current = true
     action.current.version++; action.current.pending = false
-    setBusy(false); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
+    setBusy(false); setPending(undefined); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
     setRun(previous => previous?.runId === runId ? previous : initial?.runId === runId ? initial : undefined)
-    void refresh()
+    void refresh(true)
     return () => { mounted.current = false; reads.current.version++; reads.current.controller?.abort(); action.current.version++ }
     // Seed a selected record once per identity; subsequent reads are authoritative.
   }, [runId, refresh])
-  const live = run !== undefined && (run.control?.retryable === true || LIVE_POLL.has(run.state) || run.candidates.some((c) => busyStage(c.stage)))
+  const live = run !== undefined && (busy || run.control?.retryable === true || LIVE_POLL.has(run.state) || run.candidates.some((c) => busyStage(c.stage)))
   useEffect(() => {
     // Live runs refresh quickly; settled ones slowly, so a card in the chat follows actions taken elsewhere.
     const t = setInterval(() => { void refresh() }, live ? 1500 : 6000)
@@ -944,8 +957,9 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     reads.current.version++; reads.current.controller?.abort()
     const current = (): boolean => mounted.current && activeId.current === targetId && action.current.version === version
     const failed = (error: Error): void => { if (current()) setErr(error.message) }
-    const finished = (): void => { if (current()) { action.current.pending = false; setBusy(false); void refresh() } }
+    const finished = (): void => { if (current()) { action.current.pending = false; setBusy(false); setPending(undefined); void refresh(true) } }
     setBusy(true)
+    setPending(method)
     setErr(undefined)
     if (method === 'reviewAdoption') {
       call<NonNullable<typeof preflight>>('preflight', { runId }).then(value => { if (current()) setPreflight(value) }, failed).finally(finished)
@@ -970,14 +984,14 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const body = (
     <>
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
-      <div className="ac-action-dock"><ActionBar run={run} busy={busy} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
+      <div className="ac-action-dock"><ActionBar run={run} busy={busy} pending={pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>重试清理</button></div></section>}
       {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />
       <div className="ac-compare-tools"><div className="ac-seg" aria-label="比较布局">{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: '并排比较', A: '专注 A', B: '专注 B' }[v]}</button>)}</div><div className="ac-seg" aria-label="预览尺寸"><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>适应窗口</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>桌面 1280</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>手机 390</button></div><span className="ac-meta">{device === 'adaptive' ? '直接在对话中操作真实页面' : '相同视口 · 按可用宽度缩放'}</span></div>
       {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>预览环境与限制</summary><p>{independentHosts ? '候选使用独立本地地址，避免同名 Cookie 相互影响。' : '这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。'}嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。</p></details>}
       <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
-        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} hidden={layout !== 'side' && layout !== c.label} />)}
+        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} compact={compact === true} hidden={layout !== 'side' && layout !== c.label} />)}
       </div>
     </>
   )

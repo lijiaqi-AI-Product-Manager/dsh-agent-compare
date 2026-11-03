@@ -6,7 +6,7 @@
 
 **同一需求，两版真跑，盲选再揭晓。**
 
-> **0.2.0-alpha.16，尚未发布到 npm。** 首期支持本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
+> **0.2.0-alpha.17，尚未发布到 npm。** 首期支持本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一前端需求，生成并实际运行两份实现。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
@@ -16,7 +16,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 固定候选样例，中文界面。应用运行、共同验收与采用实际执行；等待段已剪辑，本地路径已隐藏。
 
-[完整视频（29 秒）](docs/media/comparison-workflow.mp4) · [演示条件与结果](docs/demo.md)
+[完整视频（28 秒）](docs/media/comparison-workflow.mp4) · [演示条件与结果](docs/demo.md)
 
 <a id="install"></a>
 
@@ -37,7 +37,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：

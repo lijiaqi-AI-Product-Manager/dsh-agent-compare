@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
 
-> **0.2.0-alpha.16, ainda não publicado no npm.** A instalação disponível é a partir do código-fonte. O escopo inicial são projetos Vite locais na raiz de um repositório Git.
+> **0.2.0-alpha.17, ainda não publicado no npm.** A instalação disponível é a partir do código-fonte. O escopo inicial são projetos Vite locais na raiz de um repositório Git.
 
 AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Dois agentes trabalham em cópias independentes da mesma tarefa de interface. O plugin instala dependências, compila, serve as duas aplicações e executa critérios comuns de verificação. Você testa as páginas antes de escolher A, B ou nenhuma. Antes de aplicar uma versão, ele verifica a combinação com o estado atual do seu projeto.
 
@@ -16,7 +16,7 @@ AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 Exemplo com candidatos fixos e interface em chinês. A execução dos aplicativos, as verificações comuns e a aplicação das alterações são reais; as esperas foram cortadas e os caminhos locais ocultados.
 
-[Vídeo completo (29 segundos)](docs/media/comparison-workflow.mp4) · [Condições e resultados](docs/demo.md)
+[Vídeo completo (28 segundos)](docs/media/comparison-workflow.mp4) · [Condições e resultados](docs/demo.md)
 
 ## Instalação
 
@@ -34,7 +34,7 @@ npm pack
 Substitua `<your-profile>` pelo nome real do seu perfil:
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
 ```
 
 Reinicie o DSH. Antes de atualizar, finalize as comparações ativas e feche instâncias antigas que usam os mesmos registros. Não há suporte a alterações simultâneas por versões diferentes do plugin.

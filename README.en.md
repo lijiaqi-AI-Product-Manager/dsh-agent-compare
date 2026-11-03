@@ -6,7 +6,7 @@
 
 **Same task. Two live builds. Pick blind.**
 
-> **0.2.0-alpha.16, not yet on npm.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+> **0.2.0-alpha.17, not yet on npm.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
@@ -16,7 +16,7 @@ AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-har
 
 Fixed-candidate sample with a Chinese interface. Application execution, shared checks and adoption are real; waiting periods are cut and local paths are hidden.
 
-[Full video (29 seconds)](docs/media/comparison-workflow.mp4) · [Method and results](docs/demo.md)
+[Full video (28 seconds)](docs/media/comparison-workflow.mp4) · [Method and results](docs/demo.md)
 
 ## Install
 
@@ -35,7 +35,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
