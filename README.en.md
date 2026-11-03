@@ -17,7 +17,7 @@
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
-[插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md)
+[插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
 ## Watch the complete workflow
 
@@ -29,12 +29,12 @@ Fixed-candidate sample with a Chinese interface. Application execution, shared c
 
 ## Install
 
-These commands target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page. This project is not yet listed in a plugin market.
+These commands target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page.
 
 Install the npm preview into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare
+dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
 ```
 
 For another self-managed profile, replace `web` with its actual name.

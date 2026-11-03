@@ -17,7 +17,7 @@
 
 AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Deux agents réalisent la même tâche d'interface dans des copies indépendantes du projet. L'extension installe les dépendances, compile, sert les deux applications et leur applique des critères communs. Vous manipulez les pages avant de choisir A, B ou aucune. Avant l'adoption, la proposition est vérifiée avec l'état actuel de votre projet.
 
-[插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md)
+[插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
 ## Voir le parcours complet
 
@@ -36,7 +36,7 @@ La référence de développement est Node 26.13.0 et npm 12.2.1. Les vérificati
 Installez la préversion npm dans le profil Web par défaut. Le badge npm indique son état de publication :
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare
+dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
 ```
 
 Pour un autre profil autogéré, remplacez `web` par son nom réel.

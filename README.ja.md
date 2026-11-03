@@ -17,7 +17,7 @@
 
 AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）のプラグインです。一つのフロントエンド課題から独立した二つの実装を作り、依存関係のインストール、ビルド、共通の検証を実行します。実際のページを操作して A、B、または「どちらも選ばない」を選択できます。採用前には、現在のプロジェクトと組み合わせた状態を検証します。
 
-[插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md)
+[插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
 ## 操作の流れを見る
 
@@ -36,7 +36,7 @@ Node 26.13.0 と npm 12.2.1 が開発基準です。公式の最新 DSH パッ�
 npm のプレビュー版を既定の Web プロファイルに追加します。公開状態は上部の npm バッジで確認できます。
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare
+dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
 ```
 
 別の自己管理プロファイルを使う場合は、`web` を実際の名前に置き換えてください。

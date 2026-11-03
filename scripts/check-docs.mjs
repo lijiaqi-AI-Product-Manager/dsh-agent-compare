@@ -26,6 +26,8 @@ for (const [file, source] of contents) {
     const current = file === 'README.zh.md' ? 'README.md' : file
     for (const target of canonical) if (target !== current) assert.ok(source.includes(`](${target})`) || source.includes(`](${repositoryFiles}${target})`), `${file}: missing language link ${target}`)
     assert.ok(source.includes(manifest.version), `${file}: missing current version`)
+    assert.ok(source.includes(`add ${manifest.name}@${manifest.version}`), `${file}: missing the current pinned npm installation target`)
+    assert.ok(source.includes(`${repository}/issues/4`), `${file}: missing listing and review status records`)
     const archives = [...source.matchAll(/dsh-agent-compare-[\w.\-]+\.tgz/g)].map(match => match[0])
     assert.ok(archives.length > 0 && archives.every(name => name === expectedTarball), `${file}: missing or stale source-install archive`)
   }
