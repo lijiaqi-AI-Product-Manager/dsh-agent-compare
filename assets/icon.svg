@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="AgentCompare">
+  <rect width="256" height="256" rx="56" fill="#101724"/>
+  <rect x="28" y="66" width="92" height="124" rx="20" fill="#0f766e"/>
+  <rect x="136" y="66" width="92" height="124" rx="20" fill="#2563eb"/>
+  <path d="M45 158 67 98h15l22 60H88l-4-14H64l-4 14Zm23-27h12l-6-20Z" fill="#fff"/>
+  <path d="M155 98h26c15 0 23 5 23 16 0 7-4 11-9 13 8 2 12 7 12 14 0 12-9 17-25 17h-27Zm15 13v11h9c7 0 10-2 10-6s-3-5-10-5Zm0 23v11h11c7 0 11-1 11-6s-4-5-11-5Z" fill="#fff"/>
+</svg>

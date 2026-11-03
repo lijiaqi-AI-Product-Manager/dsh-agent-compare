@@ -1,3 +1,5 @@
+<p align="center"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/icon.png" width="72" height="72" alt="AgentCompare"></p>
+
 # AgentCompare
 
 [![Source version](https://img.shields.io/github/package-json/v/lijiaqi-AI-Product-Manager/dsh-agent-compare?label=source&color=0f766e&style=flat&labelColor=334155)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
@@ -14,6 +16,8 @@
 > **0.2.0-alpha.18 · Prévia.** Projetos Vite locais na raiz de um repositório Git. Reutiliza o modelo atual do DSH.
 
 AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Dois agentes trabalham em cópias independentes da mesma tarefa de interface. O plugin instala dependências, compila, serve as duas aplicações e executa critérios comuns de verificação. Você testa as páginas antes de escolher A, B ou nenhuma. Antes de aplicar uma versão, ele verifica a combinação com o estado atual do seu projeto.
+
+[插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md)
 
 ## Veja o fluxo completo
 

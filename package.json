@@ -33,7 +33,9 @@
     "LICENSE",
     "!examples/vite-react-demo/node_modules",
     "!examples/vite-react-demo/dist",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "assets",
+    "screenshots.json"
   ],
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
@@ -48,7 +50,9 @@
     "test:ui": "npm run build && node scripts/test-ui.mjs",
     "test:runtime": "npm run build && node scripts/test-runtime.mjs",
     "smoke": "npm run build && node scripts/smoke.mjs",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "check:distribution": "node scripts/check-distribution.mjs",
+    "check:prebuilt": "node scripts/check-prebuilt.mjs"
   },
   "keywords": [
     "dsh",
@@ -60,7 +64,10 @@
     "blind-test",
     "code-comparison",
     "vite",
-    "react"
+    "react",
+    "frontend-tools",
+    "ab-testing",
+    "workflow"
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
