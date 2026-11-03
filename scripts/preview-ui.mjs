@@ -82,7 +82,9 @@ const history = ${JSON.stringify(retainedHistory(state))}, legacy = ${JSON.strin
 const templateRun = ${JSON.stringify({ ...base, state: 'judging', candidates: [A, B] })};
 const models = [{ provider:'deepseek', providerName:'DeepSeek', id:'deepseek-chat', name:'DeepSeek V3' }, { provider:'deepseek', providerName:'DeepSeek', id:'deepseek-reasoner', name:'DeepSeek R1' }];
 window.__requests = []; window.__commands = []; window.__edits = []; window.__commandAcks = [];
-window.__getPlans = []; window.__runSnapshot = () => structuredClone(runs[0]);
+window.__getPlans = []; window.__runSnapshot = () => structuredClone(runs[0]); window.__insertRun = run => runs.unshift(run);
+window.__sessionPlans = [];
+window.__actionPlans = [];
 window.__shotPlans = []; window.__shotFailedOnce = false;
 const realFetch = window.fetch;
 function listHistory(body) {
@@ -99,7 +101,15 @@ window.fetch = async (url, init) => {
   const m = String(url).match(/agent-compare\\/api\\/(\\w+)/);
   if (!m) return realFetch(url, init);
   const body = JSON.parse(init.body ?? '{}'); window.__requests.push({ method:m[1], body });
+  const sessionPlan = window.__sessionPlans.findIndex(plan => plan.method === m[1] && plan.sessionId === body.sessionId);
+  if (sessionPlan >= 0) {
+    const plan = window.__sessionPlans.splice(sessionPlan, 1)[0];
+    const snapshot = JSON.stringify(plan.error ? {ok:false,error:plan.error} : {ok:true,value:plan.value ?? (m[1] === 'list' ? listHistory(body) : null)});
+    if (plan.delayMs) await new Promise(resolve=>setTimeout(resolve,plan.delayMs));
+    return new Response(snapshot,{status:plan.error?503:200,headers:{'content-type':'application/json'}});
+  }
   if (m[1] === ${JSON.stringify(error)}) return new Response(JSON.stringify({ok:false,error:'请求失败，请重试'}),{status:503});
+  if (m[1] === 'setup' && ${JSON.stringify(error === 'setup-slow')}) await new Promise(resolve=>setTimeout(resolve,5000));
   if (m[1] === 'shot') {
     const plan = window.__shotPlans.shift() ?? {};
     if (${JSON.stringify(error)} === 'shot-once' && !window.__shotFailedOnce) {window.__shotFailedOnce=true;return new Response(JSON.stringify({ok:false,error:'截图请求暂不可用'}),{status:503})}
@@ -122,9 +132,12 @@ window.fetch = async (url, init) => {
   if (m[1] === 'cleanup' && selected >= 0) { runs[selected] = {...runs[selected],leftovers:undefined}; value=runs[selected]; }
   // Delayed snapshots intentionally ignore abort, exercising the client's own guards.
   const plan=m[1]==='get'?window.__getPlans.shift():undefined;
-  const snapshot=JSON.stringify({ok:true,value:plan?.value??value});
+  const actionPlan=window.__actionPlans.findIndex(plan=>plan.method===m[1]);
+  const pending=actionPlan>=0?window.__actionPlans.splice(actionPlan,1)[0]:undefined;
+  const snapshot=JSON.stringify(pending?.error?{ok:false,error:pending.error}:{ok:true,value:plan?.value??value});
   if(plan?.delayMs)await new Promise(resolve=>setTimeout(resolve,plan.delayMs));
-  return new Response(snapshot,{headers:{'content-type':'application/json'}});
+  if(pending?.delayMs)await new Promise(resolve=>setTimeout(resolve,pending.delayMs));
+  return new Response(snapshot,{status:pending?.error?503:200,headers:{'content-type':'application/json'}});
 };
 window.__ModuleLoader__ = {load:({factory})=>{
   const mod=factory(id=>{if(id==='react')return React;throw new Error('unexpected require '+id)}), regs={};
@@ -163,7 +176,10 @@ window.__ModuleLoader__ = {load:({factory})=>{
   const headerRoots={normal:ReactDOM.createRoot(document.getElementById('btn')),hero:ReactDOM.createRoot(document.getElementById('hero-options'))};
   window.__switchHeader=(sessionId,isBlank)=>{for(const [key,slot,visible]of [['normal','conversation.session.header.utilities',!isBlank],['hero','conversation.hero.options',isBlank]]){const item=regs[slot];headerRoots[key].render(visible?React.createElement(item.C,{...item.spec.inject(sessionId),key:sessionId}):null)}};
   window.__switchHeader('s1',blank);
-  for(const [slot,id] of [['shell.overlay','overlay'],['conversation.input.left','mode'],['conversation.input.dock','settings']]){const item=regs[slot];ReactDOM.createRoot(document.getElementById(id)).render(React.createElement(item.C,{...item.spec.inject('s1'),session:{blank}}))}
+  const overlay=regs['shell.overlay'];ReactDOM.createRoot(document.getElementById('overlay')).render(React.createElement(overlay.C,overlay.spec.inject()));
+  const composerRoots={mode:ReactDOM.createRoot(document.getElementById('mode')),settings:ReactDOM.createRoot(document.getElementById('settings'))};
+  window.__switchComposer=(sessionId,isBlank)=>{for(const [slot,id]of [['conversation.input.left','mode'],['conversation.input.dock','settings']]){const item=regs[slot];composerRoots[id].render(React.createElement(item.C,{...item.spec.inject(sessionId),session:{blank:isBlank}}))}};
+  window.__switchComposer('s1',blank);
   if(${JSON.stringify(state==='inline')}) renderCommand({kind:'success',text:'A|B 比较已开始 · 运行 0a1b2c3d'});
   else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) setTimeout(()=>{
     document.querySelector('.ac-header-btn').focus();document.querySelector('.ac-header-btn').click();

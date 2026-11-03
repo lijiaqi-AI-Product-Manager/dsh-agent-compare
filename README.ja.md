@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
 
-> **0.2.0-alpha.16。npm には未公開です。** 以下はソースからの導入手順です。現在の中心的な対象は、Git リポジトリ直下にあるローカル Vite フロントエンドです。
+> **0.2.0-alpha.17。npm には未公開です。** 以下はソースからの導入手順です。現在の中心的な対象は、Git リポジトリ直下にあるローカル Vite フロントエンドです。
 
 AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）のプラグインです。一つのフロントエンド課題から独立した二つの実装を作り、依存関係のインストール、ビルド、共通の検証を実行します。実際のページを操作して A、B、または「どちらも選ばない」を選択できます。採用前には、現在のプロジェクトと組み合わせた状態を検証します。
 
@@ -34,7 +34,7 @@ npm pack
 `<your-profile>` を実際に使っているプロファイル名に置き換えます。
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
 ```
 
 DSH を再起動します。同じ記録を使う古いプラグインの実行は、更新前に終了してください。旧版と新版による同時変更はサポートしません。
