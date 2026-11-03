@@ -57,6 +57,8 @@ const states = {
   partial: [{ ...base, state: 'revealed', choice: { pick: 'A' }, revealedAt: now, candidates: [{ ...A, ...strat.A, usage: { kind: 'reported', inputTokens: 10, outputTokens: 2, cacheReadTokens: 100, cacheWriteTokens: 50 } }, { ...B, ...strat.B, usage: { kind: 'unknown', reason: 'provider omitted usage' } }] }],
   blocked: [{ ...base, state: 'revealed', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'blocked', mode: 'worktree', rehearsed: true, message: '把这一版接到你当前的项目上预演后，验收没有通过：test 未通过。尚未写入任何文件。', rehearsalChecks: [{ name: 'typecheck', outcome: 'passed', durationMs: 1 }, { name: 'test', outcome: 'failed', durationMs: 1 }, { name: 'build', outcome: 'passed', durationMs: 1 }] }, candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   adopted: [{ ...base, state: 'adopted', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', rehearsed: true, message: '已写入 2 个文件，项目现在与预演通过的版本完全一致；未提交，index 和 HEAD 未改动' }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
+  retained: [{ ...base, state: 'adopted', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', message: '已采用；截图为验收时保存的静态记录' }, candidates: [A, B].map(c => ({ ...c, ...strat[c.label], previewUrl: undefined, hasScreenshot: true, hasMobileScreenshot: true })) }],
+  'interrupted-peer': [{ ...base, state: 'judging', candidates: [A, { ...B, stage: 'interrupted', previewUrl: undefined, error: { stage: 'generating', message: '宿主在这一步进行时停止了' }, salvageable: true }] }],
   cleanup: [{ ...base, state: 'adopted', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', message: '已采用' }, leftovers: ['候选 A 预览未停止：resource is busy'], candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   recovery: [{ ...base, state: 'recovery', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'needs-recovery', mode: 'worktree', message: '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。', attention: ['src/App.tsx'] }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
 }
@@ -80,6 +82,7 @@ const templateRun = ${JSON.stringify({ ...base, state: 'judging', candidates: [A
 const models = [{ provider:'deepseek', providerName:'DeepSeek', id:'deepseek-chat', name:'DeepSeek V3' }, { provider:'deepseek', providerName:'DeepSeek', id:'deepseek-reasoner', name:'DeepSeek R1' }];
 window.__requests = []; window.__commands = []; window.__edits = []; window.__commandAcks = [];
 window.__getPlans = []; window.__runSnapshot = () => structuredClone(runs[0]);
+window.__shotPlans = []; window.__shotFailedOnce = false;
 const realFetch = window.fetch;
 function listHistory(body) {
   const scope = body.scope ?? (body.sessionId ? 'session' : 'all');
@@ -96,6 +99,15 @@ window.fetch = async (url, init) => {
   if (!m) return realFetch(url, init);
   const body = JSON.parse(init.body ?? '{}'); window.__requests.push({ method:m[1], body });
   if (m[1] === ${JSON.stringify(error)}) return new Response(JSON.stringify({ok:false,error:'请求失败，请重试'}),{status:503});
+  if (m[1] === 'shot') {
+    const plan = window.__shotPlans.shift() ?? {};
+    if (${JSON.stringify(error)} === 'shot-once' && !window.__shotFailedOnce) {window.__shotFailedOnce=true;return new Response(JSON.stringify({ok:false,error:'截图请求暂不可用'}),{status:503})}
+    const canvas=document.createElement('canvas');canvas.width=body.mobile?390:1280;canvas.height=body.mobile?844:900;
+    const context=canvas.getContext('2d');context.fillStyle='#edf2fa';context.fillRect(0,0,canvas.width,canvas.height);context.fillStyle='#173b62';context.font='24px sans-serif';context.fillText('Sample screenshot '+body.label,20,48);context.strokeRect(1,1,canvas.width-2,canvas.height-2);
+    const dataUrl=plan.broken?'data:image/png;base64,AA==':canvas.toDataURL('image/png');
+    const delay=plan.delayMs??(${JSON.stringify(error)}==='shot-slow'&&!body.mobile?1200:0);if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+    return new Response(JSON.stringify({ok:true,value:{dataUrl}}),{headers:{'content-type':'application/json'}});
+  }
   if (m[1] === 'preferences') return realFetch('/harness/preferences',init);
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
   let value = m[1] === 'list' ? listHistory(body)

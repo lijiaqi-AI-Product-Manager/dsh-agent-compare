@@ -217,6 +217,7 @@ const STAGE_TEXT: Record<Stage, string> = {
   verifying: '检查与构建', previewing: '启动并验收页面', ready: '可以体验', failed: '失败', stopping: '正在停止', cancelled: '已停止', interrupted: '已中断',
 }
 const CHECK_TEXT: Record<string, string> = { typecheck: '类型检查', lint: 'Lint', build: '构建', test: '测试', browser: '页面验收' }
+const ERROR_STAGE: Partial<Record<Stage, string>> = { preparing: '准备副本', generating: '实现', sealing: '封存改动', installing: '安装依赖', verifying: '检查与构建', previewing: '启动与验收页面' }
 const STATE_TEXT: Record<string, string> = {
   running: '进行中', judging: '待选择', revealed: '已揭晓', adopting: '采用中', adopted: '已采用', recovery: '需要处理', abandoned: '已结束', interrupted: '已中断',
 }
@@ -285,6 +286,8 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-pill.ok{background:color-mix(in srgb,var(--ac-ok) 14%,transparent);color:var(--ac-ok)}
 .ac-pill.err{background:color-mix(in srgb,var(--ac-err) 12%,transparent);color:var(--ac-err)}
 .ac-pill.warn{background:color-mix(in srgb,var(--ac-warn) 14%,transparent);color:var(--ac-warn)}
+.ac-pill.ok,.ac-pill.err,.ac-pill.warn{color:var(--ac-fg)}
+.ac-pill.ok .ac-dot{background:var(--ac-ok)}.ac-pill.err .ac-dot{background:var(--ac-err)}.ac-pill.warn .ac-dot{background:var(--ac-warn)}
 .ac-pill.brand{background:color-mix(in srgb,var(--ac-brand) 12%,transparent);color:var(--ac-brand)}
 .ac-spin{width:11px;height:11px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:ac-spin .8s linear infinite}
 .ac-dot{width:7px;height:7px;border-radius:50%;background:currentColor}
@@ -343,13 +346,19 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-lights{display:flex;gap:5px}.ac-lights i{width:9px;height:9px;border-radius:50%;background:var(--ac-border-strong)}
 .ac-url{flex:1;min-width:0;height:24px;display:flex;align-items:center;padding:0 10px;border-radius:6px;background:var(--ac-bg);color:var(--ac-fg3);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ac-frame{flex:1;width:100%;min-height:0;border:none;background:#fff}
-.ac-shot{flex:1;min-height:0;overflow:auto;display:flex;gap:12px;align-items:flex-start;justify-content:center;padding:12px;background:var(--ac-l1)}
-.ac-shot img{max-width:100%;border-radius:8px;border:1px solid var(--ac-border)}
-.ac-shot img.m{max-width:34%}
+.ac-shot{flex:1;min-height:0;min-width:0;overflow:auto;padding:12px;background:var(--ac-l1)}
+.ac-shot img{display:block;width:100%;max-width:1280px;height:auto;margin:0 auto;border-radius:8px;border:1px solid var(--ac-border);box-sizing:border-box}
+.ac-shot img.m{max-width:390px}
+.ac-shot.natural img{width:auto;max-width:none;margin:0}
+.ac-shot:focus-visible{outline:2px solid var(--ac-brand);outline-offset:-3px}
+.ac-shottools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--ac-border);color:var(--ac-fg2);font-size:12px}
+.ac-shottools span{flex:1}
 .ac-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--ac-fg3);padding:24px;text-align:center}
 .ac-skel{width:min(320px,70%);display:flex;flex-direction:column;gap:8px}.ac-skel i{height:10px;border-radius:5px;background:var(--ac-l2);animation:ac-pulse 1.4s ease-in-out infinite}
 .ac-fail{flex:1;margin:12px;padding:12px;border-radius:var(--ac-r-md);background:color-mix(in srgb,var(--ac-err) 7%,transparent);color:var(--ac-fg);overflow:auto;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;white-space:pre-wrap}
 .ac-fail b{display:block;color:var(--ac-err);font-family:var(--dsw-font-family,inherit);margin-bottom:6px}
+.ac-fail.interrupted{background:color-mix(in srgb,var(--ac-warn) 8%,transparent)}
+.ac-fail.interrupted b{color:var(--ac-warn)}
 .ac-salvage{display:flex;align-items:center;gap:12px;margin-top:14px;padding:10px 12px;border-radius:var(--ac-r-sm);background:var(--ac-bg);border:1px solid var(--ac-border);font-family:var(--dsw-font-family,inherit);white-space:normal;color:var(--ac-fg2)}
 .ac-salvage span{flex:1}
 .ac-activity code{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;color:var(--ac-fg2)}
@@ -366,7 +375,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-banner .disclaimer{color:var(--ac-fg3);font-size:12px}
 .ac-next{flex:none;margin:16px;padding:16px;border-radius:var(--ac-r-lg);border:1px solid var(--ac-border);display:flex;flex-direction:column;gap:10px}
 .ac-next b{font-size:14px}
-.ac-link{color:var(--dsw-alias-link,var(--ac-brand));text-decoration:none}.ac-link:hover{text-decoration:underline}
+.ac-link{color:var(--dsw-alias-link,var(--ac-brand));text-decoration:underline;text-underline-offset:2px}
 .ac-history{max-width:860px;width:100%;margin:0 auto;padding:20px 24px;display:flex;flex-direction:column;gap:8px}
 .ac-hrow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:var(--ac-r-md);border:1px solid var(--ac-border);background:var(--ac-bg);text-align:left;font:inherit;color:inherit;cursor:pointer}
 .ac-hrow:hover{background:var(--ac-hover)}
@@ -469,8 +478,9 @@ const IconExternal = (): React.ReactElement => (
 )
 function StagePill({ c }: { c: Cand }): React.ReactElement {
   const complete = Boolean(c.checks?.length && c.checks.every(check => check.outcome === 'passed'))
-  const kind = c.stage === 'ready' ? c.verdict?.eligible ? complete ? 'ok' : '' : c.verdict ? 'err' : '' : c.stage === 'failed' || c.stage === 'interrupted' ? 'err' : busyStage(c.stage) ? 'brand' : ''
-  const title = c.stage === 'ready' ? `可预览 · ${c.verdict ? c.verdict.eligible ? complete ? '检查通过' : '部分检查未运行' : '未通过检查' : '检查状态未知'}` : STAGE_TEXT[c.stage]
+  const kind = c.stage === 'ready' ? c.verdict?.eligible ? complete ? 'ok' : '' : c.verdict ? 'err' : '' : c.stage === 'failed' ? 'err' : c.stage === 'interrupted' ? 'warn' : busyStage(c.stage) ? 'brand' : ''
+  const availability = c.previewUrl ? '可预览' : c.hasScreenshot || c.hasMobileScreenshot ? '截图记录' : '验收完成'
+  const title = c.stage === 'ready' ? `${availability} · ${c.verdict ? c.verdict.eligible ? complete ? '检查通过' : '部分检查未运行' : '未通过检查' : '检查状态未知'}` : STAGE_TEXT[c.stage]
   return (
     <span className={`ac-pill ${kind}`}>
       {busyStage(c.stage) ? <span className="ac-spin" /> : <span className="ac-dot" />}
@@ -525,13 +535,24 @@ function Verdict({ c }: { c: Cand }): React.ReactElement | null {
   )
 }
 /** A finished candidate that is no longer served: its verification screenshots, and a way to serve it again. */
-function Screenshots({ runId, c, busy, act }: { runId: string; c: Cand; busy: boolean; act: Act }): React.ReactElement {
-  const [desk, setDesk] = useState<string>()
-  const [mob, setMob] = useState<string>()
+function Screenshots({ runId, c, busy, act, device }: { runId: string; c: Cand; busy: boolean; act: Act; device: PreviewDevice }): React.ReactElement {
+  const mobile = device === 'phone', key = `${runId}/${c.label}/${mobile ? 'phone' : 'desktop'}`
+  const available = mobile ? c.hasMobileScreenshot : c.hasScreenshot
+  const description = `候选 ${c.label} ${mobile ? '手机' : '桌面'}验收截图`
+  const [image, setImage] = useState<{ key: string; loading: boolean; url?: string; error?: string }>({ key, loading: !!available })
+  const [retry, setRetry] = useState(0)
+  const [original, setOriginal] = useState<{ key: string; value: boolean }>({ key, value: false })
+  const natural = original.key === key && original.value
   useEffect(() => {
-    if (c.hasScreenshot) call<{ dataUrl: string }>('shot', { runId, label: c.label }).then((r) => setDesk(r.dataUrl), () => {})
-    if (c.hasMobileScreenshot) call<{ dataUrl: string }>('shot', { runId, label: c.label, mobile: true }).then((r) => setMob(r.dataUrl), () => {})
-  }, [runId, c.label, c.hasScreenshot, c.hasMobileScreenshot])
+    const controller = new AbortController()
+    let active = true
+    setImage({ key, loading: !!available })
+    if (available) call<{ dataUrl: string }>('shot', { runId, label: c.label, ...(mobile ? { mobile: true } : {}) }, controller.signal).then(r => {
+      if (active) setImage({ key, loading: false, url: r.dataUrl })
+    }, (error: Error) => { if (active) setImage({ key, loading: false, error: error.message }) })
+    return () => { active = false; controller.abort() }
+  }, [key, runId, c.label, mobile, available, retry])
+  const current = image.key === key ? image : { key, loading: !!available }
   const reopen = c.canReopenPreview
     ? <button className="ac-btn primary sm" disabled={busy} onClick={() => act('reopenPreview', { label: c.label })}>重新打开预览</button>
     : null
@@ -541,12 +562,12 @@ function Screenshots({ runId, c, busy, act }: { runId: string; c: Cand; busy: bo
         <span>{c.canReopenPreview ? '预览已停止（DSH 重启或已结束），可以重新打开。下面是验收时的截图：' : '副本已清理，下面是验收时的截图：'}</span>
         {reopen}
       </div>
-      {desk || mob ? (
-        <div className="ac-shot">
-          {desk && <img src={desk} alt={`候选 ${c.label} 桌面截图`} />}
-          {mob && <img className="m" src={mob} alt={`候选 ${c.label} 手机截图`} />}
-        </div>
-      ) : <div className="ac-empty">没有截图</div>}
+      <div className="ac-shottools"><span>{mobile ? '手机' : '桌面'}验收截图 · 静态记录</span>{current.url && <button className="ac-text-btn" aria-pressed={natural} onClick={() => setOriginal({ key, value: !natural })}>{natural ? '适应宽度' : '原始尺寸'}</button>}</div>
+      {current.loading ? <div className="ac-empty" role="status">正在读取{description}…</div>
+        : current.error ? <div className="ac-empty" role="alert">截图读取失败：{current.error}<button className="ac-btn sm" onClick={() => setRetry(n => n + 1)}>重试读取截图</button></div>
+        : current.url ? <div className={`ac-shot${natural ? ' natural' : ''}`} tabIndex={0} role="region" aria-label={description}>
+          <img className={mobile ? 'm' : ''} src={current.url} alt={description} onError={() => setImage({ key, loading: false, error: '图片无法显示，请重试读取。' })} />
+        </div> : <div className="ac-empty">此记录没有{mobile ? '手机' : '桌面'}验收截图。</div>}
     </div>
   )
 }
@@ -635,8 +656,8 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: 
           <LivePreview c={c} device={device} />
         </div>
       ) : c.error ? (
-        <div className="ac-fail">
-          <b>{STAGE_TEXT[c.error.stage] ?? c.error.stage}阶段失败</b>{c.error.message}
+        <div className={`ac-fail${c.stage === 'interrupted' ? ' interrupted' : ''}`}>
+          <b>{ERROR_STAGE[c.error.stage] ?? STAGE_TEXT[c.error.stage] ?? c.error.stage}{c.stage === 'interrupted' ? '时中断' : '失败'}</b>{c.error.message}
           {c.salvageable && (
             <div className="ac-salvage">
               <span>副本里还保留着它已经写的改动，可以照样封存并跑完整验收，由验收结果决定能否采用。</span>
@@ -645,7 +666,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: 
           )}
         </div>
       ) : c.stage === 'ready' ? (
-        <Screenshots runId={run.runId} c={c} busy={busy} act={act} />
+        <Screenshots runId={run.runId} c={c} busy={busy} act={act} device={device} />
       ) : (
         <div className="ac-empty">
           <div className="ac-skel"><i style={{ width: '60%' }} /><i /><i style={{ width: '80%' }} /></div>
@@ -781,7 +802,7 @@ function ActionBar({ run, busy, act, onDone, onContinue }: { run: Run; busy: boo
       }
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text"><strong>两边都试一下</strong>，选出你更愿意采用的那一版；选完立即揭晓</span>
+          <span className="ac-bar-text">{ready === 2 ? <><strong>两边都试一下</strong>，选出你更愿意采用的那一版；选完立即揭晓</> : <><strong>仅 {run.candidates.find(c => c.stage === 'ready')?.label} 已可体验。</strong>先操作这一版，再决定是否选择；选完立即揭晓。</>}</span>
           <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>都不满意</button>
           {run.candidates.filter((c) => c.stage === 'ready').map((c) => <button key={c.label} className="ac-btn primary" disabled={busy} onClick={() => act('choose', { pick: c.label })}>选 {c.label}</button>)}
         </div>
@@ -821,7 +842,7 @@ function ActionBar({ run, busy, act, onDone, onContinue }: { run: Run; busy: boo
     default:
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text">{run.state === 'interrupted' ? '这次比较因宿主重启而中断。' : '这次比较已结束。'}</span>
+          <span className="ac-bar-text">{run.state === 'interrupted' ? '这次比较在宿主停止时中断，可验收副本里已经写出的改动。' : '这次比较已结束。'}</span>
           {run.state === 'interrupted' && <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>清理</button>}
         </div>
       )
@@ -834,24 +855,21 @@ function Banners({ run }: { run: Run }): React.ReactElement {
   const pickedTitle = run.candidates.find((c) => c.label === pick)?.strategy?.title
   const a = run.adoption
   const bad = a && ['blocked', 'rolled-back', 'needs-recovery'].includes(a.state)
+  const comparison = revealed && pick !== undefined ? <>
+    <div>{run.mode === 'same-model' ? '同一模型、两种策略。' : '两个模型、同一要求。'}
+      你选了 <strong>{pick === 'none' ? '都不满意' : `${pick}${pickedTitle ? `（${pickedTitle}）` : ''}`}</strong>；程序验收倾向 <strong>{fav === 'tie' ? '持平' : fav === 'none' || fav === undefined ? '无' : fav}</strong>
+      {pick !== 'none' && fav !== undefined && fav !== 'tie' && fav !== 'none' && fav !== pick ? '。你的选择和验收结论不同。' : '。'}</div>
+    <div className="disclaimer">单次任务的结果不代表模型或策略的整体优劣。</div>
+  </> : null
   return (
     <>
       {run.outsideChanges && run.outsideChanges.length > 0 && (
         <div className="ac-banner warn" role="alert">
           <div><strong>生成期间，你的项目里这些文件和开始时不一样了</strong>：<code>{run.outsideChanges.slice(0, 8).join('、')}{run.outsideChanges.length > 8 ? ` 等 ${run.outsideChanges.length} 个` : ''}</code></div>
-          <div className="disclaimer">{run.isolation === 'own-root' ? '候选只能写自己的副本，这些是你自己的编辑；采用时会检查是否和候选的改动重叠。' : '可能是候选 Agent 越界写入，也可能是你自己的编辑；请在采用前检查这些文件。'}</div>
+          <div className="disclaimer">这些变化的来源尚未核实。采用前会检查是否与候选改动重叠；请先查看这些文件。</div>
         </div>
       )}
-      {revealed && pick !== undefined && (
-        <div className="ac-banner">
-          <div>
-            {run.mode === 'same-model' ? '同一模型、两种策略。' : '两个模型、同一要求。'}
-            你选了 <strong>{pick === 'none' ? '都不满意' : `${pick}${pickedTitle ? `（${pickedTitle}）` : ''}`}</strong>；程序验收倾向 <strong>{fav === 'tie' ? '持平' : fav === 'none' || fav === undefined ? '无' : fav}</strong>
-            {pick !== 'none' && fav !== undefined && fav !== 'tie' && fav !== 'none' && fav !== pick ? '。你的选择和验收结论不同。' : '。'}
-          </div>
-          <div className="disclaimer">单次任务的结果不代表模型或策略的整体优劣。</div>
-        </div>
-      )}
+      {comparison && (run.state === 'adopted' ? <details className="ac-banner"><summary>已选 {pick} · 查看比较与选择记录</summary>{comparison}</details> : <div className="ac-banner">{comparison}</div>)}
       {a && (
         <div className={`ac-banner${bad ? ' err' : a.state === 'needs-attention' ? ' warn' : ''}`}>
           <div>
