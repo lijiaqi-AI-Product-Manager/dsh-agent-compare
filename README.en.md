@@ -10,9 +10,19 @@
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
+## Watch the complete workflow
+
+[![Fixed-candidate workflow: interact with both apps, check, choose and adopt](docs/media/comparison-preview.gif)](docs/media/comparison-workflow.mp4)
+
+Fixed-candidate sample with a Chinese interface. Application execution, shared checks and adoption are real; waiting periods are cut and local paths are hidden.
+
+[Full video (29 seconds)](docs/media/comparison-workflow.mp4) · [Method and results](docs/demo.md)
+
 ## Install
 
-Until it is on npm, build from source and install into a DSH profile:
+Until it is on npm, these steps target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page. This project is not yet listed in a plugin market.
+
+Build from source and install:
 
 ```bash
 git clone https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare.git
@@ -38,26 +48,9 @@ After restarting DSH, enable **A|B at the bottom left of the conversation compos
 
 The settings strip's example button creates a separate shop repository and starts directly in the same conversation, preserving an unrelated draft. Example adoption targets that example repository.
 
-The upper-right **comparison records** and **tutorial** controls work in both new and existing conversations. They open history or guidance directly, preserving the host's corner control. Stopped previews show explicit status and available screenshots; retained copies can be reopened.
+Use **comparison records** and **tutorial** at the upper right of new or existing conversations. History retains the task, checks, choice, adoption and undo. When previews stop, verification screenshots remain available.
 
-Opening saved-conversation controls after a restart restores the same session through DSH's Session domain without sending a prompt. Concurrent settings requests share restoration; a cancelled request does not cancel another request, and native session permissions still apply.
-
-History defaults to all conversations, with a current-conversation filter, task/repository/run-id search, and 30 records per page. Original records remain retained; older schemas are read-only. If a newly installed client reports an older backend, restart DSH before using the new controls.
-
-Incomplete, unsupported, unreadable or larger-than-16-MiB records are retained read-only with a reason and an issue filter. They do not block unaffected history or drive project/process actions. Stale updates cannot replace damaged records.
-
-A live comparison belongs to the host that started it. Other current-version hosts sharing its local home can inspect history, source changes and real previews; management actions stay read-only until the owner closes. The UI refreshes ownership automatically. Shutdown drains accepted work before releasing ownership, and a crashed process releases its SQLite connection locks so a new host can recover the record. Adoption, undo and journal recovery also share a lock in the repository's Git common directory, including across different plugin homes.
-
-An already-open peer reconciles an orphan when its record is opened, refreshed or acquired for an action. Generation becomes interrupted, stopped preview addresses are cleared after successful inspection and an interrupted write offers recovery. Resources whose ownership or cleanup cannot be confirmed remain retained with an explanation. A live foreign owner and older unmarked records remain untouched. Card reads check the run identity and revision so a delayed response cannot undo a newer choice or adoption. The model-facing status path is limited to main conversations because orphan reconciliation can stop owned previews.
-
-Before upgrading, finish or clean up active comparisons and close every older plugin instance. Mixed-version concurrent mutation is unsupported. New records carry a coordination marker that alpha.9 treats as read-only unavailable data; earlier builds do not understand that boundary. Older unmarked records with potentially active resources stay viewable but cannot be terminated or adopted by inference. Old `.lock` directories are retained and block that key until inspected after older instances stop. SQLite guard files must remain in place on a local filesystem; network-share locking is not a supported configuration.
-
-Submissions use the host command executor and session log. Every surface reads the same persisted run by id. Model-facing notes describe the result, choice, adoption, or undo; unavailable conversations and failed injections are retried with history/inbox deduplication. Notes identify the target repository, including when an example differs from the original project.
-
-`/ab <task>` remains an optional shortcut. Common settings are graphical controls above the composer.
-
-A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); the conversation shows the same A|B card.
-
+[Records, restarts and recovery](docs/runs-and-recovery.en.md) · [Supported scope](#compatibility) · [Custom acceptance](#repository-acceptance-agent-comparejson)
 
 ## What it is for
 

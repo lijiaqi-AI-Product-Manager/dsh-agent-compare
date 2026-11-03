@@ -10,7 +10,17 @@
 
 AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Deux agents réalisent la même tâche d'interface dans des copies indépendantes du projet. L'extension installe les dépendances, compile, sert les deux applications et leur applique des critères communs. Vous manipulez les pages avant de choisir A, B ou aucune. Avant l'adoption, la proposition est vérifiée avec l'état actuel de votre projet.
 
+## Voir le parcours complet
+
+[![Exemple à candidats fixes : essayer, vérifier, choisir et appliquer](docs/media/comparison-preview.gif)](docs/media/comparison-workflow.mp4)
+
+Exemple à candidats fixes, avec une interface en chinois. Les applications, les vérifications communes et l’application des modifications sont réelles ; les attentes sont coupées et les chemins locaux masqués.
+
+[Vidéo complète (29 secondes)](docs/media/comparison-workflow.mp4) · [Conditions et résultats](docs/demo.md)
+
 ## Installation
+
+Les commandes ci-dessous concernent un profil DSH Web géré par l’utilisateur. Le profil `desktop` est géré par l’application de bureau ; utilisez sa page de plugins.
 
 La référence de développement est Node 26.13.0 et npm 12.2.1. Les vérifications actuelles utilisent le paquet officiel DSH 0.2.1-rc.5. Repérez le profil DSH que vous utilisez déjà.
 
