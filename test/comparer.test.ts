@@ -10,6 +10,7 @@ import path from 'node:path'
 import { Comparer, type AgentRunner, type AgentRunRequest, type ComparerOptions } from '../src/core/orchestrator.ts'
 import { RunStore, StaleRecordError } from '../src/core/run-store.ts'
 import { git, registeredWorktrees, withRepositoryWrite } from '../src/core/git.ts'
+import { fetchPreview } from '../src/core/preview-url.ts'
 import { isAlive, ownsProcess } from '../src/core/proc.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 
@@ -138,7 +139,7 @@ describe.concurrent('comparison run', () => {
       expect(prepared.some(request => request.argv[1] === 'run' && request.argv[2] === 'build')).toBe(true)
       expect(prepared.some(request => request.argv.includes('preview'))).toBe(true)
       expect(path.relative(repo, c.dir!).startsWith('..')).toBe(true)
-      const html = await (await fetch(c.preview!.url)).text()
+      const html = await (await fetchPreview(c.preview!.url)).text()
       expect(html).toContain(`shop ${c.label}`)
     }
     expect(done.candidates[0]!.usage).toMatchObject({ kind: 'reported', totalTokens: 15 })
@@ -305,12 +306,12 @@ describe.concurrent('adoption', () => {
     const recovered = (await store.load(runId))!
     expect(recovered.candidates[0]!.preview).toBeUndefined()
     expect(await ownsProcess(previous.pid, [path.join(previous.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${previous.port}`])).toBe(false)
-    await expect(fetch(previous.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+    await expect(fetchPreview(previous.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
     const reopened = await after.reopenPreview(runId, 'A')
     const p = reopened.candidates[0]!.preview!
     expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ cwd: reopened.candidates[0]!.dir, argv: expect.arrayContaining(['preview']) }))
     expect(p.kind).toBe('build')
-    expect(await (await fetch(p.url)).text()).toContain('shop A')
+    expect(await (await fetchPreview(p.url)).text()).toContain('shop A')
     await after.cleanup(runId)
     expect(isAlive(p.pid)).toBe(false)
   }, T)
@@ -332,7 +333,7 @@ describe.concurrent('adoption', () => {
       // A PID can be reused by another concurrent command; verify identity and
       // the actual application endpoint instead of treating that PID as ours.
       expect(await ownsProcess(p.pid, [path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js'), `--port ${p.port}`])).toBe(false)
-      await expect(fetch(p.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+      await expect(fetchPreview(p.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
     }
     // The saved record no longer points at the stopped previews, so history shows screenshots, not a dead frame.
     const saved = (await new RunStore(store.home).load(runId))!

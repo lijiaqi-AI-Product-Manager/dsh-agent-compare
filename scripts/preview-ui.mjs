@@ -3,6 +3,7 @@
 // It loads the real lib/client.js through a stand-in __ModuleLoader__ and
 // answers agent-compare/api/* with fixed sample runs. Sample data only.
 import { createServer } from 'node:http'
+import { randomBytes } from 'node:crypto'
 import { readFile, mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import { RunStore } from '../lib/core/run-store.js'
@@ -205,9 +206,9 @@ const demoServer = createServer((req, res) => { res.setHeader('content-type', 't
 const listen = (s, p) => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, '127.0.0.1', resolve) })
 await listen(demoServer, demoPort)
 try { await listen(server, port) } catch (error) { await new Promise(r => demoServer.close(r)); throw error }
-const demoBase = `http://127.0.0.1:${demoServer.address().port}`
+const demoHosts = { A: `ac-${randomBytes(16).toString('hex')}.localhost`, B: `ac-${randomBytes(16).toString('hex')}.localhost` }
 for (const list of Object.values(states)) for (const run of list) for (const candidate of run.candidates) {
-  if (candidate.previewUrl) candidate.previewUrl = `${demoBase}/${candidate.label.toLowerCase()}`
+  if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServer.address().port}/${candidate.label.toLowerCase()}`
 }
 return { url: `http://127.0.0.1:${server.address().port}`, close: async () => { await Promise.all([server, demoServer].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
 }

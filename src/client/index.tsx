@@ -445,6 +445,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-action-dock{position:sticky;top:0;z-index:3;background:var(--ac-bg)}.ac-bar{border-top:0;border-bottom:1px solid var(--ac-border);padding:12px 20px;min-height:60px}
 .ac-review{display:flex;justify-content:space-between;gap:20px;margin:16px 20px 0;padding:16px;border:1px solid var(--ac-brand);border-radius:12px;background:color-mix(in srgb,var(--ac-brand) 5%,var(--ac-bg))}.ac-review p{margin:6px 0;font-size:12px;color:var(--ac-fg2)}.ac-review .ac-row{align-self:flex-start;flex:none}.ac-project-path{overflow-wrap:anywhere}
 .ac-compare-tools{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 20px 0}.ac-compare-tools .ac-seg button{font-size:12px;height:28px;padding:0 12px}
+.ac-preview-limits{margin:8px 20px 0;font-size:12px;color:var(--ac-fg2);flex:none}.ac-preview-limits summary{cursor:pointer}.ac-preview-limits p{max-width:900px;line-height:1.6;margin:6px 0 0}
 .ac-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;min-height:0;flex:none;padding:16px 20px 20px;gap:16px}.ac-grid.focus{grid-template-columns:minmax(0,1fr)}
 .ac-card{min-width:0;min-height:360px}.ac-card[hidden]{display:none}.ac-card-head{min-height:128px;gap:8px;padding:14px}.ac-card .ac-empty,.ac-card .ac-fail{min-height:240px}
 .ac-evidence>summary,.ac-patch>summary{font-size:12px;color:var(--ac-fg2)}.ac-evidence[open]{display:flex;flex-direction:column;gap:8px}.ac-evidence .ac-verdict{margin-top:8px}
@@ -596,7 +597,7 @@ function LivePreview({ c, device }: { c: Cand; device: PreviewDevice }): React.R
   }, [])
   const scale = Math.min(1, Math.max(1, width - 24) / size.width)
   return <div ref={holder} className="ac-preview-stage"><div className="ac-preview-surface" style={{ width: size.width * scale, height: size.height * scale }}>
-    <iframe className="ac-frame" title={`候选 ${c.label} 的运行页面`} src={c.previewUrl} style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
+    <iframe className="ac-frame" title={`候选 ${c.label} 的运行页面`} src={c.previewUrl} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
   </div></div>
 }
 function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): React.ReactElement {
@@ -651,7 +652,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, hidden }: 
             <span className="ac-lights"><i /><i /><i /></span>
             {c.previewKind === 'dev' && <span className="ac-pill warn" title="构建没有通过，这是开发模式，只供观察">开发模式</span>}
             <span className="ac-url" title={c.previewUrl}>{c.previewUrl}</span>
-            <a className="ac-icon-btn" href={c.previewUrl} target="_blank" rel="noreferrer" title="在浏览器标签页中打开；共享该浏览器的站点数据" aria-label={`在浏览器中打开 ${c.label}`}><IconExternal /></a>
+            <a className="ac-icon-btn" href={c.previewUrl} target="_blank" rel="noreferrer" title="在浏览器标签页中打开；Cookie 与存储上下文可能和嵌入预览不同" aria-label={`在浏览器中打开 ${c.label}`}><IconExternal /></a>
           </div>
           <LivePreview c={c} device={device} />
         </div>
@@ -964,6 +965,8 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     saveMode(sessionId, { ...mode.preferences, enabled: false })
     returnToComposer(sessionId)
   } : undefined
+  const previewHosts = run.candidates.filter(c => c.previewUrl).map(c => { try { return new URL(c.previewUrl!).hostname } catch { return '' } })
+  const independentHosts = previewHosts.length > 0 && previewHosts.every(host => /^ac-[0-9a-f]{32}\.localhost$/.test(host)) && new Set(previewHosts).size === previewHosts.length
   const body = (
     <>
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
@@ -972,6 +975,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />
       <div className="ac-compare-tools"><div className="ac-seg" aria-label="比较布局">{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: '并排比较', A: '专注 A', B: '专注 B' }[v]}</button>)}</div><div className="ac-seg" aria-label="预览尺寸"><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>适应窗口</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>桌面 1280</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>手机 390</button></div><span className="ac-meta">{device === 'adaptive' ? '直接在对话中操作真实页面' : '相同视口 · 按可用宽度缩放'}</span></div>
+      {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>预览环境与限制</summary><p>{independentHosts ? '候选使用独立本地地址，避免同名 Cookie 相互影响。' : '这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。'}嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。</p></details>}
       <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
         {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} hidden={layout !== 'side' && layout !== c.label} />)}
       </div>

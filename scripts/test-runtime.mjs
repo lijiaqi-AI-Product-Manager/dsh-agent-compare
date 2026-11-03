@@ -10,6 +10,7 @@ import { runProjectProcess } from '../lib/core/project-process.js'
 import { runCommandChecks } from '../lib/core/checks.js'
 import { inspectProject, installArgv } from '../lib/core/project.js'
 import { startVitePreview } from '../lib/core/preview.js'
+import { fetchPreview } from '../lib/core/preview-url.js'
 import { createExampleRepo } from '../lib/core/index.js'
 
 const runtime = path.resolve(process.env.AGENT_COMPARE_DSH_RUNTIME ?? '.runtime-checks/host-sdk')
@@ -59,7 +60,7 @@ try {
   const viteVersion = JSON.parse(await readFile(path.join(repo, 'node_modules/vite/package.json'), 'utf8')).version
   for (let i = 0; i < 2; i++) {
     preview = await startVitePreview(repo, { prepareProjectProcess: prepare, timeoutMs: 60000 })
-    const response = await fetch(preview.url)
+    const response = await fetchPreview(preview.url)
     assert.equal(response.status, 200)
     assert.ok((await response.text()).includes('id="root"'))
     await preview.stop(); preview = undefined

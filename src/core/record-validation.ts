@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { parseBrowserCheck } from './acceptance-config.ts'
 import { RUN_COORDINATION, RUN_SCHEMA, type RunRecord } from './types.ts'
+import { parsePreviewUrl } from './preview-url.ts'
 
 export const MAX_RECORD_BYTES = 16 * 1024 * 1024
 export const isRunId = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}$/.test(value)
@@ -78,8 +79,7 @@ const preview: Rule = (value, field) => {
   shape({ url: text(32768, false), port: count(1, 65535), pid: count(1), kind: oneOf('build', 'dev'), cwd: absolutePath })(value, field)
   const raw = value as { url: string; port: number }
   try {
-    const url = new URL(raw.url)
-    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password || Number(url.port || 80) !== raw.port) invalid(`${field}.url`)
+    parsePreviewUrl(raw.url, raw.port)
   } catch { invalid(`${field}.url`) }
 }
 const usage: Rule = (value, field) => {

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { Comparer, type AgentRunner, type ComparerOptions } from '../src/core/orchestrator.ts'
 import { BusyError, RunStore } from '../src/core/run-store.ts'
 import * as gitModule from '../src/core/git.ts'
+import { fetchPreview } from '../src/core/preview-url.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 
 function latch() {
@@ -138,7 +139,7 @@ describe('comparison lifecycle', () => {
     const previews = record.candidates.map(candidate => candidate.preview!)
     await comparer.dispose()
     expect((await store.load(record.runId))?.candidates.every(candidate => candidate.preview === undefined)).toBe(true)
-    for (const preview of previews) await expect(fetch(preview.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+    for (const preview of previews) await expect(fetchPreview(preview.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
     const entered = latch(), gate = latch()
     const after = new Comparer({ store, runner: edits, version: 'test', prepareProjectProcess: async request => {
       entered.release()

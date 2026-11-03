@@ -8,6 +8,7 @@ import { RunStore, BusyError } from '../src/core/run-store.ts'
 import { RUN_COORDINATION } from '../src/core/types.ts'
 import { addOwnedWorktree, git, withRepositoryWrite } from '../src/core/git.ts'
 import { startVitePreview } from '../src/core/preview.ts'
+import { fetchPreview } from '../src/core/preview-url.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 import { fixtureRecord } from './record-fixture.ts'
 
@@ -79,7 +80,7 @@ describe('live run ownership', () => {
     try {
       const result = await current.observe(record.runId)
       expect(result?.candidates[0]?.preview).toBeUndefined()
-      await expect(fetch(preview.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
+      await expect(fetchPreview(preview.url, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
       expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
     } finally { await preview.stop(); await current.dispose() }
   }, 180000)
@@ -205,12 +206,12 @@ describe('live run ownership', () => {
       const url = ready.candidates[0]!.preview!.url, bytes = await readFile(store.file(started.runId), 'utf8')
       expect(await other.recover()).toEqual([])
       expect(await readFile(store.file(started.runId), 'utf8')).toBe(bytes)
-      expect(await (await fetch(url)).text()).toContain('owned A')
+      expect(await (await fetchPreview(url)).text()).toContain('owned A')
       await expect(other.cleanup(started.runId)).rejects.toBeInstanceOf(BusyError)
       await owner.dispose()
       expect(await other.recover()).toEqual([])
       const reopened = await other.reopenPreview(started.runId, 'A')
-      expect(await (await fetch(reopened.candidates[0]!.preview!.url)).text()).toContain('owned A')
+      expect(await (await fetchPreview(reopened.candidates[0]!.preview!.url)).text()).toContain('owned A')
     } finally { await owner.dispose(); await other.cleanup(started.runId); await other.dispose() }
   }, 180000)
 

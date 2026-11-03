@@ -1,9 +1,11 @@
 import { createServer } from 'node:net'
 import { existsSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import type { ChildProcess } from 'node:child_process'
 import { DiagnosticLog, killTree, startLongRunning, Tail } from './proc.ts'
 import { prepareProjectProcess, type PrepareProjectProcess } from './project-process.ts'
+import { fetchPreview } from './preview-url.ts'
 
 /** Ask the OS for a free loopback port. The caller still uses --strictPort, so a race fails loudly. */
 export function freePort(): Promise<number> {
@@ -35,9 +37,9 @@ export class PreviewError extends Error {
 
 async function httpReady(url: string, signal: AbortSignal): Promise<boolean> {
   try {
-    const res = await fetch(url, { signal, redirect: 'manual' })
+    const res = await fetchPreview(url, { signal })
     await res.body?.cancel()
-    return res.status < 500
+    return res.status >= 200 && res.status < 300
   } catch {
     return false
   }
@@ -55,10 +57,11 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
   if (!existsSync(viteBin)) throw new PreviewError('副本里没有安装 vite', '')
   const kind = opts.kind ?? 'build'
   const timeoutMs = opts.timeoutMs ?? 60_000
+  const host = `ac-${randomBytes(16).toString('hex')}.localhost`
   let lastError: PreviewError | undefined
   for (let attempt = 0; attempt < 3; attempt++) {
     const port = await freePort()
-    const root = `http://127.0.0.1:${port}/`
+    const root = `http://${host}:${port}/`
     const args = kind === 'build' ? ['preview'] : []
     const prepared = await prepareProjectProcess({ argv: ['node', viteBin, ...args, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], cwd: dir,
       env: { BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, signal: opts.signal }, opts.prepareProjectProcess)
@@ -71,13 +74,17 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
     const exit = new Promise<void>((resolve) => child.once('close', () => { closed = true; resolve() }))
     child.stdout?.setEncoding('utf8').on('data', (d: string) => log.push(d))
     child.stderr?.setEncoding('utf8').on('data', (d: string) => log.push(d))
-    const outcome = await waitReady(child, root, timeoutMs, opts.signal)
+    const entry = (): string => {
+      const printed = new RegExp(`http://127\\.0\\.0\\.1:${port}/[^\\s\\u001b]*`).exec(log.toString())?.[0]
+      const url = new URL(printed ?? root)
+      url.hostname = host
+      return url.href
+    }
+    const outcome = await waitReady(child, entry, timeoutMs, opts.signal)
     if (outcome === 'ready' && child.pid !== undefined) {
       const pid = child.pid
-      // A configured `base` moves the app below the root; Vite prints the real entry URL.
-      const printed = new RegExp(`http://127\\.0\\.0\\.1:${port}/[^\\s]*`).exec(log.toString())?.[0]
       let stopping: Promise<void> | undefined
-      return { url: printed ?? root, port, pid, log, stop: () => closed ? Promise.resolve() : stopping ??= (async () => {
+      return { url: entry(), port, pid, log, stop: () => closed ? Promise.resolve() : stopping ??= (async () => {
         await killTree(pid)
         if (!closed) child.kill('SIGKILL')
         let timer: ReturnType<typeof setTimeout> | undefined
@@ -95,7 +102,7 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
   throw lastError ?? new PreviewError('预览服务启动失败', '')
 }
 
-function waitReady(child: ChildProcess, url: string, timeoutMs: number, signal?: AbortSignal): Promise<'ready' | 'exited' | 'timeout' | 'aborted'> {
+function waitReady(child: ChildProcess, url: () => string, timeoutMs: number, signal?: AbortSignal): Promise<'ready' | 'exited' | 'timeout' | 'aborted'> {
   return new Promise((resolve) => {
     let done = false
     const ctl = new AbortController()
@@ -114,10 +121,11 @@ function waitReady(child: ChildProcess, url: string, timeoutMs: number, signal?:
     child.once('error', () => finish('exited'))
     const poll = async (): Promise<void> => {
       while (!done) {
-        if (await httpReady(url, ctl.signal)) return finish('ready')
+        if (await httpReady(url(), ctl.signal)) return finish('ready')
         await new Promise((r) => setTimeout(r, 300))
       }
     }
-    void poll()
+    if (signal?.aborted) onAbort()
+    else void poll()
   })
 }
