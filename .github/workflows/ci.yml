@@ -33,6 +33,8 @@ jobs:
       - run: npm run test:coverage
         if: matrix.os == 'ubuntu-latest' && matrix.node == 26
       - run: npm pack --dry-run
+      - run: npm run check:docs
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 26
 
   smoke:
     name: smoke (${{ matrix.os }})

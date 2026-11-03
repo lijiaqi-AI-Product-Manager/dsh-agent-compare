@@ -1,121 +1,144 @@
 # AgentCompare
 
-English | [中文](README.zh.md)
+**中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-**Same task. Two live builds. Pick blind.**
+[![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
 
-AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each working in its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
+**同一需求，两版真跑，盲选再揭晓。**
 
-> Status: **0.2.0-alpha.15, not yet on npm.** "Verified" below lists only what was actually run.
+AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件。它把一个前端任务交给两个独立的 Agent，各在一份只属于自己的项目副本里实现；然后**按锁文件安装依赖、构建、把构建产物真的跑起来**，对两边执行**绑定到内容的同一套验收**。你先亲手操作两份真实页面并做出选择，选完立即揭晓各自用的策略或模型。采用前，它会先在你**当前项目的副本里预演**所选版本，验收通过才写回项目，并能撤销或从中断中恢复。
 
-## What it is for
+> 状态：**0.2.0-alpha.16，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
 
-UI and interaction tasks, where quality is judged by using it and tests can only tell whether something was delivered: search and filters, form flows, landing pages, dashboard layouts, component redesigns. Bug fixes and refactors with one right answer are better served by a single agent plus tests.
+<a id="install"></a>
 
-| Mode | Same on both sides | Different |
-|---|---|---|
-| One model, two strategies (default) | model, task, acceptance | "Conservative" (reuse what exists) vs "Bold" (rethink the interaction) |
-| Two models, one brief | task, acceptance, instructions | the model (any two configured in DSH) |
+## 安装
 
-## What it does for you
-
-- Both versions start from **the same baseline**, including uncommitted work, without touching your index or files.
-- Each candidate requests the host's write policy rooted in its own copy; the host's enforcement limits are disclosed.
-- Two installs, two builds, two ports, **running at once**.
-- **One fixed, content-bound acceptance**: a candidate that edits the test script, configs or existing tests does not count as passing.
-- Adoption checks the result **together with what you changed meanwhile**, and stops when the checked target changes before a pending write.
-
-## How it works
-
-1. **Baseline** — snapshot the working tree through a private temporary index (uncommitted and untracked files included, ignored ones excluded).
-2. **Bound acceptance** — derive the checks from the baseline (`typecheck` / `lint` / `test` / `build` scripts plus a page check) and record the script bodies, content hashes of verification files (`tsconfig*`, Vite/Vitest config, lint config, existing tests, `.agent-compare.json`), the lockfile and runtime. A committed `.agent-compare.json` can add step-by-step interaction checks.
-3. **Owned copies** — one branchless `git worktree` per candidate under the plugin home (`~/.dsh/agent-compare/w/<run>/<A|B>`), with an owner mark in its git admin dir.
-4. **Candidate sessions** — each candidate is its own DSH session whose directory is its copy. The session requests `workspace-write` for that root before it runs; approvals are pinned to `never`. This uses the host's enforcement, including its platform limitations below. Each has a generation time limit (5 / 15 / 30 / 60 / 120 minutes in the interface, 30 by default). When it runs out, the agent is stopped and what it wrote is still sealed and verified; while it works, the card shows its steps, latest action and how long it has been quiet.
-5. **Seal** — the session is closed and the change frozen as a commit plus a full binary patch (SHA-256); `node_modules` is always excluded.
-6. **Verify** — copy equals the sealed tree → **frozen install** (a failure fails; there is no unlocked retry) → acceptance commands → serve the **build output** with `vite preview` → page acceptance in a fresh headless browser context (loads, no console errors, scripted steps, desktop and phone screenshots) → the copy still equals the sealed tree. When the build fails, only a dev-server preview is offered, marked "for observation only".
-7. **Verdict** — "adoptable" only when every check passed, no verification file was touched, and the checked tree is the sealed tree. Dependency changes, missing lockfiles and a missing system browser are shown as warnings.
-8. **Blind pick** — two iframes show the running builds as A and B. Choosing reveals strategy, actual model and token usage at once, and whether your pick matches what the checks favoured.
-9. **Adopt** (adoptable candidates only):
-   - Compute the exact tree your checkout will have: your current files plus the candidate's touched paths. If you edited any of those paths since the baseline, stop — nothing is written.
-   - If you changed other files meanwhile, **rehearse** that combination in a scratch copy with the full acceptance; if it fails, stop — nothing is written.
-   - Recheck the checkout, HEAD and staged entries after rehearsal and before each file write or deletion. A detected change stops adoption; only earlier attempted paths are considered for rollback, preserving later user edits.
-   - Persist a recovery journal (pre-adopt snapshot, expected tree, HEAD and staged-state fingerprints) and hold a repository lock before the first write.
-   - Write using the repository's own eol/filter settings, then verify the checkout **equals the rehearsed tree** and HEAD and the index are unchanged. Nothing is committed.
-   - A failed write is rolled back automatically; an interrupted one is offered for recovery the next time the panel opens. Undo is available later unless you edited those files (they are listed, never overwritten).
-   - A candidate that did not pass can only be saved as a branch (one commit, no checkout switch) for inspection.
-10. **Continue** — after a successful adoption, copies and previews are released and the panel offers "continue from this result": the next task starts from what you just adopted. History is browsed separately.
-
-## Isolation and safety: what is and is not guaranteed
-
-Candidate sealing and verification resolve the owned Git administration from the original repository, check reciprocal links and owner marks, and use explicit Git directory/worktree arguments. Changed, linked, oversized or missing pointer metadata blocks further capture or preview reopening; ambiguous copies are retained during cleanup. Ambient Git repository/index/config selectors are ignored, while intentional private indexes remain supported. These checks protect lifecycle operations from Git pointer redirection; the host sandbox remains responsible for project processes.
-
-| Area | How | Limit |
-|---|---|---|
-| Candidate writes | The candidate session's directory is its copy; DSH's sandbox enforces it up front | DSH marks its Windows sandbox as partial; platform temp areas may be writable |
-| Project commands | Installation, checks, initial preview and reopened preview use the host's `workspace-write` policy; ambient child variables use its canonical scrub | Missing confinement fails without an unconfined retry. Partial enforcement is recorded and shown; this is not read or network isolation |
-| Your project | Compared with the baseline while candidates run and shown in the panel | Differences are reported without attributing their source; adoption checks for overlap |
-| Concurrent editing | Rechecks the target after rehearsal and before each write, including after saving its journal | The repository lock coordinates plugin operations; it does not lock external editors. Pause edits during the brief write stage |
-| Acceptance | Script bodies, configs and test files are hash-bound; the copy is checked before and after | Requirements that cannot be checked automatically are left to you, never claimed as verified |
-| Dependencies | Always a frozen install when a lockfile exists; package caches stay inside each copy | Projects without a lockfile get an unlocked install, with a warning |
-| Processes | A recorded preview is stopped only when its command line proves it is ours; preview file writes use the same host policy | Network access and process visibility are **not** isolated |
-| Browser state | Each preview launch gets a fresh random `.localhost` hostname; the server stays on `127.0.0.1`. Host probes connect directly to loopback and require a successful HTTP status | Embedded cookies follow browser policy. Login, external backends and shared databases are outside the current scope; an external tab may use different storage. Reopening resets page state, while comparison records and screenshots remain |
-| Embedded navigation | Preview frames permit scripts and forms but cannot navigate the top-level comparison window | This is not a complete hostile-code sandbox; opened pages and network requests still use the browser's policies |
-| Cleanup | Deletes only registered worktrees of that repository with a matching owner mark | Anything else is kept and listed |
-| Older records | Records from 0.1 are shown read-only | Nothing acts on their recorded paths or pids |
-
-If the host has no session factory (`ctx.agents.create`), AgentCompare falls back to the 0.1 subagent path (`isolation: shared-root`): copies live inside the repository under `.agents/worktrees`, and escapes are only detected afterwards. The panel and the run record state which one is in use.
-
-The current Windows host cannot create piped stdio in confined grandchildren. A narrowly scoped adapter lets the standard Vite CLI capture its optional `net use` path probe through temporary files under the same policy. Other commands that require nested pipes may still fail; they are not retried with wider permissions. File-read access and network access remain outside this boundary.
-
-## Install
-
-Until it is on npm, build from source and install into a DSH profile:
+npm 发布前，从源码构建并安装到 DSH profile：
 
 ```bash
 git clone https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare.git
 ```
 
 ```bash
-cd dsh-agent-compare && npm ci && npm pack
+cd dsh-agent-compare
+npm ci
+npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.15.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.16.tgz
 ```
 
-After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
+重启 DSH 后，在**主对话输入框左下角点 A|B**：
 
-1. A settings strip opens above the existing input. Choose one model with two strategies, or select two configured models. The default reuses the current model.
-2. Select a per-candidate generation limit (5–120 minutes). Settings are retained for this conversation across reopening.
-3. Write the task in the original composer and send. No flags to type. Mode switching changes only its command chip, preserving the draft, references, and attachments. Unsupported attachment submissions are refused by the host while retaining the originals.
-4. The conversation renders a persistent A|B card with two **live, interactive applications**. In a new conversation without a chat timeline, the same record appears above the composer. Adaptive views support direct interaction; matching desktop/phone sizes and focused A/B views are available. Expand the card for closer inspection.
-5. Choose, reveal, and review source changes. Adoption displays its target repository and preflight result before a separate confirmation writes anything. Recovery actions stay at the top. **Continue conversation** exits comparison mode and focuses the original composer, retaining the record.
+1. 输入框上方展开设置条，直接选择「同一模型 · 两种策略」或「两个模型 · 同一要求」。默认复用当前模型；双模型模式提供两个已配置模型的下拉框。
+2. 选择每版生成上限（5–120 分钟）。设置保存在当前对话，重新打开仍可读取。
+3. 在原输入框里写需求并发送。无需填写指令或参数；模式切换只操作自己的命令标记，保留草稿、引用与附件。暂不支持的附件提交会由宿主拒绝并保留原稿。
+4. 同一条对话里出现 A|B 卡片，两个小窗口是两版**真实运行的应用**。新会话尚未显示聊天时间线时，同一份记录直接显示在输入框上方。默认适应窗口、直接交互，也可切换统一桌面／手机视口或专注 A/B；「大窗口查看」用于放大检查。
+5. 选择后揭晓模型和策略，展开代码改动，再点「审查并采用」。先显示目标仓库与核验结果，确认后才写入。恢复操作置于结果顶部；采用后点「继续主对话」，退出比较模式并聚焦原输入框，记录仍保留。
 
-The settings strip's example button creates a separate shop repository and starts directly in the same conversation, preserving an unrelated draft. Example adoption targets that example repository.
+设置条中的「试跑内置示例」会直接新建独立的示例仓库并在本对话中启动，不修改已有草稿。示例结果只采用到示例仓库。
 
-The upper-right **comparison records** and **tutorial** controls work in both new and existing conversations. They open history or guidance directly, preserving the host's corner control. Stopped previews show explicit status and available screenshots; retained copies can be reopened.
+新建和已有对话的右上角均提供「比较记录」与「使用教程」，直接打开历史或指南，并保留宿主原有的角落控件。预览已停止时显示明确状态和已有截图；副本仍在则可以重新打开预览。
 
-Opening saved-conversation controls after a restart restores the same session through DSH's Session domain without sending a prompt. Concurrent settings requests share restoration; a cancelled request does not cancel another request, and native session permissions still apply.
+重启后打开旧对话的比较设置，会通过 DSH 的会话域恢复原会话，不发送模型消息，也不另建对话。并发读取共享恢复过程；取消一条请求不会取消另一条请求，仍遵守宿主的会话权限。
 
-History defaults to all conversations, with a current-conversation filter, task/repository/run-id search, and 30 records per page. Original records remain retained; older schemas are read-only. If a newly installed client reports an older backend, restart DSH before using the new controls.
+比较记录默认浏览全部对话，也可切换到当前对话。按需求、项目或运行编号搜索，每页显示 30 条并支持翻页；原始记录持续保留。列表中的旧版记录只读。安装后若界面提示服务端尚未更新，重启 DSH 再使用新控件。
 
-Incomplete, unsupported, unreadable or larger-than-16-MiB records are retained read-only with a reason and an issue filter. They do not block unaffected history or drive project/process actions. Stale updates cannot replace damaged records.
+格式不完整、不兼容、无法读取或超过 16 MiB 的记录会标为「需处理」，说明原因并保留原文件，不阻塞其它正常记录。可勾选「只看需处理」查找；不会依据这些记录操作项目文件或进程，过期更新也不会覆盖损坏记录。
 
-A live comparison belongs to the host that started it. Other current-version hosts sharing its local home can inspect history, source changes and real previews; management actions stay read-only until the owner closes. The UI refreshes ownership automatically. Shutdown drains accepted work before releasing ownership, and a crashed process releases its SQLite connection locks so a new host can recover the record. Adoption, undo and journal recovery also share a lock in the repository's Git common directory, including across different plugin homes.
+正在管理比较的宿主持有运行归属。其它同版本宿主共享本地记录时，仍可查看历史、源码改动和真实预览；选择、停止、采用和清理保持只读，直到原宿主关闭，界面会自动刷新归属。正常关闭会先等待已接受的工作退出；进程崩溃后，SQLite 连接锁由系统释放，新宿主再恢复孤立记录。采用、撤销与写入恢复还在 Git 公共目录中共享仓库锁，覆盖不同插件数据目录和链接工作区。
 
-An already-open peer reconciles an orphan when its record is opened, refreshed or acquired for an action. Generation becomes interrupted, stopped preview addresses are cleared after successful inspection and an interrupted write offers recovery. Resources whose ownership or cleanup cannot be confirmed remain retained with an explanation. A live foreign owner and older unmarked records remain untouched. Card reads check the run identity and revision so a delayed response cannot undo a newer choice or adoption. The model-facing status path is limited to main conversations because orphan reconciliation can stop owned previews.
+已经打开的另一个宿主，在打开、刷新记录或取得操作归属时也会恢复孤立记录：生成标为中断，核验后清除已停止预览的旧地址，写入中断则显示采用恢复操作；无法确认归属或清理状态的资源会保留并说明原因。仍有活跃所有者的比较和无归属凭据的旧记录保持原样。卡片同时核对运行编号和修订，延迟响应不会把已选择或已采用的结果改回旧状态。状态工具只允许主对话调用，候选不能借它恢复其它比较的资源。
 
-Before upgrading, finish or clean up active comparisons and close every older plugin instance. Mixed-version concurrent mutation is unsupported. New records carry a coordination marker that alpha.9 treats as read-only unavailable data; earlier builds do not understand that boundary. Older unmarked records with potentially active resources stay viewable but cannot be terminated or adopted by inference. Old `.lock` directories are retained and block that key until inspected after older instances stop. SQLite guard files must remain in place on a local filesystem; network-share locking is not a supported configuration.
+升级前先完成或清理活动比较，并关闭所有旧版本实例；不支持不同插件版本并发修改同一份记录。新记录带协调标记，alpha.9 会将它保留为不可操作的只读记录，更早版本不识别这条边界。旧记录若缺少归属凭据且仍可能有活动资源，当前版本只提供查看，不推断任务已经退出。旧 `.lock` 目录会保留并阻止对应操作，需要在旧实例停止后检查。SQLite 锁文件必须保留在本地文件系统上，暂不支持网络共享目录锁。
 
-Submissions use the host command executor and session log. Every surface reads the same persisted run by id. Model-facing notes describe the result, choice, adoption, or undo; unavailable conversations and failed injections are retried with history/inbox deduplication. Notes identify the target repository, including when an example differs from the original project.
+比较任务通过宿主命令执行器进入会话日志，卡片按运行编号读取同一份持久记录。结果、选择、采用或撤销会形成模型可读说明；会话暂不可用或注入失败时会重试，并对会话历史和待处理消息去重。说明明确标出目标仓库，避免把示例结果误认为原项目的改动。
 
-`/ab <task>` remains an optional shortcut. Common settings are graphical controls above the composer.
+`/ab <需求>` 保留为可选快捷方式。常用设置均在输入框上方完成。
 
-A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); the conversation shows the same A|B card.
+模型也可以自己调用 `agent_compare_start` 工具（参数：`task`，可选 `time_limit_minutes`），对话里显示同样的 A|B 卡片。
 
-## Configuration (optional)
 
-Append an id-targeted entry to the profile's `cordis.patch.yml`:
+<a id="what-it-is-for"></a>
+
+## 适合什么任务
+
+界面和交互类任务：好坏要靠人体验，测试只能判断「有没有做到」。比如搜索和筛选、表单流程、落地页、仪表盘布局、组件重设计。
+答案唯一的修 bug 或重构，用单个 Agent 加测试更合适。
+
+两种比较方式：
+
+| 方式 | 两边相同的 | 两边不同的 |
+|---|---|---|
+| 同一模型 · 两种策略（默认） | 模型、需求、验收 | 「稳妥」沿用现有写法 vs「大胆」重做交互 |
+| 两个模型 · 同一要求 | 需求、验收、给 Agent 的说明 | 模型（从你在 DSH 里已配置的模型中选两个） |
+
+<a id="what-it-does-for-you"></a>
+
+## 它替你做掉的那部分
+
+自己开两个会话也能让模型写两版，真正麻烦的是后面这些，AgentCompare 把它们变成一步：
+
+- 两份代码从**同一基线**出发，包括你还没提交的改动，而你的 index 和文件一点不动；
+- 每个候选分别申请以自己副本为根的宿主写入约束，并披露宿主实际提供的约束范围；
+- 两边各装一份依赖、各自构建、各占一个端口，**同时跑起来**；
+- 用**同一套、事先固定并绑定内容**的验收比较，候选改了验收脚本或测试就不算通过；
+- 选完以后合回项目时，先确认它和你这期间的修改能一起工作；待写入前发现目标发生变化，就停止采用。
+
+<a id="how-it-works"></a>
+
+## 工作流程
+
+1. **基线**：用私有临时 index 给工作区拍快照（含未提交和未跟踪文件，不含被忽略的文件），不改你的 index 和文件。
+2. **验收绑定**：从基线确定验收命令（`typecheck` / `lint` / `test` / `build` 脚本 + 页面验收），并记录这些脚本的内容、验收相关文件（`tsconfig*`、`vite`/`vitest` 配置、lint 配置、已有测试文件、`.agent-compare.json`）的内容哈希、锁文件和运行时。仓库根目录的 `.agent-compare.json` 可以加上逐步交互验收（见下文）。
+3. **隔离副本**：为每个候选建一个不带分支的 `git worktree`，放在插件目录（`~/.dsh/agent-compare/w/<run>/<A|B>`），并在副本的 git 管理目录里写入归属标记。
+4. **候选会话**：每个候选是一个独立的 DSH 会话，会话目录就是它的副本。开始前以此目录申请 `workspace-write` 约束，审批策略固定为「从不」。具体约束由宿主执行，包含下文列出的平台限制。每个候选有生成时间上限（界面可选 5 / 15 / 30 / 60 / 120 分钟，默认 30）。到时还没说完成，就停止它，照样封存并验收它已写的改动；生成期间卡片上显示它走了几轮、最近在做什么、多久没有新动作。
+5. **封存**：生成结束后会话被关闭，改动被冻结为一个提交和一份完整的二进制补丁（SHA-256），永远排除 `node_modules`。
+6. **验证**：确认副本内容与封存版本一致 → 按锁文件**冻结安装**（失败就失败，不会退回非冻结安装）→ 跑验收命令 → 用 `vite preview` 运行**构建产物** → 在独立的无头浏览器上下文里跑页面验收（可加载、无控制台错误、逐步交互、桌面和手机截图）→ 再确认验收没有在副本里留下未封存的改动。构建没通过时只提供开发模式预览，并标明「仅供观察」。
+7. **结论**：根据已记录的检查、验收定义和内容一致性决定能否采用。失败、超时、验收文件变更或未封存改动会阻止直接采用；明确的页面行为验收没有运行也会阻止。仅基础页面加载检查未运行时保留警告，不算已经验证；依赖变更和缺少锁文件也会提示。
+8. **盲选**：面板左右两个 iframe 展示真实运行的构建产物，只标 A/B。选完立即揭晓策略、实际模型和 token 用量，并显示「程序验收倾向」与「你的选择」是否一致。
+9. **采用**（只对通过验收的版本开放）：
+   - 计算采用后项目应有的完整内容：你当前的工作区 + 候选改动的文件。候选改过的文件如果你在基线后也改过，直接阻止，一个字节都不写。
+   - 如果你在这期间改过其他文件，先在**当前项目的副本里预演**这个组合并跑完整验收；不通过就阻止，不写入。
+   - 预演结束后、每个文件写入或删除前，重新核验工作区、HEAD 和暂存内容，包含写入日志保存后的变化。发现变化就停止；只对之前已尝试写入的路径执行回退，保留之后的用户编辑。
+   - 写入前先持久化恢复记录（采用前快照、预期内容、HEAD 和暂存区指纹），并持有仓库级锁。
+   - 按仓库自己的换行和过滤设置写入，然后核对项目现在**与预演通过的内容完全一致**、HEAD 和暂存区未变。不提交，不改 index。
+   - 写入失败自动恢复；宿主中断后，重新打开时会进入「需要处理」，可以恢复到采用前或保留当前文件。
+   - 之后也可以撤销（前提是你没再改过这些文件，否则会列出这些文件、不覆盖）。
+   - 未通过验收的版本只能「另存为分支」（含一个提交，不切换、不改当前文件）供你查看。
+10. **继续**：采用成功后会回收副本和预览进程，面板直接给出「继续这份成果」：在刚采用的结果上输入下一项需求，再比较一次。历史记录单独浏览。
+
+<a id="isolation-and-safety-what-is-and-is-not-guaranteed"></a>
+
+## 隔离与安全：保证什么、不保证什么
+
+封存与验收从原仓库核对副本的 Git 管理目录、双向链接和归属标记，再显式绑定 Git 目录与工作区执行。指针被改写、链接替换、过大或缺失时，拒绝继续封存和重新打开预览；清理会保留归属不明的副本并说明原因。终端遗留的 Git 仓库、index 和配置选择变量不会重定向这些操作，内部显式创建的私有 index 仍可使用。这些检查保护插件的 Git 生命周期操作；项目进程的约束仍由宿主沙箱提供。
+
+| 方面 | 做法 | 边界 |
+|---|---|---|
+| 候选写文件 | 候选会话的目录就是它的副本，由 DSH 沙箱在执行前限制 | DSH 官方把 Windows 沙箱标为 partial；平台临时目录可能可写 |
+| 项目命令 | 安装、检查、初次预览和重新预览都使用宿主的 `workspace-write` 约束；子进程环境使用宿主的规范清理接口 | 没有约束就停止，不会退回无约束执行。宿主报告部分约束时保留记录并提示；不提供文件读取或网络隔离 |
+| 你的项目 | 生成期间检查项目是否和基线不同，并在面板中提示 | 只报告观察到的变化，不推断是谁修改；采用时检查是否重叠 |
+| 并发编辑 | 预演后、每次写入前重新核验目标，包含写入日志保存后的变化 | 仓库锁只协调插件自身的操作，不锁定外部编辑器；实际写入的短暂阶段请暂停编辑 |
+| 验收 | 绑定脚本内容、配置和测试文件的哈希；验收前后核对副本内容 | 自由文本需求中无法自动验证的部分只能靠你体验，不会被宣称已验证 |
+| 依赖 | 有锁文件时总是冻结安装，包缓存各自放在候选副本内 | 没有锁文件的项目只能非冻结安装，会明确提示 |
+| 进程 | 预览进程只在命令行能证明是本插件启动的那个时才会被结束；预览写入同样使用宿主约束 | 网络访问和进程可见性**不隔离** |
+| 浏览器状态 | 每次启动预览分配新的随机 `.localhost` 域名，进程仍只绑定 `127.0.0.1`；宿主直接连接回环探测，并要求 HTTP 成功状态 | 嵌入 Cookie 受浏览器策略限制，登录、外部后端和共享数据库暂不支持；外部标签页可能使用不同存储。重开预览会重置页面状态，比较记录和截图仍保留 |
+| 嵌入导航 | 预览允许脚本和表单，不允许跳转比较窗口的顶层页面 | 不提供完整的恶意代码沙箱；页面与网络请求仍受浏览器自身策略管理 |
+| 清理 | 只删除「已注册为该仓库 worktree + 归属标记匹配」的目录 | 不能证明归属的目录会保留并列出 |
+| 旧版记录 | 0.1 版本留下的记录只读显示 | 不会对其中记录的路径或进程做任何操作 |
+
+DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回 0.1 的子 Agent 方式（`isolation: shared-root`）：副本放在仓库内的 `.agents/worktrees`，越界写入只能事后发现。面板和运行记录都会标明当前用的是哪种。
+
+当前 Windows 宿主不支持受限进程内部再创建捕获输出的命名管道。标准 Vite 命令行的可选 `net use` 路径探测改用临时文件传递输出，仍在同一约束下执行。其他需要嵌套管道的命令仍可能失败，不会降低权限要求重试。此边界不包含文件读取和网络访问隔离。
+
+<a id="configuration-optional"></a>
+
+## 配置（可选）
+
+在 profile 的 `cordis.patch.yml` 里追加一条以插件 id 为目标的配置：
 
 ```yaml
 - id: agent-compare
@@ -124,16 +147,18 @@ Append an id-targeted entry to the profile's `cordis.patch.yml`:
     generationMinutes: 20
 ```
 
-| Key | Default | Meaning |
+| 键 | 默认值 | 说明 |
 |---|---|---|
-| `generationMinutes` | `30` | Per-candidate generation budget |
-| `maxActiveRuns` | `1` | Comparisons generating at the same time |
-| `isolation` | `own-root` | `shared-root` is the experimental 0.1 path |
-| `home` | `~/.dsh/agent-compare` | Records, patches, screenshots and copies |
+| `generationMinutes` | `30` | 每个候选的生成时间预算 |
+| `maxActiveRuns` | `1` | 同时生成的比较轮数 |
+| `isolation` | `own-root` | `shared-root` 为实验性的旧方式 |
+| `home` | `~/.dsh/agent-compare` | 记录、补丁、截图和副本的位置 |
 
-## Repository acceptance: `.agent-compare.json`
+<a id="repository-acceptance-agent-comparejson"></a>
 
-Commit it at the repository root (the baseline version is used; a candidate editing it does not count):
+## 仓库自定义验收：`.agent-compare.json`
+
+放在仓库根目录、并提交（验收读取的是基线里的版本，候选改它不算数）：
 
 ```json
 {
@@ -141,10 +166,10 @@ Commit it at the repository root (the baseline version is used; a candidate edit
   "browser": {
     "path": "/",
     "steps": [
-      { "label": "8 products at first", "expectCount": "[data-testid=product-card]", "min": 8, "max": 8 },
+      { "label": "初始 8 个商品", "expectCount": "[data-testid=product-card]", "min": 8, "max": 8 },
       { "fill": "input[type=search]", "text": "lamp" },
       { "expectCount": "[data-testid=product-card]", "min": 1, "max": 1 },
-      { "click": "button:has-text(\"Clear\")" },
+      { "click": "button:has-text(\"清空\")" },
       { "viewport": { "width": 390, "height": 844 } },
       { "expectVisible": "input[type=search]" }
     ]
@@ -152,66 +177,88 @@ Commit it at the repository root (the baseline version is used; a candidate edit
 }
 ```
 
-Step kinds: `fill`, `click`, `press`, `expectVisible`, `expectCount`, `expectText`, `viewport`; selectors are Playwright selectors. A complete example: [examples/vite-react-demo/.agent-compare.json](examples/vite-react-demo/.agent-compare.json).
+步骤类型：`fill`、`click`、`press`、`expectVisible`、`expectCount`、`expectText`、`viewport`；选择器是 Playwright 选择器。完整示例见 [examples/vite-react-demo/.agent-compare.json](examples/vite-react-demo/.agent-compare.json)。
 
-The definition is validated before generation. Unknown fields, unavailable scripts, malformed steps, and cross-origin page paths are rejected. Binding includes root JS/TS helpers, `scripts/`, `tools/`, `config/`, known configuration and existing tests. New verification configuration and changes to package scripts, including lifecycle hooks, also prevent direct adoption. Protect additional baseline data or helpers with `"protectedFiles": ["custom/fixture.json"]`; each entry must name an existing repository-relative file.
+配置会在生成前严格校验。未知字段、不存在的脚本、非法步骤和跨来源页面路径会直接报错。自动绑定根目录 JS/TS 辅助程序、`scripts/`、`tools/`、`config/`、已知配置和已有测试；新增验证配置及 package scripts（包括生命周期钩子）的变化也会使候选不可直接采用。其它位置的验证数据或辅助文件可在基线配置中通过 `"protectedFiles": ["custom/fixture.json"]` 指定，必须是已存在的具体仓库相对路径。
 
-Binding does not infer every file an arbitrary program can read dynamically. Programmatic acceptance describes the configured checks; other quality requirements still need hands-on use and source review.
+绑定范围不会推断任意程序动态读取的全部文件。程序验收说明已配置检查的结果；需求中的其它质量标准仍需实际体验和代码审查。
 
-## Compatibility
+<a id="compatibility"></a>
 
-| Item | Status |
+## 兼容范围
+
+| 项目 | 状态 |
 |---|---|
-| DSH 0.2.1-rc.3 desktop, Windows 11 | Historical compatibility case: real-model generation, verification, choice and adoption completed; candidate sessions requested their own copy's write boundary and shell commands ran |
-| DSH 0.2.1-rc.5, Web UI, Windows 11 | Production command, real child sessions, live previews, adoption, refreshed history, and adopted-result context in the next main-session request; local scripted adapter |
-| Linux, Ubuntu CI, DSH 0.2.1-rc.5 | Core regressions and real host confinement, environment scrub, frozen install, build, preview reopening and cancellation passed; no complete external-model delivery case yet |
-| macOS | Not tested yet |
-| Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
-| Projects | Root-level Vite projects in a Git repository with at least one commit. npm installation and checks have run; complete pnpm/yarn execution remains unverified |
+| DSH 0.2.1-rc.3 桌面版，Windows 11 | 历史兼容案例：真实模型完成生成、验收、盲选和采用；候选会话申请各自副本的写入边界，shell 命令已运行 |
+| DSH 0.2.1-rc.5，Windows 11 Web UI | 生产版指令、真实子会话、预览、采用、历史恢复及采用说明进入主对话下一次请求已通过；使用本地脚本化适配器 |
+| Linux，Ubuntu CI，DSH 0.2.1-rc.5 | 核心回归和真实宿主进程约束、环境清理、冻结安装、构建、预览重开、取消检查已通过；未测外部模型完整交付 |
+| macOS | 尚未实测 |
+| Node | 26.13.0 为主开发基线；22／24 维护线的最新补丁版也纳入 CI 兼容检查 |
+| 项目类型 | 仓库根目录的 Vite 项目；至少有一次提交的 Git 仓库。npm 已执行安装和验收；pnpm / yarn 的完整运行待验证 |
 
-## Verified (maintained through current CI and the cases below)
+<a id="verified-maintained-through-current-ci-and-the-cases-below"></a>
 
-Current results are available in [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). The reproducible runtime check also exercised DSH 0.2.1-rc.5 with Node 26.13 and Vite 8.3.5 on Windows: adjacent writes denied, child environment scrubbed, frozen installation, typecheck/build, two preview starts and cancelled writes stopped. Windows correctly reported partial enforcement.
+## 已验证（持续更新，以当前 CI 和所列案例为准）
 
-To repeat that check using the official current host in a separate dependency directory:
+最新结果见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)。可复现的原生运行检查还在 Windows 上实测了 DSH 0.2.1-rc.5、Node 26.13 和 Vite 8.3.5：相邻文件写入被拒绝、子进程环境被清理、冻结安装、类型检查和构建通过、预览两次启动、取消后停止写入。Windows 如实报告部分约束。
+
+用单独的依赖目录安装官方当前宿主后，可以重复这项检查：
 
 ```bash
 npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@latest
 npm run test:runtime
 ```
 
-The host dependency directory is ignored and excluded from the plugin package. This runtime check uses a controlled example and does not request a model.
+测试宿主依赖目录被忽略，也不会打入插件包。本项使用受控示例，不请求模型。
 
-- Automated regressions (see the current CI results for the count), including real git, frozen npm installs, builds and preview processes (temporary paths contain spaces), plus unit and host-contract tests. Regressions cover: a rewritten test script passes its check but is not adoptable; failing checks; dependency changes without a lockfile update fail the frozen install with no unlocked retry; generation budget; exact adoption with HEAD and index untouched and resources released; rehearsal that adopts and keeps your other changes, or blocks without writing when the combination fails; overlap; recovery after an interrupted write; the repository lock; cleanup refusing directories it cannot prove it owns; stale-record saves; read-only legacy records; process ownership by command line; and the candidate session contract (directory = copy, sandbox `workspace-write`, approvals `never`, a stop before start, reported token usage).
-- Adoption regressions preserve edits made during rehearsal or journal persistence, stop on concurrent HEAD/index changes, guard replacements and deletions, preserve ignored files at addition paths, and roll back only attempted paths. Retrying after resolving an overlap still supports adoption and undo.
-- Startup regressions reserve capacity before asynchronous preparation, permit retry after an initial-save failure and preserve history on identifier collisions. Shutdown drains pending starts, both candidates and journaled adoption. History tests page through 65 actual record files without changing their bytes.
-- Browser assertions cover composer controls and persisted settings, separate run identities, two interactive previews, blank-conversation navigation and reopening, source review, adoption confirmation, return-to-composer focus, responsive states, and dialog keyboard behaviour. History navigation covers 72 sample entries, pagination, search, late responses, older backends, retry and read-only issue filtering. Sixteen light/dark state combinations pass the automated WCAG 2 A/AA and 2.1 AA rules. These checks use labelled sample runs.
-- `node scripts/smoke.mjs`: the built-in case with scripted agents on React 19.3.1, Vite 8.3.5, and Playwright Chromium 156.0.8078.4. The complete version passes 12/12 acceptance steps; the one missing the clear button passes 9/12 and is not adoptable. Notes are edited after the baseline, so adoption must rehearse the combined result and preserve the updated notes. With `--escape B`, a write outside the copy is detected.
-- DSH 0.2.1-rc.5, isolated profile: the production command consumes a five-minute generation setting, creates two actual candidate sessions, serves both apps, and completes review and adoption. After reload and returning to normal conversation, a local scripted adapter observes the adopted result in the real main-session request. New and existing header controls remain available, with no page errors. No external model request is made in this check.
-- Development and example dependency audits report zero known advisories. Backend coverage is reported separately by `npm run test:coverage`; browser and native-host integration checks are separate layers and are not included in that percentage.
+- 自动化回归（数量和结果以当前 CI 为准），包含真实 git、冻结 npm 安装、构建与预览进程的集成测试（临时路径带空格），以及单元测试和宿主接口契约测试。已建立的回归包括：
+  - 候选改写测试脚本：检查「通过」，但结论为不可采用，写入工作区被拒绝，只能另存为分支；
+  - 检查失败、构建失败、改依赖不更新锁文件（冻结安装失败，不会退回非冻结安装）、生成超时；
+  - 采用写入的内容与验收一致，HEAD 和暂存区不变，预览进程和副本随后被回收；
+  - 你在基线后改了其他文件：预演通过则采用并保留你的修改；预演发现组合失败则阻止，一个字节都不写；
+  - 与你后来的修改重叠：阻止；
+  - 预演或写入日志保存期间的新编辑、并发 HEAD/暂存区变化：写入前阻止；替换、删除或新增路径出现变化时保留用户文件，只回退本次已尝试写入的路径；解决重叠后可重试采用和撤销；
+  - 采用中途中断：重启后进入「需要处理」，可以恢复到采用前；
+  - 同一仓库的第二个采用在仓库锁被占用时被拒绝；
+  - 清理拒绝删除未注册或归属标记不符的目录；
+  - 基于过期记录的保存被拒绝；旧版记录只读，不会据此结束进程；
+  - 并发启动提前占用名额，初次保存失败可重试，编号冲突保留已有历史；退出时等待准备、候选和采用操作收尾；
+  - 全部对话和当前对话分别筛选，65 条实际文件记录均可通过分页找到，读取不修改原始文件；
+  - 只有命令行能证明归属的进程才会被结束；
+  - 候选会话的创建参数（会话目录 = 副本、沙箱 workspace-write、审批 never）、开始前就收到的停止、真实 token 用量的汇总。
+- `node scripts/smoke.mjs`：脚本代替模型，用内置案例真实运行 React 19.3.1、Vite 8.3.5 与 Playwright Chromium 156.0.8078.4。完整实现的一版通过 12/12 步验收；漏做「清空」按钮的一版只通过 9/12 步，被判为不可采用。基线建立后再次编辑笔记文件，采用必须先预演组合结果，并保留更新后的笔记。`--escape B` 时，候选写到副本外的文件被检测出来。
+- DSH 0.2.1-rc.5 隔离环境：生产版指令读取界面选择的五分钟上限，创建两个真实候选会话，运行应用并完成审查及采用。刷新并返回普通对话后，本地脚本化适配器在真实主会话请求中读到了采用说明。新建／已有对话的入口均正常，没有页面异常。本项没有请求外部模型。
+- 开发与示例依赖审计均为零已知漏洞。`npm run test:coverage` 单独报告后端覆盖率；浏览器和原生宿主集成检查属于其他验证层，不计入这个百分比。
+- 浏览器断言覆盖输入框设置、设置持久化、多条记录的独立操作、两个可交互预览、空白会话导航与重新打开、代码审查、采用确认、返回输入框的焦点、响应式状态及弹窗键盘操作。历史导航包含 72 条样例的分页、搜索、慢响应、旧服务端提示、错误重试和需处理记录筛选。浅色／深色界面状态通过 WCAG 2 A/AA 和 2.1 AA 自动规则检查。此项使用明确标记的示例记录。
 
-- Real model (DSH 0.2.1-rc.3 desktop, deepseek-flash, built-in case): both candidate session headers record their own copy as `cwd`, with `sandbox/mode` `workspace-write` and `approval/policy` `never`; `pwsh` runs inside the candidates (the 0.1 `SetNamedSecurityInfoW` error is gone); token usage comes from the session logs. Neither candidate declared completion within 30 minutes. One had written its whole change, and the shared acceptance run on its copy afterwards passed the frozen install, typecheck, build and 12/12 page steps — which is why 0.2.0-alpha.2 verifies written work when the time limit is reached.
+- 真实模型（DSH 0.2.1-rc.3 桌面版，deepseek-flash，内置案例）：两个候选会话的头部记录 `cwd` 分别是各自的副本，`sandbox/mode` 为 `workspace-write`、`approval/policy` 为 `never`；候选里的 `pwsh` 正常执行（0.1 的 `SetNamedSecurityInfoW` 错误不再出现）；token 用量来自会话日志。两个候选都在 30 分钟上限内没有说完成——其中一个已写完全部改动，事后对它的副本跑共同验收：冻结安装、类型检查、构建和 12/12 步页面验收全部通过。0.2.0-alpha.2 因此改为到时照样验收已写的改动。
 
-- A full real-model round (DSH 0.2.1-rc.3 desktop, deepseek-flash, one model with two strategies, 60-minute limit): each candidate generated for about 42 minutes, using about 2.64M and 2.94M tokens; both passed typecheck, build and page acceptance; B was picked and adopted into the working tree (`src/App.tsx`, `src/styles.css`), uncommitted, with index and HEAD unchanged.
-- In-conversation runs (DSH 0.2.1-rc.3 runtime, test profile): `/ab` appears in the command menu; the composer's A|B button turns the draft into `/ab …`, which is executed as the command; the session log records `command/run` (`ab` and its arguments) and `command/done` (with the run id); when generation finishes, a note describing the result is queued into that conversation for the model's next step; the host accepted every registration (composer button, command card, tool card, header button).
-- Packed-plugin interface checks (DSH 0.2.1-rc.3 Web UI, isolated profile): graphical submission through the resident composer, two real Vite previews with search and clear interaction, choice, adoption review and working-tree writes, persisted result notes in the next-step inbox, reload recovery of the adopted record, and return to ordinary conversation. This check used fixed scripted candidates, without a model request.
+- 真实模型完整一轮（DSH 0.2.1-rc.3 桌面版，deepseek-flash，同一模型两种策略，60 分钟上限）：两版各用约 42 分钟生成，token 用量约 264 万和 294 万；两版都通过类型检查、构建和页面验收；选择 B 后采用到工作区，写入 `src/App.tsx` 和 `src/styles.css`，未提交、index 和 HEAD 未改动。
+- 对话内运行（DSH 0.2.1-rc.3 运行时，测试 profile）：`/ab` 出现在指令菜单；输入框的 A|B 按钮把草稿变成 `/ab …`，发送后按指令执行；会话日志里记录 `command/run`（`ab` 及参数）和 `command/done`（含运行编号）；生成结束时，一条说明结果的消息写入该对话，供模型下一步读取；输入框按钮、指令卡片、工具卡片、标题栏按钮的注册全部被宿主接受。
+- 打包安装后的界面检查（DSH 0.2.1-rc.3 Web UI，隔离 profile）：原输入框的图形化提交、两份真实 Vite 预览中的搜索与清空、选择、采用审查及工作区写入、结果说明写入持久会话并进入下一步消息队列、刷新后恢复已采用记录，以及退出比较模式后继续普通对话。本项使用固定的脚本化候选，没有请求模型。
 
-## Not verified yet
+<a id="not-verified-yet"></a>
 
-- The desktop shell's final appearance after updating, and the latest host's "adopt, then ask for the next change" flow with an external model provider. Request-context delivery has been checked with the local scripted adapter.
-- Historical Windows cases recorded long tool calls and inter-step waits, sometimes exceeding 30 minutes per comparison. The contributing costs have not been isolated and cannot be attributed to a particular plugin or service; the current host still needs performance measurements with an external model.
-- Whether storage inside the panel's iframes is isolated from your own browser; use "open in browser" when it matters.
-- Provider behaviour in two-model mode.
+## 尚未验证（不要当成已支持）
 
-## Known limitations
+- 更新后桌面壳的最终显示效果，以及最新版宿主中由外部模型完成「采用后接着提下一项需求」的完整体验。采用说明进入请求上下文已通过本地脚本化适配器检查。
+- 历史 Windows 案例记录到较长工具调用和轮间等待，一轮比较可能超过 30 分钟。各阶段开销尚未定位，不能据此归因为某个插件或服务；最新版仍需要真实外部模型的性能测量。
+- 已测 Chromium／Edge 以外的浏览器与隐私模式。当前已验证候选之间的浏览器状态分离；嵌入 Cookie 和外部标签页仍受浏览器自身策略管理，不构成完整浏览器安全边界。
+- 两个模型模式下各家 provider 的实际表现。
 
-- Vite projects only; a Git repository with at least one commit.
-- npm 12 installation policy can block dependency scripts; projects requiring native installation steps must first allow them under their own policy.
-- One comparison says nothing about a model's or strategy's overall quality.
+<a id="known-limitations"></a>
 
-## Development
+## 已知限制
 
-Use Node 26.13.0 (`.nvmrc`) and npm 12.2.1. The compiler and test baseline is TypeScript 7, React 19.3, and Vitest 5. The distributed client reuses the React runtime supplied by DSH.
+- 只支持 Vite 项目；必须是至少有一次提交的 Git 仓库。
+- npm 12 的安装脚本策略可能拦截依赖脚本；需要原生安装步骤的项目须先按项目自身策略允许相关脚本。
+- 单次比较的结果不代表模型或策略的整体优劣。
+
+<a id="development"></a>
+
+## 开发
+
+使用 Node 26.13.0（`.nvmrc`）与 npm 12.2.1。编译和测试基线为 TypeScript 7、React 19.3、Vitest 5；分发的客户端复用 DSH 提供的 React 运行时。
 
 ```bash
 npm ci && npm run typecheck && npm test
@@ -228,8 +275,10 @@ npm run smoke
 node scripts/preview-ui.mjs
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
-## License
+<a id="license"></a>
+
+## 许可证
 
 MIT

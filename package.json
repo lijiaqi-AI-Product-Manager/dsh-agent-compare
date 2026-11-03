@@ -1,7 +1,7 @@
 {
   "name": "dsh-agent-compare",
-  "version": "0.2.0-alpha.15",
-  "description": "Same task, two live builds, pick blind. A DeepSeek Harness plugin that runs two isolated implementations of one front-end task, starts both apps, applies the same checks, lets you choose blind, then adopts the winner safely. · 同一需求，两版真跑，盲选再揭晓。",
+  "version": "0.2.0-alpha.16",
+  "description": "同一需求，两版真跑：在 DSH 对话里比较、验证并审查采用。A DeepSeek Harness plugin for two implementations, live previews, shared checks and reviewed adoption.",
   "type": "module",
   "packageManager": "npm@12.2.1",
   "license": "MIT",
@@ -23,8 +23,8 @@
     "lib",
     "cordis.patch.yml",
     "examples/vite-react-demo",
-    "README.md",
-    "README.zh.md",
+    "README*.md",
+    "CONTRIBUTING.md",
     "LICENSE",
     "!examples/vite-react-demo/node_modules",
     "!examples/vite-react-demo/dist",
@@ -37,6 +37,7 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/wrap-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "check:docs": "node scripts/check-docs.mjs",
     "test": "npm run build && vitest run",
     "test:coverage": "npm run build && vitest run --coverage",
     "test:ui": "npm run build && node scripts/test-ui.mjs",
