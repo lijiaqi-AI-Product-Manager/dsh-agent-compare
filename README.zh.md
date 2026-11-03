@@ -6,7 +6,7 @@
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件。它把一个前端任务交给两个独立的 Agent，各在一份只属于自己的项目副本里实现；然后**按锁文件安装依赖、构建、把构建产物真的跑起来**，对两边执行**绑定到内容的同一套验收**。你先亲手操作两份真实页面并做出选择，选完立即揭晓各自用的策略或模型。采用前，它会先在你**当前项目的副本里预演**所选版本，验收通过才写回项目，并能撤销或从中断中恢复。
 
-> 状态：**0.2.0-alpha.13，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
+> 状态：**0.2.0-alpha.14，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
 
 ## 适合什么任务
 
@@ -84,7 +84,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.13.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-0.2.0-alpha.14.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：

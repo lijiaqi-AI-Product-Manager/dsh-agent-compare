@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.14 — 2026-11-03
+
+- Match retained verification screenshots to the existing desktop/mobile controls. Fit one image within each card, offer original-resolution scrolling, and show explicit loading, missing-image and retryable error states. Ignore obsolete screenshot responses after switching views.
+- Describe interrupted generation separately from failure and identify a single available result in partial comparisons. Improve adopted-status text contrast and keep inline support links visibly underlined.
+
 ## 0.2.0-alpha.13 — 2026-11-03
 
 - Bind candidate sealing and verification to worktree administration discovered from the original repository. Check owner marks, reciprocal links and bounded ordinary metadata files; refuse redirected or damaged pointers and retain ambiguous copies during cleanup.
