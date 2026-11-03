@@ -46,6 +46,7 @@ interface Cand {
 }
 interface Adoption { state: string; mode: string; message?: string; branch?: string; attention?: string[]; rehearsed?: boolean; rehearsalChecks?: Check[] }
 interface Run {
+  rev?: number
   control?: { allowed: boolean; reason?: string; retryable?: boolean }
   runId: string
   task: string
@@ -873,14 +874,42 @@ function Banners({ run }: { run: Run }): React.ReactElement {
 function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onCollapse }: { runId: string; sessionId?: string; initial?: Run; compact?: boolean; onDone?: () => void; onExpand?: () => void; onCollapse?: () => void }): React.ReactElement {
   const [run, setRun] = useState<Run | undefined>(initial)
   const [err, setErr] = useState<string>()
+  const [readErr, setReadErr] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const activeId = useRef(runId)
+  activeId.current = runId
+  const mounted = useRef(true)
+  const reads = useRef<{ version: number; controller?: AbortController }>({ version: 0 })
+  const action = useRef({ version: 0, pending: false })
   const [device, setDevice] = useState<PreviewDevice>(compact ? 'adaptive' : 'desktop')
   const [layout, setLayout] = useState<'side' | 'A' | 'B'>('side')
   const [preflight, setPreflight] = useState<{ ok: boolean; reasons: string[]; overlapping?: string[]; rehearsal?: boolean }>()
+  const publish = useCallback((next: Run, expectedId: string): void => {
+    if (!mounted.current || activeId.current !== expectedId || next.runId !== expectedId) return
+    setRun(previous => previous?.runId === next.runId && typeof previous.rev === 'number' && typeof next.rev === 'number'
+      && Number.isSafeInteger(previous.rev) && Number.isSafeInteger(next.rev) && previous.rev > next.rev ? previous : next)
+  }, [])
   const refresh = useCallback(async () => {
-    try { setRun(await call<Run>('get', { runId })); setErr(undefined) } catch (e) { setErr((e as Error).message) }
-  }, [runId])
-  useEffect(() => { void refresh() }, [refresh])
+    const version = ++reads.current.version, controller = new AbortController()
+    reads.current.controller?.abort()
+    reads.current.controller = controller
+    const current = (): boolean => mounted.current && activeId.current === runId && version === reads.current.version && !controller.signal.aborted
+    try {
+      const next = await call<Run>('get', { runId }, controller.signal)
+      if (!current()) return
+      if (!next || next.runId !== runId) throw new Error('收到的记录与当前比较不一致，请刷新后重试')
+      publish(next, runId); setReadErr(undefined)
+    } catch (error) { if (current()) setReadErr((error as Error).message) }
+  }, [runId, publish])
+  useEffect(() => {
+    mounted.current = true
+    action.current.version++; action.current.pending = false
+    setBusy(false); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
+    setRun(previous => previous?.runId === runId ? previous : initial?.runId === runId ? initial : undefined)
+    void refresh()
+    return () => { mounted.current = false; reads.current.version++; reads.current.controller?.abort(); action.current.version++ }
+    // Seed a selected record once per identity; subsequent reads are authoritative.
+  }, [runId, refresh])
   const live = run !== undefined && (run.control?.retryable === true || LIVE_POLL.has(run.state) || run.candidates.some((c) => busyStage(c.stage)))
   useEffect(() => {
     // Live runs refresh quickly; settled ones slowly, so a card in the chat follows actions taken elsewhere.
@@ -889,19 +918,26 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   }, [live, refresh])
   useTick(run?.state === 'running')
   const act: Act = (method, extra = {}) => {
+    if (!run || run.runId !== runId || action.current.pending) return
     if (run?.control?.allowed === false) { setErr(run.control.reason ?? '当前仅可查看这次比较'); return }
+    const version = ++action.current.version, targetId = runId
+    action.current.pending = true
+    reads.current.version++; reads.current.controller?.abort()
+    const current = (): boolean => mounted.current && activeId.current === targetId && action.current.version === version
+    const failed = (error: Error): void => { if (current()) setErr(error.message) }
+    const finished = (): void => { if (current()) { action.current.pending = false; setBusy(false); void refresh() } }
     setBusy(true)
     setErr(undefined)
     if (method === 'reviewAdoption') {
-      call<NonNullable<typeof preflight>>('preflight', { runId }).then(setPreflight, (e: Error) => setErr(e.message)).finally(() => setBusy(false))
+      call<NonNullable<typeof preflight>>('preflight', { runId }).then(value => { if (current()) setPreflight(value) }, failed).finally(finished)
       return
     }
     setPreflight(undefined)
     call<Run | null>(method, { runId, ...extra })
-      .then((r) => { if (r && typeof r === 'object' && 'runId' in r) setRun(r) }, (e: Error) => setErr(e.message))
-      .finally(() => { setBusy(false); void refresh() })
+      .then((r) => { if (current() && r && typeof r === 'object' && 'runId' in r) publish(r, targetId) }, failed)
+      .finally(finished)
   }
-  if (run === undefined) return <div className={compact ? 'ac-inline-note' : 'ac-empty'}>{err ?? '正在读取这次比较…'}</div>
+  if (run === undefined || run.runId !== runId) return <div className={compact ? 'ac-inline-note' : 'ac-empty'}>{err ?? readErr ?? '正在读取这次比较…'}</div>
   const blocked = busy || run.control?.allowed === false
   const revealed = REVEALED.has(run.state) || run.choice !== undefined
   const continueConversation = sessionId ? (): void => {
@@ -912,7 +948,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   } : undefined
   const body = (
     <>
-      {err && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err}</div>}
+      {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
       <div className="ac-action-dock"><ActionBar run={run} busy={busy} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>重试清理</button></div></section>}
       {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}

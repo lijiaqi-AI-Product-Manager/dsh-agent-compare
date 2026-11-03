@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each working in its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
 
-> Status: **0.2.0-alpha.11, not yet on npm.** "Verified" below lists only what was actually run.
+> Status: **0.2.0-alpha.12, not yet on npm.** "Verified" below lists only what was actually run.
 
 ## What it is for
 
@@ -76,7 +76,7 @@ cd dsh-agent-compare && npm ci && npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.11.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.12.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
@@ -98,6 +98,8 @@ History defaults to all conversations, with a current-conversation filter, task/
 Incomplete, unsupported, unreadable or larger-than-16-MiB records are retained read-only with a reason and an issue filter. They do not block unaffected history or drive project/process actions. Stale updates cannot replace damaged records.
 
 A live comparison belongs to the host that started it. Other current-version hosts sharing its local home can inspect history, source changes and real previews; management actions stay read-only until the owner closes. The UI refreshes ownership automatically. Shutdown drains accepted work before releasing ownership, and a crashed process releases its SQLite connection locks so a new host can recover the record. Adoption, undo and journal recovery also share a lock in the repository's Git common directory, including across different plugin homes.
+
+An already-open peer reconciles an orphan when its record is opened, refreshed or acquired for an action. Generation becomes interrupted, stopped preview addresses are cleared after successful inspection and an interrupted write offers recovery. Resources whose ownership or cleanup cannot be confirmed remain retained with an explanation. A live foreign owner and older unmarked records remain untouched. Card reads check the run identity and revision so a delayed response cannot undo a newer choice or adoption. The model-facing status path is limited to main conversations because orphan reconciliation can stop owned previews.
 
 Before upgrading, finish or clean up active comparisons and close every older plugin instance. Mixed-version concurrent mutation is unsupported. New records carry a coordination marker that alpha.9 treats as read-only unavailable data; earlier builds do not understand that boundary. Older unmarked records with potentially active resources stay viewable but cannot be terminated or adopted by inference. Old `.lock` directories are retained and block that key until inspected after older instances stop. SQLite guard files must remain in place on a local filesystem; network-share locking is not a supported configuration.
 

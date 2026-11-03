@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.0-alpha.12 — 2026-11-03
+
+- Reconcile current-protocol orphaned comparisons when opened or acquired after the previous host exits, including an already-open peer. Preserve live-owner exclusion and older unmarked records; turn interrupted writes into explicit adoption recovery.
+- Coalesce recovery with concurrent observations and actions. Restrict the model-facing status path to main conversations so delegated candidates cannot reconcile other runs.
+- Abort obsolete card reads, reject mismatched run identities and older revisions, and retain action errors across successful background refreshes.
+
 ## 0.2.0-alpha.11 — 2026-11-03
 
 - Restore persisted ordinary conversations through the host Session domain before loading comparison preferences, project details or models. Keep native permissions and session identity; do not create a replacement conversation or send a model prompt.
