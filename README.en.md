@@ -6,9 +6,9 @@
 
 **Same task. Two live builds. Pick blind.**
 
-AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. It hands one front-end task to two independent agents, each working in its own copy of your project. It then **installs from the lockfile, builds, and actually serves both build outputs**, and runs **the same content-bound acceptance** on each. You try both real pages and choose; the strategy or model behind each is revealed right after. Before adopting, it **rehearses the chosen version on a copy of your current project** and writes it back only if that passes — with undo and recovery from interruption.
+> **0.2.0-alpha.16, not yet on npm.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
-> Status: **0.2.0-alpha.16, not yet on npm.** "Verified" below lists only what was actually run.
+AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
 ## Install
 

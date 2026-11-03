@@ -6,9 +6,9 @@
 
 **同一需求，两版真跑，盲选再揭晓。**
 
-AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件。它把一个前端任务交给两个独立的 Agent，各在一份只属于自己的项目副本里实现；然后**按锁文件安装依赖、构建、把构建产物真的跑起来**，对两边执行**绑定到内容的同一套验收**。你先亲手操作两份真实页面并做出选择，选完立即揭晓各自用的策略或模型。采用前，它会先在你**当前项目的副本里预演**所选版本，验收通过才写回项目，并能撤销或从中断中恢复。
+> **0.2.0-alpha.16，尚未发布到 npm。** 首期支持本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
 
-> 状态：**0.2.0-alpha.16，尚未发布到 npm**。下方「已验证」只列出实际跑过的内容。
+AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一前端需求，生成并实际运行两份实现。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
 <a id="install"></a>
 

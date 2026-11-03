@@ -6,9 +6,9 @@
 
 [![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
 
-AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Deux agents réalisent la même tâche d'interface dans des copies indépendantes du projet. L'extension installe les dépendances, compile, sert les deux applications et leur applique des critères communs. Vous manipulez les pages avant de choisir A, B ou aucune. Avant l'adoption, la proposition est vérifiée avec l'état actuel de votre projet.
-
 > **0.2.0-alpha.16, pas encore publié sur npm.** L'installation proposée utilise les sources. Le périmètre initial comprend les projets Vite locaux placés à la racine d'un dépôt Git.
+
+AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Deux agents réalisent la même tâche d'interface dans des copies indépendantes du projet. L'extension installe les dépendances, compile, sert les deux applications et leur applique des critères communs. Vous manipulez les pages avant de choisir A, B ou aucune. Avant l'adoption, la proposition est vérifiée avec l'état actuel de votre projet.
 
 ## Installation
 

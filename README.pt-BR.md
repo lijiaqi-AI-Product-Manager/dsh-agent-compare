@@ -6,9 +6,9 @@
 
 [![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
 
-AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Dois agentes trabalham em cópias independentes da mesma tarefa de interface. O plugin instala dependências, compila, serve as duas aplicações e executa critérios comuns de verificação. Você testa as páginas antes de escolher A, B ou nenhuma. Antes de aplicar uma versão, ele verifica a combinação com o estado atual do seu projeto.
-
 > **0.2.0-alpha.16, ainda não publicado no npm.** A instalação disponível é a partir do código-fonte. O escopo inicial são projetos Vite locais na raiz de um repositório Git.
+
+AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Dois agentes trabalham em cópias independentes da mesma tarefa de interface. O plugin instala dependências, compila, serve as duas aplicações e executa critérios comuns de verificação. Você testa as páginas antes de escolher A, B ou nenhuma. Antes de aplicar uma versão, ele verifica a combinação com o estado atual do seu projeto.
 
 ## Instalação
 

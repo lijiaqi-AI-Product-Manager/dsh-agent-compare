@@ -6,9 +6,9 @@
 
 [![CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml/badge.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) · [MIT](LICENSE)
 
-AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH) 플러그인입니다. 같은 프런트엔드 작업을 독립된 두 사본에서 구현하고, 의존성 설치·빌드·공통 검증을 실제로 실행합니다. 두 페이지를 직접 사용한 뒤 A, B 또는 둘 다 선택하지 않음을 결정합니다. 적용 전에는 현재 프로젝트와 합친 결과를 임시 사본에서 검증합니다.
-
 > **0.2.0-alpha.16이며 npm에는 아직 게시되지 않았습니다.** 아래는 소스 설치 방법입니다. 현재 대상은 Git 저장소 루트의 로컬 Vite 프런트엔드입니다.
+
+AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH) 플러그인입니다. 같은 프런트엔드 작업을 독립된 두 사본에서 구현하고, 의존성 설치·빌드·공통 검증을 실제로 실행합니다. 두 페이지를 직접 사용한 뒤 A, B 또는 둘 다 선택하지 않음을 결정합니다. 적용 전에는 현재 프로젝트와 합친 결과를 임시 사본에서 검증합니다.
 
 ## 설치
 
