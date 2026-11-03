@@ -110,6 +110,19 @@ describe('run store', () => {
 })
 
 describe('public view', () => {
+  it('exposes retained content locations without ownership tokens or private recovery state', () => {
+    const r = record('0a1b2c3d')
+    r.adoption = { label: 'A', mode: 'worktree', state: 'needs-recovery', startedAt: 1,
+      fileTransfer: { id: '1'.repeat(32), token: '2'.repeat(32) }, transferDirection: 'undo', transferReturn: 'recovery',
+      retainedTransfers: [{ id: '3'.repeat(32), token: '4'.repeat(32) }],
+    }
+    const view = publicView(r)
+    expect(view.adoption?.retainedDirectory).toContain('.agent-compare-transfer-' + '1'.repeat(32))
+    expect(view.adoption?.retainedDirectories?.[0]).toContain('.agent-compare-transfer-' + '3'.repeat(32))
+    expect(view.adoption?.transferDirection).toBe('undo')
+    expect(JSON.stringify(view)).not.toMatch(/fileTransfer|retainedTransfers|transferReturn|22222222222222222222222222222222|44444444444444444444444444444444/)
+  })
+
   it('hides strategy, route and summary until the reveal', () => {
     const r = record('0a1b2c3d')
     const before = publicView(r)

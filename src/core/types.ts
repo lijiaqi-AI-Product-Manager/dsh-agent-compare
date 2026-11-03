@@ -213,6 +213,8 @@ export type AdoptionState =
   | 'blocked'
   /** Writing into the checkout; the journal holds everything needed to undo. */
   | 'writing'
+  /** Returning owned written files through the same protected handoff. */
+  | 'reverting'
   /** Written, and the checkout now equals the rehearsed tree. */
   | 'adopted'
   /** Written correctly, but other files changed during the write; review them. */
@@ -239,6 +241,14 @@ export interface Adoption {
   rehearsal?: { reused: boolean; tree: string; checks?: CheckResult[]; dir?: string; ownerToken?: string }
   /** Paths journaled before each write; paths not yet reached are excluded. */
   writtenPaths?: string[]
+  /** Owned raw-file transfer; never forwarded into model or client payloads. */
+  fileTransfer?: { readonly id: string; readonly token: string }
+  /** Older adoptions use a protected inverse transfer when first undone. */
+  transferDirection?: 'apply' | 'undo'
+  /** State before a protected inverse of an older adoption started. */
+  transferReturn?: 'adopted' | 'recovery'
+  /** Completed recovery transfers remain available for manual inspection. */
+  retainedTransfers?: Array<{ readonly id: string; readonly token: string }>
   branch?: string
   message?: string
   /** Paths the user needs to look at (conflicts, concurrent edits). */

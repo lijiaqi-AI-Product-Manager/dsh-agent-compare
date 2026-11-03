@@ -44,7 +44,7 @@ interface Cand {
   actualRoute?: Route
   summary?: string
 }
-interface Adoption { state: string; mode: string; message?: string; branch?: string; attention?: string[]; rehearsed?: boolean; rehearsalChecks?: Check[] }
+interface Adoption { state: string; mode: string; message?: string; branch?: string; attention?: string[]; rehearsed?: boolean; rehearsalChecks?: Check[]; transferDirection?: 'apply' | 'undo'; retainedDirectory?: string; retainedDirectories?: string[] }
 interface Run {
   rev?: number
   control?: { allowed: boolean; reason?: string; retryable?: boolean }
@@ -829,14 +829,14 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
     }
     case 'adopting':
       return (
-        <div className="ac-bar"><span className="ac-bar-text"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{run.adoption?.state === 'writing' ? '正在写入并核对…' : '正在你当前项目的副本里预演并验收…'}</span></div>
+        <div className="ac-bar"><span className="ac-bar-text"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{run.adoption?.state === 'reverting' ? '正在恢复文件并核对，原始内容继续保留…' : run.adoption?.state === 'writing' ? '正在保留原始内容、写入并核对…' : '正在你当前项目的副本里预演并验收…'}</span></div>
       )
     case 'recovery':
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text">采用没有完整结束。可以把涉及的文件恢复到采用前，或保留现在的文件。</span>
+          <span className="ac-bar-text">{run.adoption?.transferDirection === 'undo' ? '上次恢复操作没有完整结束。可以回退到该操作开始前，或保留现在的文件。' : '采用没有完整结束。可以恢复保留的原始内容，或保留现在的文件。'}遇到新编辑会停下并保留双方内容。</span>
           <button className="ac-btn" disabled={busy} onClick={() => act('recover', { action: 'keep' })}>保留当前文件</button>
-          <button className="ac-btn primary" disabled={busy} onClick={() => act('recover', { action: 'restore' })}>恢复到采用前</button>
+          <button className="ac-btn primary" disabled={busy} onClick={() => act('recover', { action: 'restore' })}>{run.adoption?.transferDirection === 'undo' ? '回退未完成操作' : '恢复到采用前'}</button>
         </div>
       )
     case 'adopted':
@@ -883,12 +883,13 @@ function Banners({ run }: { run: Run }): React.ReactElement {
         <div className={`ac-banner${bad ? ' err' : a.state === 'needs-attention' ? ' warn' : ''}`}>
           <div>
             <span className={`ac-pill ${a.state === 'adopted' ? 'ok' : bad ? 'err' : a.state === 'needs-attention' ? 'warn' : ''}`}>
-              {{ rehearsing: '预演中', blocked: '未写入', writing: '写入中', adopted: a.mode === 'branch' ? '已建分支' : '已采用', 'needs-attention': '已采用 · 请查看', 'rolled-back': '已恢复', 'needs-recovery': '需要处理', reverted: '已撤销' }[a.state] ?? a.state}
+              {{ rehearsing: '预演中', blocked: '未写入', writing: '写入中', reverting: '恢复中', adopted: a.mode === 'branch' ? '已建分支' : '已采用', 'needs-attention': '已采用 · 请查看', 'rolled-back': '已恢复', 'needs-recovery': '需要处理', reverted: '已撤销' }[a.state] ?? a.state}
             </span>{' '}
             <span style={{ color: 'var(--ac-fg2)' }}>{a.message}</span>
           </div>
           {a.rehearsalChecks && <Checks checks={a.rehearsalChecks} />}
           {a.attention && a.attention.length > 0 && <code>{a.attention.slice(0, 12).join('、')}</code>}
+          {(a.retainedDirectory || a.retainedDirectories?.length) ? <details><summary>查看保留内容的位置</summary><p>原始文件与交接记录保存在下面的目录中，不随预览清理。发生冲突时，请先核对当前文件和保留内容，再决定如何合并。</p>{[a.retainedDirectory, ...a.retainedDirectories ?? []].filter(Boolean).map(directory => <div className="ac-project-path" key={directory}><code>{directory}</code></div>)}</details> : null}
         </div>
       )}
     </>
@@ -911,7 +912,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const action = useRef({ version: 0, pending: false })
   const [device, setDevice] = useState<PreviewDevice>('adaptive')
   const [layout, setLayout] = useState<'side' | 'A' | 'B'>('side')
-  const [preflight, setPreflight] = useState<{ ok: boolean; reasons: string[]; overlapping?: string[]; rehearsal?: boolean }>()
+  const [preflight, setPreflight] = useState<{ ok: boolean; reasons: string[]; overlapping?: string[]; rehearsal?: boolean; protectedWorktreeApply?: boolean }>()
   const publish = useCallback((next: Run, expectedId: string): void => {
     if (!mounted.current || activeId.current !== expectedId || next.runId !== expectedId) return
     setRun(previous => previous?.runId === next.runId && typeof previous.rev === 'number' && typeof next.rev === 'number'
@@ -962,7 +963,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     setPending(method)
     setErr(undefined)
     if (method === 'reviewAdoption') {
-      call<NonNullable<typeof preflight>>('preflight', { runId }).then(value => { if (current()) setPreflight(value) }, failed).finally(finished)
+      call<NonNullable<typeof preflight>>('preflight', { runId }).then(value => { if (current()) setPreflight(value.protectedWorktreeApply === true ? value : { ...value, ok: false, reasons: ['插件服务尚未启用文件交接保护。请重启 DSH 后重新审查；也可以先另存为分支。'] }) }, failed).finally(finished)
       return
     }
     setPreflight(undefined)
@@ -986,7 +987,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
       <div className="ac-action-dock"><ActionBar run={run} busy={busy} pending={pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>重试清理</button></div></section>}
-      {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
+      {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.ok && <p>先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />
       <div className="ac-compare-tools"><div className="ac-seg" aria-label="比较布局">{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: '并排比较', A: '专注 A', B: '专注 B' }[v]}</button>)}</div><div className="ac-seg" aria-label="预览尺寸"><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>适应窗口</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>桌面 1280</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>手机 390</button></div><span className="ac-meta">{device === 'adaptive' ? '直接在对话中操作真实页面' : '相同视口 · 按可用宽度缩放'}</span></div>
       {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>预览环境与限制</summary><p>{independentHosts ? '候选使用独立本地地址，避免同名 Cookie 相互影响。' : '这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。'}嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。</p></details>}

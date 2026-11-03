@@ -102,10 +102,13 @@ const candidate = shape({
   timings: dictionary(timing, stage), error: optional(shape({ stage, message: text() })),
 })
 const adoption = shape({
-  label, mode: oneOf('worktree', 'branch'), state: oneOf('rehearsing', 'blocked', 'writing', 'adopted', 'needs-attention', 'rolled-back', 'needs-recovery', 'reverted'),
+  label, mode: oneOf('worktree', 'branch'), state: oneOf('rehearsing', 'blocked', 'writing', 'reverting', 'adopted', 'needs-attention', 'rolled-back', 'needs-recovery', 'reverted'),
   startedAt: count(), endedAt: optional(count()), preAdoptCommit: optional(gitObject), expectedTree: optional(gitObject), headBefore: optional(gitObject), stagedBefore: optional(sha256),
   rehearsal: optional(shape({ reused: boolean, tree: gitObject, checks: optional(array(check, 256)), dir: optional(absolutePath), ownerToken: optional(pattern(/^[0-9a-f]{24}$/)) })),
   writtenPaths: optional(paths), branch: optional(pathText), message: optional(text()), attention: optional(array(text())),
+  fileTransfer: optional(shape({ id: pattern(/^[0-9a-f]{32}$/), token: pattern(/^[0-9a-f]{32}$/) })), transferDirection: optional(oneOf('apply', 'undo')),
+  transferReturn: optional(oneOf('adopted', 'recovery')),
+  retainedTransfers: optional(array(shape({ id: pattern(/^[0-9a-f]{32}$/), token: pattern(/^[0-9a-f]{32}$/) }))),
 })
 const record = shape({
   coordination: optional(oneOf(RUN_COORDINATION)),

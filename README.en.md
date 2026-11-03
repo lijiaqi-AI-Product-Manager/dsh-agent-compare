@@ -11,7 +11,7 @@
 
 **Same task. Two live builds. Pick blind.**
 
-> **0.2.0-alpha.17 · Preview.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+> **0.2.0-alpha.18 · Preview.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
@@ -48,7 +48,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.18.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
@@ -97,7 +97,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
    - If you changed other files meanwhile, **rehearse** that combination in a scratch copy with the full acceptance; if it fails, stop — nothing is written.
    - Recheck the checkout, HEAD and staged entries after rehearsal and before each file write or deletion. A detected change stops adoption; only earlier attempted paths are considered for rollback, preserving later user edits.
    - Persist a recovery journal (pre-adopt snapshot, expected tree, HEAD and staged-state fingerprints) and hold a repository lock before the first write.
-   - Write using the repository's own eol/filter settings, then verify the checkout **equals the rehearsed tree** and HEAD and the index are unchanged. Nothing is committed.
+   - Prepare candidate bytes with the repository's eol/filter settings, retain the actual original files, and publish through links that cannot replace an existing path. An edit or new file at the handoff boundary stops the operation while retaining both contents. Verify the checkout **equals the rehearsed tree** and HEAD and the index are unchanged. Nothing is committed.
    - A failed write is rolled back automatically; an interrupted one is offered for recovery the next time the panel opens. Undo is available later unless you edited those files (they are listed, never overwritten).
    - A candidate that did not pass can only be saved as a branch (one commit, no checkout switch) for inspection.
 10. **Continue** — after a successful adoption, copies and previews are released and the panel offers "continue from this result": the next task starts from what you just adopted. History is browsed separately.
@@ -111,13 +111,14 @@ Candidate sealing and verification resolve the owned Git administration from the
 | Candidate writes | The candidate session's directory is its copy; DSH's sandbox enforces it up front | DSH marks its Windows sandbox as partial; platform temp areas may be writable |
 | Project commands | Installation, checks, initial preview and reopened preview use the host's `workspace-write` policy; ambient child variables use its canonical scrub | Missing confinement fails without an unconfined retry. Partial enforcement is recorded and shown; this is not read or network isolation |
 | Your project | Compared with the baseline while candidates run and shown in the panel | Differences are reported without attributing their source; adoption checks for overlap |
-| Concurrent editing | Rechecks the target after rehearsal and before each write, including after saving its journal | The repository lock coordinates plugin operations; it does not lock external editors. Pause edits during the brief write stage |
+| Concurrent editing | Checks the checkout and raw-file fingerprints, retains original files before publishing with no-replace links, and preserves conflicting content during undo and recovery | The repository lock does not lock external editors. Handoff is per file; wait before editing affected paths or rearranging directories. This is not a sandbox against same-permission processes |
 | Acceptance | Script bodies, configs and test files are hash-bound; the copy is checked before and after | Requirements that cannot be checked automatically are left to you, never claimed as verified |
 | Dependencies | Always a frozen install when a lockfile exists; package caches stay inside each copy | Projects without a lockfile get an unlocked install, with a warning |
 | Processes | A recorded preview is stopped only when its command line proves it is ours; preview file writes use the same host policy | Network access and process visibility are **not** isolated |
 | Browser state | Each preview launch gets a fresh random `.localhost` hostname; the server stays on `127.0.0.1`. Host probes connect directly to loopback and require a successful HTTP status | Embedded cookies follow browser policy. Login, external backends and shared databases are outside the current scope; an external tab may use different storage. Reopening resets page state, while comparison records and screenshots remain |
 | Embedded navigation | Preview frames permit scripts and forms but cannot navigate the top-level comparison window | This is not a complete hostile-code sandbox; opened pages and network requests still use the browser's policies |
 | Cleanup | Deletes only registered worktrees of that repository with a matching owner mark | Anything else is kept and listed |
+| Retained originals | A self-ignored `.agent-compare-transfer-*` directory in the project retains raw files and a durable journal. Its location is available in the result, and preview cleanup keeps it | Direct application requires ordinary files, at most 10,000 paths, 128 MiB total original/replacement bytes and hard-link support. Symlinks, special files and unsupported filesystems can use branch adoption. Keep these directories until recovery is complete |
 | Older records | Records from 0.1 are shown read-only | Nothing acts on their recorded paths or pids |
 
 If the host has no session factory (`ctx.agents.create`), AgentCompare falls back to the 0.1 subagent path (`isolation: shared-root`): copies live inside the repository under `.agents/worktrees`, and escapes are only detected afterwards. The panel and the run record state which one is in use.

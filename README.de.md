@@ -11,7 +11,7 @@
 
 **Eine Aufgabe. Zwei laufende Implementierungen. Ausprobieren, auswählen, danach die Strategie sehen.**
 
-> **0.2.0-alpha.17 · Vorschauversion.** Lokale Vite-Projekte im Stamm eines Git-Repositorys. Verwendet das aktuelle DSH-Modell.
+> **0.2.0-alpha.18 · Vorschauversion.** Lokale Vite-Projekte im Stamm eines Git-Repositorys. Verwendet das aktuelle DSH-Modell.
 
 AgentCompare ist ein Plugin für [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), kurz DSH. Zwei Agenten bearbeiten dieselbe Frontend-Aufgabe in getrennten Projektkopien. Das Plugin installiert Abhängigkeiten, baut beide Anwendungen, startet sie und führt gemeinsame Prüfungen aus. Du bedienst die Seiten, bevor du A, B oder keine auswählst. Vor der Übernahme wird die Kombination mit deinem aktuellen Projekt geprüft.
 
@@ -49,7 +49,7 @@ npm pack
 Ersetze `<your-profile>` durch den tatsächlichen Profilnamen:
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.18.tgz
 ```
 
 Starte DSH neu. Beende vor einem Update aktive Vergleiche und schließe ältere Instanzen, die dieselben Aufzeichnungen verwenden. Gleichzeitige Änderungen durch unterschiedliche Plugin-Versionen werden nicht unterstützt.

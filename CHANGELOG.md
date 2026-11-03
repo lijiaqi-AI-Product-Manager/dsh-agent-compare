@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-alpha.18 — 2026-11-03
+
+- Retain actual original files before direct adoption, and publish prepared candidate bytes with no-replace links. A late edit or newly occupied path stops the handoff without overwriting either version; HEAD and the staged index remain unchanged.
+- Persist per-file handoff phases for adoption, undo and recovery, including the first protected undo of older records. Keep raw originals independently after restoration, refuse redirected ownership metadata and unsupported filesystems, and expose retained-content locations in the result.
+- Distinguish unfinished inverse recovery from restoration before adoption. Block updated clients from applying through an older backend, and show preservation and concurrent-edit limits before confirmation.
+- Allocate each adoption overlay a unique private index. Add real file-boundary races, three process-termination boundaries, raw line-ending and permission restoration, older-record recovery, and browser compatibility regressions.
+
 ## 0.2.0-alpha.17 — 2026-11-03
 
 - Prepare the first public npm preview with prebuilt Host and Client entries, the bundle patch, executable example and localized installation guides. Keep the supported scope and preview status explicit.

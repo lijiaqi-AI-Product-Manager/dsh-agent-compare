@@ -14,12 +14,13 @@ function gitEnvironment(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))), ...env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' }
 }
 
-export function git(cwd: string, args: readonly string[], env?: NodeJS.ProcessEnv, input?: string): Promise<string> {
+export function git(cwd: string, args: readonly string[], env?: NodeJS.ProcessEnv, input?: string, limits?: { timeoutMs?: number; signal?: AbortSignal }): Promise<string> {
   return runOk(['git', ...args], {
     cwd,
     maxOutput: MAX_PATCH_CHARS,
     env: gitEnvironment(env),
     ...(input === undefined ? {} : { input }),
+    ...limits,
   })
 }
 
@@ -242,7 +243,9 @@ export async function withRepositoryWrite<T>(repo: string, operation: () => Prom
  */
 export async function overlayTree(repo: string, scratchDir: string, baseTree: string, source: string, nameStatus: ReadonlyArray<{ status: string; path: string }>): Promise<string> {
   await mkdir(scratchDir, { recursive: true })
-  const env = { GIT_INDEX_FILE: path.join(scratchDir, `overlay-${process.pid}-${Date.now()}`) }
+  const scratch = path.resolve(scratchDir)
+  const allocation = await mkdtemp(path.join(scratch, 'overlay-'))
+  const env = { GIT_INDEX_FILE: path.join(allocation, 'index') }
   try {
     await git(repo, ['read-tree', baseTree], env)
     const lines: string[] = []
@@ -259,7 +262,8 @@ export async function overlayTree(repo: string, scratchDir: string, baseTree: st
     if (lines.length > 0) await git(repo, ['update-index', '-z', '--index-info'], env, lines.join('\0') + '\0')
     return (await git(repo, ['write-tree'], env)).trim()
   } finally {
-    await rm(env.GIT_INDEX_FILE, { force: true })
+    if (path.dirname(allocation) !== scratch) throw new Error('Private index escaped its scratch directory')
+    await rm(allocation, { recursive: true, force: true })
   }
 }
 

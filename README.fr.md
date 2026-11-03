@@ -11,7 +11,7 @@
 
 **Une demande. Deux réalisations exécutées. Essayez, choisissez, puis découvrez la stratégie.**
 
-> **0.2.0-alpha.17 · Préversion.** Projets Vite locaux à la racine d’un dépôt Git. Réutilise le modèle DSH actuel.
+> **0.2.0-alpha.18 · Préversion.** Projets Vite locaux à la racine d’un dépôt Git. Réutilise le modèle DSH actuel.
 
 AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Deux agents réalisent la même tâche d'interface dans des copies indépendantes du projet. L'extension installe les dépendances, compile, sert les deux applications et leur applique des critères communs. Vous manipulez les pages avant de choisir A, B ou aucune. Avant l'adoption, la proposition est vérifiée avec l'état actuel de votre projet.
 
@@ -49,7 +49,7 @@ npm pack
 Remplacez `<your-profile>` par le nom réel de votre profil :
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.17.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.18.tgz
 ```
 
 Redémarrez DSH. Avant une mise à jour, terminez les comparaisons actives et fermez les anciennes instances qui partagent leurs fichiers. Les modifications simultanées par plusieurs versions de l'extension ne sont pas prises en charge.
