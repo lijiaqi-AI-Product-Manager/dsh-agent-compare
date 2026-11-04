@@ -49,7 +49,7 @@ Les commandes ci-dessous concernent un profil DSH Web géré par l’utilisateur
 
 La référence de développement est Node 26.13.0 et npm 12.2.1. Les vérifications actuelles utilisent le paquet officiel DSH 0.2.1-rc.5. Repérez le profil DSH que vous utilisez déjà.
 
-Installez la préversion npm dans le profil Web par défaut. Le badge npm indique son état de publication :
+Installez le paquet npm dans le profil Web par défaut. Le badge npm indique son état de publication :
 
 ```bash
 dsh plugin --profile web add dsh-agent-compare@1.0.0

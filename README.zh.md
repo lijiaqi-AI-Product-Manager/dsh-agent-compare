@@ -47,7 +47,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 以下命令用于自行运行的 DSH Web profile。桌面版的 `desktop` profile 由应用管理，请使用应用的插件页面。
 
-安装 npm 预览版到默认 Web profile（公开发布状态见顶部 npm 徽章）：
+安装 npm 包到默认 Web profile（公开发布状态见顶部 npm 徽章）：
 
 ```bash
 dsh plugin --profile web add dsh-agent-compare@1.0.0
@@ -159,7 +159,7 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.0.0.tgz
 
 DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回 0.1 的子 Agent 方式（`isolation: shared-root`）：副本放在仓库内的 `.agents/worktrees`，越界写入只能事后发现。面板和运行记录都会标明当前用的是哪种。
 
-当前 Windows 宿主不支持受限进程内部再创建捕获输出的命名管道。标准 Vite 命令行的可选 `net use` 路径探测改用临时文件传递输出，仍在同一约束下执行。其他需要嵌套管道的命令仍可能失败，不会降低权限要求重试。此边界不包含文件读取和网络访问隔离。
+当前 Windows 宿主限制受限进程内部创建捕获输出的命名管道。npm 安装脚本改用前台输出，不改变项目的脚本许可；esbuild 版本检查及 Vite 的可选 `net use` 探测通过私有临时文件捕获输出，esbuild 服务使用宿主公开的匿名管道接口，子进程继承同一个受限令牌。其他需要嵌套命名管道的工具仍可能失败，不会降低权限要求重试。此边界不包含文件读取和网络访问隔离。
 
 <a id="configuration-optional"></a>
 

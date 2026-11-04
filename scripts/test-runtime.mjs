@@ -35,7 +35,7 @@ const oldToken = process.env.AGENT_COMPARE_TEST_TOKEN, oldIdentity = process.env
 try {
   const repo = await createExampleRepo(root), outside = path.join(root, 'outside.txt')
   await writeFile(outside, 'original')
-  const prepare = createProjectProcess(() => ctx.get('sandbox'), async () => scrubbedParentEnv())
+  const prepare = createProjectProcess(() => ctx.get('sandbox'), async () => scrubbedParentEnv(), process.platform === 'win32' ? resolveRuntime.resolve('@deepseek-ai/dsh-win32-process') : undefined)
   process.env.AGENT_COMPARE_TEST_TOKEN = 'local-environment-canary'
   process.env.DSH_RUNTIME_CHECK = 'local-identity-canary'
   const prepared = await prepare({ argv: ['node', '--version'], cwd: repo })
@@ -47,6 +47,55 @@ try {
   assert.equal(await readFile(outside, 'utf8'), 'original')
   assert.equal(await readFile(path.join(repo, '.vite-canary'), 'utf8'), 'inside')
   await rm(path.join(repo, '.vite-canary'))
+
+  // A permitted dependency lifecycle must work inside the same boundary.
+  // npm 12's default script policy hid this npm 11 desktop failure path.
+  const lifecycle = path.join(root, 'lifecycle'), dependency = path.join(lifecycle, 'dependency')
+  await mkdir(dependency, { recursive: true })
+  const marker = path.join(lifecycle, 'installed.marker')
+  const dependencyName = 'agent-compare-lifecycle-fixture'
+  const lifecycleManifest = { name: 'agent-compare-lifecycle-project', version: '1.0.0', private: true,
+    dependencies: { [dependencyName]: 'file:dependency' }, allowScripts: { 'file:dependency': true } }
+  await writeFile(path.join(dependency, 'package.json'), JSON.stringify({ name: dependencyName, version: '1.0.0', scripts: { postinstall: 'node install.cjs' } }))
+  await writeFile(path.join(dependency, 'install.cjs'), "require('node:fs').writeFileSync(process.env.AGENT_COMPARE_LIFECYCLE_MARKER,'permitted lifecycle completed');console.log('lifecycle-fixture-completed')\n")
+  await writeFile(path.join(lifecycle, 'package.json'), JSON.stringify(lifecycleManifest))
+  const lifecycleRun = argv => runProjectProcess(argv, { cwd: lifecycle, timeoutMs: 120000, env: { CI: '1', AGENT_COMPARE_LIFECYCLE_MARKER: marker } }, prepare)
+  const lock = await lifecycleRun(['npm', 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'])
+  assert.equal(lock.code, 0, lock.stderr || lock.stdout)
+  const lockedBytes = await readFile(path.join(lifecycle, 'package-lock.json'), 'utf8')
+  const lifecycleInstall = await lifecycleRun(['npm', 'ci', '--no-audit', '--no-fund'])
+  assert.equal(lifecycleInstall.code, 0, lifecycleInstall.stderr || lifecycleInstall.stdout)
+  assert.equal(await readFile(marker, 'utf8'), 'permitted lifecycle completed')
+  await rm(marker)
+  const ignored = await lifecycleRun(['npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'])
+  assert.equal(ignored.code, 0, ignored.stderr || ignored.stdout)
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
+  lifecycleManifest.allowScripts['file:dependency'] = false
+  await writeFile(path.join(lifecycle, 'package.json'), JSON.stringify(lifecycleManifest))
+  const denied = await lifecycleRun(['npm', 'ci', '--no-audit', '--no-fund'])
+  assert.equal(denied.code, 0, denied.stderr || denied.stdout)
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
+  assert.equal(await readFile(path.join(lifecycle, 'package-lock.json'), 'utf8'), lockedBytes, 'Lifecycle handling must not relax or rewrite the lock')
+
+  // Explicitly permit a current native dependency so npm 12 exercises the
+  // same nested-process path as older package managers instead of skipping it.
+  const esbuildProject = path.join(root, 'esbuild')
+  await mkdir(esbuildProject)
+  await writeFile(path.join(esbuildProject, 'package.json'), JSON.stringify({ name: 'agent-compare-esbuild-runtime', private: true, dependencies: { esbuild: '0.28.2' }, allowScripts: { esbuild: true } }))
+  for (const argv of [
+    ['npm', 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'],
+    ['npm', 'ci', '--no-audit', '--no-fund'],
+    ['node', '-e', "const e=require('esbuild');Promise.all(Array.from({length:16},(_,i)=>e.transform('const n: number = '+i,{loader:'ts'}))).then(r=>{if(r.length!==16||r.some(x=>!x.code.includes('const n')))process.exitCode=1;return e.transformSync('let n: number=1',{loader:'ts'})}).then(r=>{if(!r.code.includes('let n'))process.exitCode=1})"],
+  ]) {
+    const result = await runProjectProcess(argv, { cwd: esbuildProject, timeoutMs: 120000, env: { CI: '1' } }, prepare)
+    assert.equal(result.code, 0, result.stderr || result.stdout)
+  }
+  if (process.platform === 'win32') {
+    const pipes = await runProjectProcess(['node', path.resolve('scripts/check-windows-pipes.cjs'), outside], { cwd: esbuildProject, timeoutMs: 30000 }, prepare)
+    assert.equal(pipes.code, 0, pipes.stderr || pipes.stdout)
+    assert.equal(JSON.parse(pipes.stdout.trim()).restrictedGrandchild, true)
+    assert.equal(await readFile(outside, 'utf8'), 'original')
+  }
 
   const install = installArgv(await inspectProject(repo))
   assert.ok(install.frozen)
@@ -80,7 +129,7 @@ try {
   const stopped = await readFile(heartbeat, 'utf8')
   await new Promise(resolve => setTimeout(resolve, 200))
   assert.equal(await readFile(heartbeat, 'utf8'), stopped, 'cancelled process must stop writing')
-  console.log(JSON.stringify({ host: hostVersion, node: process.version, vite: viteVersion, enforcement: prepared.enforcement, adjacentWriteDenied: true, environmentScrubbed: true, frozenInstall: true, checks: checks.map(check => `${check.name}:${check.outcome}`), previewStarts: 2, cancelledHeartbeatStopped: true }))
+  console.log(JSON.stringify({ host: hostVersion, node: process.version, vite: viteVersion, enforcement: prepared.enforcement, adjacentWriteDenied: true, environmentScrubbed: true, permittedLifecycleCompleted: true, ignoredLifecycleSkipped: true, deniedLifecycleSkipped: true, lifecycleLockUnchanged: true, nativeEsbuildLifecycle: true, asyncAndSyncTransforms: true, frozenInstall: true, checks: checks.map(check => `${check.name}:${check.outcome}`), previewStarts: 2, cancelledHeartbeatStopped: true }))
 } finally {
   if (oldToken === undefined) delete process.env.AGENT_COMPARE_TEST_TOKEN; else process.env.AGENT_COMPARE_TEST_TOKEN = oldToken
   if (oldIdentity === undefined) delete process.env.DSH_RUNTIME_CHECK; else process.env.DSH_RUNTIME_CHECK = oldIdentity

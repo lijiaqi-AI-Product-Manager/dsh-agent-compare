@@ -47,7 +47,7 @@ Fixed-candidate sample with a Chinese interface. Application execution, shared c
 
 These commands target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page.
 
-Install the npm preview into the default Web profile (the npm badge above shows registry status):
+Install the npm package into the default Web profile (the npm badge above shows registry status):
 
 ```bash
 dsh plugin --profile web add dsh-agent-compare@1.0.0
@@ -143,7 +143,7 @@ Candidate sealing and verification resolve the owned Git administration from the
 
 If the host has no session factory (`ctx.agents.create`), AgentCompare falls back to the 0.1 subagent path (`isolation: shared-root`): copies live inside the repository under `.agents/worktrees`, and escapes are only detected afterwards. The panel and the run record state which one is in use.
 
-The current Windows host cannot create piped stdio in confined grandchildren. A narrowly scoped adapter lets the standard Vite CLI capture its optional `net use` path probe through temporary files under the same policy. Other commands that require nested pipes may still fail; they are not retried with wider permissions. File-read access and network access remain outside this boundary.
+The current Windows host restricts named-pipe stdio in confined grandchildren. npm lifecycle scripts use foreground output without changing the project's script permissions. Private files capture esbuild version checks and Vite's optional `net use` probe; the esbuild service uses the host's public anonymous-pipe primitives and inherits the same restricted token. Other tools requiring nested named pipes may still fail; they are not retried with wider permissions. File-read access and network access remain outside this boundary.
 
 ## Configuration (optional)
 

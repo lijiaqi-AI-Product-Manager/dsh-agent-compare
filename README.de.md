@@ -49,7 +49,7 @@ Die folgenden Befehle gelten für ein selbst verwaltetes DSH-Web-Profil. Das Pro
 
 Entwicklungsgrundlage sind Node 26.13.0 und npm 12.2.1. Die aktuellen Prüfungen verwenden das offizielle DSH-Paket 0.2.1-rc.5. Ermittle den Namen deines vorhandenen DSH-Profils.
 
-Installiere die npm-Vorschau im voreingestellten Web-Profil. Das npm-Badge zeigt den Veröffentlichungsstatus:
+Installiere das npm-Paket im voreingestellten Web-Profil. Das npm-Badge zeigt den Veröffentlichungsstatus:
 
 ```bash
 dsh plugin --profile web add dsh-agent-compare@1.0.0

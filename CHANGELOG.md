@@ -2,6 +2,7 @@
 
 ## 1.0.0 — 2026-11-04
 
+- Keep npm lifecycle scripts in the foreground on Windows without changing script permissions. Capture esbuild version checks through private files and run its service over anonymous pipes with the existing restricted token; preserve input, output, argument boundaries, exit failures and cancellation. Exercise explicitly allowed and denied lifecycle scripts in the native-host regression.
 - Diagnose installation failures from observed output: distinguish network and certificate errors, registry access, filesystem resources, unsupported runtimes, lock mismatches, timeout and cancellation. Keep bounded diagnostics with recognizable credentials redacted; never infer a lock mismatch merely from frozen installation failing.
 - Offer explicit verification retry for sealed candidates after environment failures or interruption. Reuse the same commit, patch and acceptance, reject changed content, retain earlier attempts and usage, and never repeat generation. Preserve admission on save failure and coordinate retry with cancellation, restart and run capacity.
 - Keep actionable recovery above collapsed logs, retain prior verification facts, show the current verification time without idle history, and record the observed package-manager version and verification host environment. Lock mismatches require a corrected new comparison instead of repeating an unchanged failure.

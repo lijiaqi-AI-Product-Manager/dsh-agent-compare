@@ -9,6 +9,20 @@ import { diagnosticText, DiagnosticLog } from '../src/core/proc.ts'
 import { tmp } from './fixture.ts'
 
 describe('project command boundary', () => {
+  it('uses inherited npm lifecycle output on Windows without granting script permission', async () => {
+    const root = await tmp('ac-lifecycle-boundary')
+    const prepare = createProjectProcess(() => ({ confine: async argv => ({ argv: [...argv], enforcement: 'partial' }) }), async () => ({ NPM_CONFIG_FOREGROUND_SCRIPTS: 'false' }))
+    const result = await prepare({ argv: [path.join(root, 'npm.cmd'), 'ci'], cwd: root, env: { npm_config_ignore_scripts: 'true' } })
+    expect(result.env.npm_config_ignore_scripts).toBe('true')
+    expect(result.env.npm_config_allow_scripts).toBeUndefined()
+    if (process.platform === 'win32') {
+      expect(result.env.npm_config_foreground_scripts).toBe('true')
+      expect(Object.keys(result.env).filter(key => key.toLowerCase() === 'npm_config_foreground_scripts')).toEqual(['npm_config_foreground_scripts'])
+    } else expect(result.env.NPM_CONFIG_FOREGROUND_SCRIPTS).toBe('false')
+    const other = await createProjectProcess(() => ({ confine: async argv => ({ argv: [...argv], enforcement: 'partial' }) }), async () => ({}))({ argv: ['node', '--version'], cwd: root })
+    expect(other.env.npm_config_foreground_scripts).toBeUndefined()
+  })
+
   it('retains a failure heading and its final detail within a bounded diagnostic', () => {
     const text = 'ROOT FAILURE\n' + 'stack detail\n'.repeat(500) + 'FINAL DETAIL'
     expect(diagnosticText(text, 200)).toHaveLength(200)
