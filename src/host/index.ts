@@ -321,7 +321,7 @@ function brief(r: RunRecord): Record<string, unknown> {
       checks: c.checks?.map((k) => `${k.name}:${k.outcome}`),
       eligible: c.verdict?.eligible,
       blockers: c.verdict?.reasons,
-      files: c.patchStats?.files,
+      ...(c.patchStats ? { files: c.patchStats.files } : {}),
       error: c.error?.message.split('\n')[0],
       ...(c.strategy === undefined ? {} : { strategy: c.strategy.title }),
     })),
