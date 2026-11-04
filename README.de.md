@@ -45,6 +45,8 @@ Beispiel mit festen Kandidaten und chinesischer Oberfläche. Anwendungen, gemein
 
 ## Installation
 
+Die Oberfläche von 1.0 ist nur auf vereinfachtem Chinesisch verfügbar. DSH Desktop und Web werden unterstützt; die Dokumentationssprachen sind davon unabhängig.
+
 Die folgenden Befehle gelten für ein selbst verwaltetes DSH-Web-Profil. Das Profil `desktop` wird von der Desktop-App verwaltet; verwenden Sie deren Plugin-Seite.
 
 Entwicklungsgrundlage sind Node 26.13.0 und npm 12.2.1. Die aktuellen Prüfungen verwenden das offizielle DSH-Paket 0.2.1-rc.5. Ermittle den Namen deines vorhandenen DSH-Profils.

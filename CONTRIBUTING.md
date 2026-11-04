@@ -64,3 +64,11 @@ Use a separate profile. Bump the version before each pack: pnpm caches a `file:`
 - Keep the change focused; describe what you observed before and after.
 - Run `npm run typecheck && npm test` and, for anything touching verification or adoption, `npm run smoke`.
 - Update `CHANGELOG.md` and the README's "Verified" section only with things you actually ran.
+
+## Local validation
+
+Use `npm run test:fast` for the unit project without project installation or Vite processes. `npm test` and required CI run both the unit and integration projects; the fast command is not a release gate. `npm run check:test-projects` verifies that every test file belongs to exactly one project.
+
+After merging the workflow definition, CI can also be started explicitly for a branch through the Actions page. Check the actual run commit; an older branch result does not validate a newer head.
+
+Repository-only demo media remain available through the documentation links. The npm package keeps its icon and screenshot metadata and images, while `check:docs` still verifies the original recorded-media hashes.
