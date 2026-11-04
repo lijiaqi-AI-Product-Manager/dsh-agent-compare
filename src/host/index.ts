@@ -385,7 +385,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     await Promise.all([...latest.values()].map(record => memory.remember(record)))
   }
   ctx.effect(() => {
-    const timer = setInterval(() => { void reconcileMemory().catch(error => ctx.logger.warn(`agent-compare: conversation retry failed: ${(error as Error).message}`)) }, 5000)
+    const timer = setInterval(() => { void memory.retryUndelivered(id => store.load(id)).catch(error => ctx.logger.warn(`agent-compare: conversation retry failed: ${(error as Error).message}`)) }, 30000)
     timer.unref()
     void reconcileMemory().catch(error => ctx.logger.warn(`agent-compare: conversation restore failed: ${(error as Error).message}`))
     return () => clearInterval(timer)
@@ -527,6 +527,11 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     async list(b) {
       const page = await historyPage(store, b)
       return { ...page, runs: await Promise.all(page.runs.map(present)), isolation: runner.isolation }
+    },
+    async latest(b) {
+      if (typeof b.sessionId !== 'string' || !b.sessionId.trim() || b.sessionId.length > 500) throw new HttpError(400, '会话编号无效')
+      const record = (await store.list()).find(record => record.sessionId === b.sessionId)
+      return record ? present(record) : null
     },
     async get(b) { return view(runIdOf(b)) },
     async models(b, signal) {

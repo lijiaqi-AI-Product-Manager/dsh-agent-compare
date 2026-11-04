@@ -54,6 +54,11 @@ export function repoKey(repo: string): string {
 }
 
 export class RunStore {
+  // History is a read optimization only. load/save and revision checks always
+  // read authoritative bytes. Refuse new cache entries when full to avoid a
+  // complete-history scan thrashing a bounded cache on every pass.
+  private readonly historyCache = new Map<string, { stamp: string; bytes: number; entry: Entry }>()
+  private historyCacheBytes = 0
   readonly runsDir: string
   readonly worktreesDir: string
   readonly artifactsDir: string
@@ -125,6 +130,7 @@ export class RunStore {
       } finally { await rm(tmp, { force: true }).catch(() => {}) }
       record.rev = next.rev
       record.updatedAt = next.updatedAt
+      this.forgetHistory(record.runId)
     }, { waitMs: 5_000 })
   }
 
@@ -193,18 +199,45 @@ export class RunStore {
   async listAll(): Promise<{ current: RunRecord[]; legacy: LegacySummary[] }> {
     let names: string[] = []
     try { names = await readdir(this.runsDir) } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { current: [], legacy: [] }
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') { this.historyCache.clear(); this.historyCacheBytes = 0; return { current: [], legacy: [] } }
       throw new Error(`无法读取比较记录目录（${(error as NodeJS.ErrnoException).code ?? '未知错误'}）`)
     }
     const current: RunRecord[] = []
     const legacy: LegacySummary[] = []
+    const present = new Set(names.filter(name => /^[0-9a-f]{8}\.json$/.test(name)).map(name => name.slice(0, -5)))
+    for (const id of this.historyCache.keys()) if (!present.has(id)) this.forgetHistory(id)
     for (const n of names) {
       if (!/^[0-9a-f]{8}\.json$/.test(n)) continue
-      const entry = await this.readEntry(n.slice(0, -5))
+      const entry = await this.historyEntry(n.slice(0, -5))
       if (entry.kind === 'current') current.push(entry.record)
       else if (entry.kind === 'legacy' || entry.kind === 'unavailable') legacy.push(entry.summary)
     }
     return { current: current.sort((a, b) => b.createdAt - a.createdAt), legacy: legacy.sort((a, b) => b.createdAt - a.createdAt) }
+  }
+
+  private forgetHistory(runId: string): void {
+    const previous = this.historyCache.get(runId)
+    if (previous) { this.historyCacheBytes -= previous.bytes; this.historyCache.delete(runId) }
+  }
+
+  private async historyStamp(runId: string): Promise<{ stamp: string; bytes: number } | undefined> {
+    try {
+      const info = await lstat(this.file(runId), { bigint: true })
+      if (!info.isFile() || info.isSymbolicLink() || info.size > BigInt(MAX_RECORD_BYTES)) return undefined
+      return { stamp: [info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs, info.mode, info.nlink].join(':'), bytes: Number(info.size) + 1024 }
+    } catch { return undefined }
+  }
+
+  private async historyEntry(runId: string): Promise<Entry> {
+    const before = await this.historyStamp(runId), cached = this.historyCache.get(runId)
+    if (before && cached?.stamp === before.stamp) return structuredClone(cached.entry)
+    this.forgetHistory(runId)
+    const entry = await this.readEntry(runId), after = await this.historyStamp(runId)
+    if (entry.kind !== 'missing' && before && after?.stamp === before.stamp && this.historyCache.size < 2048 && this.historyCacheBytes + after.bytes <= 32 * 1024 * 1024) {
+      this.historyCache.set(runId, { ...after, entry: structuredClone(entry) })
+      this.historyCacheBytes += after.bytes
+    }
+    return entry
   }
 
   /** Cross-process lock. Its persistent SQLite guard is never removed. */
