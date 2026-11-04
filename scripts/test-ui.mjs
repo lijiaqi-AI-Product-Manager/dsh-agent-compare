@@ -241,6 +241,20 @@ try {
   check((await requests('cleanup')).length === 1 && (await requests('revert')).length === 0, 'retrying resource cleanup must not undo adoption')
   check(await page.getByRole('button', { name: '撤销采用', exact: true }).isVisible(), 'resource cleanup must leave the adoption record available')
 
+  await open('running')
+  check(!(await page.getByRole('region', { name: '候选 B', exact: true }).innerText()).includes('61240') && !(await page.getByRole('region', { name: '候选 B', exact: true }).innerText()).includes('src\\App.tsx'), 'blind activity must withhold tool targets and token counters')
+  await open('judging')
+  for (const label of ['A', 'B']) await page.getByRole('region', { name: '候选 ' + label, exact: true }).locator('.ac-evidence > summary').click()
+  const blindText = await page.locator('.ac-grid').innerText()
+  check(!blindText.includes('48,210') && !blindText.includes('71,533') && !blindText.includes(' 个文件'), 'blind evidence must withhold usage and change scale even if an older host includes them')
+  await page.getByRole('button', { name: '选 A', exact: true }).click()
+  const revealedUsage = page.getByRole('region', { name: '候选 A', exact: true }).getByText(/48,210 tokens/)
+  await revealedUsage.waitFor()
+  check(await revealedUsage.isVisible(), 'reveal must restore the reported usage')
+  await open('allfailed')
+  await page.getByRole('button', { name: '两版都不采用并揭晓', exact: true }).click()
+  check((await requests('choose')).at(-1).body.pick === 'none', 'failed comparisons must offer explicit rejection and reveal without cleaning retained code')
+
   await open('partial')
   for (const label of ['A', 'B']) await page.getByRole('region', { name: `候选 ${label}`, exact: true }).locator('.ac-evidence > summary').click()
   const partialUsage = await page.getByRole('region', { name: '候选 A', exact: true }).locator('.ac-evidence').innerText()
@@ -313,15 +327,15 @@ try {
   await open('running')
   await page.evaluate(()=>{
     const value=window.__runSnapshot();
-    value.rev=(value.rev??0)+1;value.candidates[1].progress={...value.candidates[1].progress,lastAction:'read src/after-slow.ts',lastActivityAt:Date.now()};
+    value.rev=(value.rev??0)+1;value.candidates[1].progress={...value.candidates[1].progress,steps:777,lastAction:'read src/after-slow.ts',lastActivityAt:Date.now()};
     window.__getPlans.push({value,delayMs:2400})
   })
   await page.waitForFunction(()=>window.__getPlans.length===0)
   const pendingReads=await page.evaluate(()=>window.__requests.filter(r=>r.method==='get').length)
   await page.waitForTimeout(1600)
   check(await page.evaluate(()=>window.__requests.filter(r=>r.method==='get').length)===pendingReads, 'polling must share a slow record read instead of cancelling and replacing it')
-  await page.getByText('read src/after-slow.ts',{exact:false}).waitFor({timeout:6000})
-  check(await page.getByText('read src/after-slow.ts',{exact:false}).isVisible(), 'a record response slower than the live polling interval must remain observable')
+  await page.getByText('已进行 777 轮',{exact:false}).waitFor({timeout:6000})
+  check(await page.getByText('已进行 777 轮',{exact:false}).isVisible(), 'a record response slower than the live polling interval must remain observable without exposing tool details')
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await open('judging')
@@ -512,7 +526,9 @@ try {
   await open('install-failure')
   const failedCandidate = page.getByRole('region', { name: '候选 A', exact: true })
   check((await failedCandidate.innerText()).includes('无需因此修改锁文件'), 'a network error must not blame the lockfile')
-  check(await failedCandidate.locator('.ac-install-log').isHidden(), 'diagnostic logs must be collapsed so recovery stays prominent')
+  check(await failedCandidate.locator('.ac-install-log').count() === 0, 'detailed logs must not be exposed before reveal')
+  check(await failedCandidate.getByText('查看安装日志', { exact: true }).count() === 0, 'detailed logs must stay withheld during blind selection')
+  await page.getByRole('button', { name: '选 B', exact: true }).click()
   await failedCandidate.getByText('查看安装日志', { exact: true }).click()
   check((await failedCandidate.locator('.ac-install-log').innerText()).includes('ECONNRESET'), 'the observed diagnostic must remain reviewable')
   await page.evaluate(() => window.__actionPlans.push({ method: 'retryVerification', error: '重新验收请求暂不可用' }))

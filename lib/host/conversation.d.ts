@@ -4,7 +4,7 @@
  * (generation finished, the user's pick, adoption) so later turns can build on
  * it. Notes state recorded facts only.
  */
-import type { AgentRoute, RunRecord } from '../core/index.ts';
+import { type AgentRoute, type RunRecord } from '../core/index.ts';
 export interface AbInput {
     readonly task: string;
     readonly example: boolean;
