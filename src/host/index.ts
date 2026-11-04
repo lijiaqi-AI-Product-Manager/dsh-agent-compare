@@ -30,6 +30,7 @@ import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, type ProjectSandbox } from './project-process.ts'
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 import { readComparisonStatus } from './status.ts'
+import { hostCapabilities } from './capabilities.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -339,6 +340,17 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     if (config.isolation !== 'shared-root') ctx.logger.warn('agent-compare: no agent factory on this host; falling back to shared-root subagents (escapes are detected, not prevented)')
   } else throw new Error('agent-compare needs ctx.agents (or ctx.subagents) to run candidates')
 
+  const environmentContract = import('@deepseek-ai/dsh-subprocess' as string).then(service => typeof service.scrubbedParentEnv === 'function', () => false)
+  const runtimeVersion = import('@deepseek-ai/dsh-app-boot' as string).then(service => typeof service.getDshRuntimeVersion === 'function' ? service.getDshRuntimeVersion() as string : undefined).catch(() => undefined)
+  const capabilities = async () => hostCapabilities({
+    isolation: runner.isolation,
+    agents,
+    subagents,
+    sandbox: ctx.get('sandbox') as ProjectSandbox | undefined,
+    commands: ctx.get('commands') as { register?: unknown } | undefined,
+    sessionController: ctx.get('sessionController') as SessionController<AgentLike> | undefined,
+    scrubbedParentEnv: await environmentContract,
+  })
   const store = new RunStore(config.home ?? defaultHome())
   const preferences = new PreferencesStore(store, defaultPreferences(config.generationMinutes ?? 30))
   // Each milestone of a run becomes one model-facing note in its conversation,
@@ -511,7 +523,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     },
     async setup(b, signal) {
       const agent = await agentFor(b, signal)
-      let project: { path: string; supported: boolean; reason?: string } | undefined
+      let project: { path: string; supported: boolean; reason?: string } = { path: '', supported: false, reason: '当前对话没有项目目录，请打开 Git 项目，或试跑内置示例。' }
       const cwd = agent.session.header.cwd
       if (cwd) {
         try {
@@ -522,7 +534,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
         }
       }
-      return { hostVersion: VERSION, current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
+      return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, capabilities: await capabilities(), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
     },
     async list(b) {
       const page = await historyPage(store, b)
