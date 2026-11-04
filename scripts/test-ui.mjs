@@ -128,7 +128,7 @@ try {
   check(await page.getByRole('button',{name:'试跑内置示例',exact:true}).isEnabled(), 'a setup response slower than the polling interval must still become usable')
 
   await open('blank')
-  await page.waitForFunction(() => window.__requests.some(r => r.method === 'list'))
+  await page.waitForFunction(() => window.__requests.some(r => r.method === 'latest'))
   check(await page.locator('.ac-conversation-run').count() === 0, 'a new conversation must not display an unrelated history record')
   const records = page.getByRole('button', { name: '打开 AgentCompare 比较记录', exact: true })
   const guide = page.getByRole('button', { name: '打开 AgentCompare 使用教程', exact: true })
@@ -205,19 +205,19 @@ try {
   await page.screenshot({ path: path.join(output, 'blank-conversation.png') })
 
   await page.evaluate(() => {
-    window.__sessionPlans.push({method:'list',sessionId:'s2',delayMs:600,error:'新对话记录暂不可用'});
+    window.__sessionPlans.push({method:'latest',sessionId:'s2',delayMs:600,error:'新对话记录暂不可用'});
     window.__switchComposer('s2',true)
   })
-  await page.waitForFunction(() => window.__requests.some(r=>r.method==='list'&&r.body.sessionId==='s2'))
+  await page.waitForFunction(() => window.__requests.some(r=>r.method==='latest'&&r.body.sessionId==='s2'))
   check(await page.locator('.ac-conversation-run').count() === 0, 'switching a reused composer to another session must immediately remove the previous result')
   await page.getByRole('alert').filter({hasText:'新对话记录暂不可用'}).waitFor()
   check(await page.locator('.ac-conversation-run').count() === 0, 'a failed new-session read must never restore the previous session result')
-  const previousSessionReads=await page.evaluate(()=>window.__requests.filter(r=>r.method==='list'&&r.body.sessionId==='s1').length)
+  const previousSessionReads=await page.evaluate(()=>window.__requests.filter(r=>r.method==='latest'&&r.body.sessionId==='s1').length)
   await page.evaluate(() => {
-    window.__sessionPlans.push({method:'list',sessionId:'s1',delayMs:1000});
+    window.__sessionPlans.push({method:'latest',sessionId:'s1',delayMs:1000});
     window.__switchComposer('s1',true)
   })
-  await page.waitForFunction(count => window.__requests.filter(r=>r.method==='list'&&r.body.sessionId==='s1').length>count,previousSessionReads)
+  await page.waitForFunction(count => window.__requests.filter(r=>r.method==='latest'&&r.body.sessionId==='s1').length>count,previousSessionReads)
   await page.evaluate(() => window.__switchComposer('s2',true))
   await page.waitForTimeout(1200)
   check(await page.locator('.ac-conversation-run .ac-inline[aria-label="A|B 比较 0a1b2c3d"]').count() === 0, 'a late response from the old session must not appear in the newly selected conversation')
@@ -226,11 +226,11 @@ try {
   await page.locator('.ac-conversation-run iframe').nth(1).waitFor()
   await page.evaluate(()=>{
     const old=window.__runSnapshot();
-    window.__sessionPlans.push({method:'list',sessionId:'s1',delayMs:2500,value:{runs:[old],legacy:[]}});
+    window.__sessionPlans.push({method:'latest',sessionId:'s1',delayMs:6500,value:old});
     window.__insertRun({...old,runId:'4d4d4d4d',task:'更新后的比较',createdAt:Date.now()})
   })
   await page.locator('.ac-conversation-run .ac-inline[aria-label="A|B 比较 4d4d4d4d"]').waitFor()
-  await page.waitForTimeout(1300)
+  await page.waitForTimeout(2000)
   check(await page.locator('.ac-conversation-run .ac-inline[aria-label="A|B 比较 4d4d4d4d"]').count()===1, 'an older list snapshot must not replace a newer result in the same conversation')
 
   await open('cleanup')

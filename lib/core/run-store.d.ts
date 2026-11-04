@@ -24,6 +24,8 @@ export declare class StaleRecordError extends Error {
 /** Stable key for "the same repository", whatever spelling or symlink reached it. */
 export declare function repoKey(repo: string): string;
 export declare class RunStore {
+    private readonly historyCache;
+    private historyCacheBytes;
     readonly runsDir: string;
     readonly worktreesDir: string;
     readonly artifactsDir: string;
@@ -50,6 +52,9 @@ export declare class RunStore {
         current: RunRecord[];
         legacy: LegacySummary[];
     }>;
+    private forgetHistory;
+    private historyStamp;
+    private historyEntry;
     /** Cross-process lock. Its persistent SQLite guard is never removed. */
     withLock<T>(key: string, fn: () => Promise<T>, opts?: {
         waitMs?: number;

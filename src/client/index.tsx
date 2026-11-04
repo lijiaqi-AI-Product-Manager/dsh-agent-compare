@@ -797,10 +797,11 @@ function ComposerDockState({ sessionId, session }: { sessionId: string; session?
     const refresh = (): void => {
       if (document.visibilityState === 'hidden') return
       const version = ++request
-      call<ListResult>('list', { sessionId }).then(value => { if (active && version >= applied) { applied = version; setLatest(value.runs[0]); setError(undefined) } }, (e: Error) => { if (active && version >= applied) { applied = version; setError(e.message) } })
+      const latestRequest = mode.runId ? call<Run>('get', { runId: mode.runId }) : call<Run | null>('latest', { sessionId })
+      latestRequest.then(value => { if (active && version >= applied) { applied = version; setLatest(value ?? undefined); setError(undefined) } }, (e: Error) => { if (active && version >= applied) { applied = version; setError(e.message) } })
     }
     refresh()
-    const timer = setInterval(refresh, mode.runId ? 6000 : 1500)
+    const timer = setInterval(refresh, 5000)
     return () => { active = false; clearInterval(timer) }
   }, [blank, sessionId, mode.runId])
   const runId = mode.runId ?? latest?.runId
