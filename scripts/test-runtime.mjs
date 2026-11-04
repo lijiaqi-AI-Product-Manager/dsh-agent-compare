@@ -54,12 +54,17 @@ try {
   await mkdir(dependency, { recursive: true })
   const marker = path.join(lifecycle, 'installed.marker')
   const dependencyName = 'agent-compare-lifecycle-fixture'
+  const dependencySpec = `file:${dependencyName}-1.0.0.tgz`
   const lifecycleManifest = { name: 'agent-compare-lifecycle-project', version: '1.0.0', private: true,
-    dependencies: { [dependencyName]: 'file:dependency' }, allowScripts: { 'file:dependency': true } }
+    dependencies: { [dependencyName]: dependencySpec }, allowScripts: { [dependencySpec]: true } }
   await writeFile(path.join(dependency, 'package.json'), JSON.stringify({ name: dependencyName, version: '1.0.0', scripts: { postinstall: 'node install.cjs' } }))
   await writeFile(path.join(dependency, 'install.cjs'), "require('node:fs').writeFileSync(process.env.AGENT_COMPARE_LIFECYCLE_MARKER,'permitted lifecycle completed');console.log('lifecycle-fixture-completed')\n")
   await writeFile(path.join(lifecycle, 'package.json'), JSON.stringify(lifecycleManifest))
   const lifecycleRun = argv => runProjectProcess(argv, { cwd: lifecycle, timeoutMs: 120000, env: { CI: '1', AGENT_COMPARE_LIFECYCLE_MARKER: marker } }, prepare)
+  // A tarball exercises installation without requiring symlink privileges in
+  // the Windows runner's restricted token.
+  const fixturePack = await lifecycleRun(['npm', 'pack', './dependency', '--ignore-scripts', '--pack-destination', '.'])
+  assert.equal(fixturePack.code, 0, fixturePack.stderr || fixturePack.stdout)
   const lock = await lifecycleRun(['npm', 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'])
   assert.equal(lock.code, 0, lock.stderr || lock.stdout)
   const lockedBytes = await readFile(path.join(lifecycle, 'package-lock.json'), 'utf8')
@@ -70,7 +75,7 @@ try {
   const ignored = await lifecycleRun(['npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'])
   assert.equal(ignored.code, 0, ignored.stderr || ignored.stdout)
   await assert.rejects(readFile(marker), { code: 'ENOENT' })
-  lifecycleManifest.allowScripts['file:dependency'] = false
+  lifecycleManifest.allowScripts[dependencySpec] = false
   await writeFile(path.join(lifecycle, 'package.json'), JSON.stringify(lifecycleManifest))
   const denied = await lifecycleRun(['npm', 'ci', '--no-audit', '--no-fund'])
   assert.equal(denied.code, 0, denied.stderr || denied.stdout)
