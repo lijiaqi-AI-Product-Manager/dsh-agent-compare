@@ -1,6 +1,6 @@
 # 演示条件与结果 / Demo conditions and results
 
-[中文使用指南](../README.md#install) · [English guide](../README.en.md#install) · [完整视频 / Full video](media/comparison-workflow.mp4)
+[中文使用指南](../README.md#install) · [English guide](../README.en.md#install) · [完整视频 / Full video](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
 ## 中文
 
@@ -23,7 +23,7 @@
 
 固定候选仅用于这段流程演示。插件界面中的「试跑内置示例」会使用用户已配置的模型实际生成两份实现，并分别消耗用量；它只操作新建示例仓库。两份实现是否通过，取决于实际结果。
 
-[GIF 摘要](media/comparison-preview.gif) · [分享封面](media/social-preview.png) · [素材 SHA-256 与记录条件](media/manifest.json)
+[GIF 摘要](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif) · [分享封面](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/social-preview.png) · [素材 SHA-256 与记录条件](media/manifest.json)
 
 ## English
 
@@ -46,4 +46,4 @@ The original recording is about 118 seconds, the edited video 28.16 seconds and 
 
 Fixed candidates are specific to this recording. The plugin's built-in example button uses the user's configured model to generate both implementations, consuming usage separately. It operates only on a new example repository. Actual results determine whether either candidate passes.
 
-[GIF preview](media/comparison-preview.gif) · [Social preview](media/social-preview.png) · [Asset hashes and conditions](media/manifest.json)
+[GIF preview](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif) · [Social preview](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/social-preview.png) · [Asset hashes and conditions](media/manifest.json)

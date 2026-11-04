@@ -45,6 +45,8 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 ## 설치
 
+1.0 화면 언어는 중국어 간체만 지원합니다. DSH Desktop과 Web을 지원하며 문서 언어와 화면 언어는 별개입니다.
+
 아래 명령은 직접 실행하는 DSH Web 프로필용입니다. 데스크톱의 `desktop` 프로필은 앱이 관리하므로 앱의 플러그인 페이지를 사용하세요.
 
 개발 기준은 Node 26.13.0, npm 12.2.1입니다. 공식 최신 DSH 패키지 0.2.1-rc.5로 검증합니다. 이미 사용하는 DSH 프로필을 확인하세요.

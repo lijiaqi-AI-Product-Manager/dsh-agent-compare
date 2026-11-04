@@ -45,6 +45,8 @@ Ejemplo con candidatos fijos e interfaz en chino. Las aplicaciones, las comproba
 
 ## Instalación
 
+La interfaz de 1.0 está disponible solo en chino simplificado. Compatible con DSH Desktop y Web; los idiomas de la documentación son independientes.
+
 Los comandos siguientes corresponden a un perfil DSH Web gestionado por el usuario. El perfil `desktop` lo gestiona la aplicación de escritorio; utiliza su página de complementos.
 
 La referencia de desarrollo es Node 26.13.0 y npm 12.2.1. Las comprobaciones actuales usan el paquete oficial DSH 0.2.1-rc.5. Identifica el perfil de DSH que utilizas.

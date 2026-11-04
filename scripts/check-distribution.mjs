@@ -10,6 +10,8 @@ const repo = 'https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare'
 assert.equal(pkg.repository.url.replace(/^git\+/, '').replace(/\.git$/, ''), repo, 'npm must map to the canonical repository')
 assert.equal(pkg.name, 'dsh-agent-compare')
 assert.equal(pkg.license, 'MIT')
+const hostEntry = await readFile(path.join(root, pkg.main), 'utf8')
+assert.equal(/const VERSION = ['"]([^'"]+)['"]/.exec(hostEntry)?.[1], pkg.version, 'Runtime and package versions must match')
 assert.ok(pkg.description.includes('DSH') && pkg.description.includes('DeepSeek Harness'))
 assert.ok(['dsh', 'dsh-plugin', 'deepseek-harness'].every(keyword => pkg.keywords.includes(keyword)))
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')

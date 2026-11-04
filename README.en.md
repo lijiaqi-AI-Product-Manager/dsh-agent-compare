@@ -45,6 +45,8 @@ Fixed-candidate sample with a Chinese interface. Application execution, shared c
 
 ## Install
 
+Interface language in 1.0: Simplified Chinese. Both DSH Desktop and Web are supported; the documentation languages are independent of the interface language.
+
 These commands target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page.
 
 Install the npm package into the default Web profile (the npm badge above shows registry status):

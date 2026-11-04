@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -28,6 +29,8 @@ jobs:
       - run: npm install --global npm@12.2.1 --ignore-scripts
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run check:test-projects
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 26
       - run: npm test
         if: matrix.os != 'ubuntu-latest' || matrix.node != 26
       - run: npm run test:coverage

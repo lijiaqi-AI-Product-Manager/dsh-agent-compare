@@ -35,7 +35,11 @@
     "!examples/vite-react-demo/dist",
     "CHANGELOG.md",
     "assets",
-    "screenshots.json"
+    "screenshots.json",
+    "!docs/media/*.mp4",
+    "!docs/media/*.gif",
+    "!docs/media/social-preview.png",
+    "!assets/readme"
   ],
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
@@ -52,7 +56,10 @@
     "smoke": "npm run build && node scripts/smoke.mjs",
     "prepack": "npm run build",
     "check:distribution": "node scripts/check-distribution.mjs",
-    "check:prebuilt": "node scripts/check-prebuilt.mjs"
+    "check:prebuilt": "node scripts/check-prebuilt.mjs",
+    "test:fast": "npm run build && vitest run --project unit",
+    "test:integration": "npm run build && vitest run --project integration",
+    "check:test-projects": "node scripts/check-test-projects.mjs"
   },
   "keywords": [
     "dsh",
