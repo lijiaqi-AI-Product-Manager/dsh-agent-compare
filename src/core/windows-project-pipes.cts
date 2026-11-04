@@ -61,7 +61,14 @@ function captureSync(file: string, args: readonly string[], options: cp.ExecFile
 }
 
 interface NativeProcessApi {
-  createPipe(read: Buffer, write: Buffer, attributes: null, size: number): number
+  createPipe(read: Buffer, write: Buffer, attributes: Buffer | null, size: number): number
+  getCurrentProcess(): bigint
+  openProcessToken(process: bigint, access: number, token: Buffer): number
+  getTokenInformation(token: bigint, kind: number, information: Buffer | null, size: number, needed: Buffer): number
+  getLengthSid(sid: bigint): number
+  copySid(size: number, destination: Buffer, source: bigint): number
+  convertSecurityDescriptor(sddl: string, revision: number, result: Buffer, size: null): number
+  localFree(pointer: bigint): bigint | null
   closeHandle(handle: bigint): number
   getLastError(): number
   setHandleInformation(handle: bigint, mask: number, flags: number): number
@@ -78,19 +85,68 @@ let loadedBindings: NativeProcessApi | undefined
 function nativeBindings(): NativeProcessApi {
   if (loadedBindings) return loadedBindings
   const native = require(process.env.AGENT_COMPARE_WIN32_PROCESS_MODULE ?? '@deepseek-ai/dsh-win32-process') as {
-    extendWin32ProcessBindings(create: (context: { kernel32: unknown; bind(library: unknown, name: string, result: string, args: string[]): unknown }) => object): NativeProcessApi
+    extendWin32ProcessBindings(create: (context: { kernel32: unknown; advapi32: unknown; bind(library: unknown, name: string, result: string, args: string[]): unknown }) => object): NativeProcessApi
   }
-  return loadedBindings = native.extendWin32ProcessBindings(({ kernel32, bind }) => ({
+  return loadedBindings = native.extendWin32ProcessBindings(({ kernel32, advapi32, bind }) => ({
     writeFile: bind(kernel32, 'WriteFile', 'int', ['void *', 'void *', 'uint32', 'void *', 'void *']),
+    getCurrentProcess: bind(kernel32, 'GetCurrentProcess', 'void *', []),
+    openProcessToken: bind(advapi32, 'OpenProcessToken', 'int', ['void *', 'uint32', 'void *']),
+    getTokenInformation: bind(advapi32, 'GetTokenInformation', 'int', ['void *', 'uint32', 'void *', 'uint32', 'void *']),
+    getLengthSid: bind(advapi32, 'GetLengthSid', 'uint32', ['void *']),
+    copySid: bind(advapi32, 'CopySid', 'int', ['uint32', 'void *', 'void *']),
+    convertSecurityDescriptor: bind(advapi32, 'ConvertStringSecurityDescriptorToSecurityDescriptorW', 'int', ['str16', 'uint32', 'void *', 'void *']),
+    localFree: bind(kernel32, 'LocalFree', 'void *', ['void *']),
   }))
+}
+
+function logonSidString(bytes: Buffer): string {
+  if (bytes.length < 8 || bytes[0] !== 1 || bytes.length !== 8 + bytes[1]! * 4) throw new Error('invalid process logon SID')
+  let authority = 0n
+  for (const byte of bytes.subarray(2, 8)) authority = (authority << 8n) | BigInt(byte)
+  const parts = Array.from({ length: bytes[1]! }, (_, i) => bytes.readUInt32LE(8 + i * 4))
+  const sid = `S-1-${authority}-${parts.join('-')}`
+  if (!/^S-1-5-5-\d+-\d+$/.test(sid)) throw new Error('process has no supported private logon SID')
+  return sid
+}
+
+/** Scope new pipe handles to this logon; do not change the process token or filesystem ACLs. */
+function privatePipeSecurity(api: NativeProcessApi): { attributes: Buffer; dispose(): void } {
+  const tokenSlot = Buffer.alloc(8)
+  if (!api.openProcessToken(api.getCurrentProcess(), 8, tokenSlot)) throw new Error(`esbuild token query failed: ${api.getLastError()}`)
+  const token = tokenSlot.readBigUInt64LE()
+  let descriptor: bigint | undefined
+  try {
+    const needed = Buffer.alloc(4)
+    api.getTokenInformation(token, 28, null, 0, needed)
+    const size = needed.readUInt32LE()
+    if (size < 24 || size > 65536) throw new Error('esbuild token logon information is unavailable')
+    const info = Buffer.alloc(size)
+    if (!api.getTokenInformation(token, 28, info, size, needed) || info.readUInt32LE() !== 1) throw new Error(`esbuild logon query failed: ${api.getLastError()}`)
+    const sid = info.readBigUInt64LE(8), sidSize = api.getLengthSid(sid)
+    if (sidSize < 8 || sidSize > 68) throw new Error('esbuild logon SID length is invalid')
+    const bytes = Buffer.alloc(sidSize)
+    if (!api.copySid(sidSize, bytes, sid)) throw new Error(`esbuild logon SID copy failed: ${api.getLastError()}`)
+    const sddl = `D:P(A;;GA;;;${logonSidString(bytes)})S:(ML;;NW;;;LW)`
+    const result = Buffer.alloc(8)
+    if (!api.convertSecurityDescriptor(sddl, 1, result, null)) throw new Error(`esbuild pipe security failed: ${api.getLastError()}`)
+    descriptor = result.readBigUInt64LE()
+    if (!descriptor) throw new Error('esbuild pipe security descriptor is missing')
+    const attributes = Buffer.alloc(24)
+    attributes.writeUInt32LE(24, 0); attributes.writeBigUInt64LE(descriptor, 8)
+    return { attributes, dispose: () => { if (descriptor !== undefined) { api.localFree(descriptor); descriptor = undefined } } }
+  } catch (error) {
+    if (descriptor !== undefined) api.localFree(descriptor)
+    throw error
+  } finally { api.closeHandle(token) }
 }
 
 function spawnEsbuildService(file: string, args: readonly string[], options: cp.SpawnOptions = {}): cp.ChildProcess {
   const api = nativeBindings(), owned = new Set<bigint>()
+  const security = privatePipeSecurity(api)
   const close = (handle: bigint): void => { if (owned.delete(handle)) api.closeHandle(handle) }
   const pair = (): { read: bigint; write: bigint } => {
     const read = Buffer.alloc(8), write = Buffer.alloc(8)
-    if (!api.createPipe(read, write, null, 0)) throw new Error(`esbuild CreatePipe failed: ${api.getLastError()}`)
+    if (!api.createPipe(read, write, security.attributes, 0)) throw new Error(`esbuild CreatePipe failed: ${api.getLastError()}`)
     const result = { read: read.readBigUInt64LE(), write: write.readBigUInt64LE() }
     owned.add(result.read); owned.add(result.write)
     return result
@@ -98,6 +154,7 @@ function spawnEsbuildService(file: string, args: readonly string[], options: cp.
   let handle: bigint | undefined, timer: NodeJS.Timeout | undefined
   try {
     const input = pair(), output = pair(), error = pair()
+    security.dispose()
     for (const h of [input.read, output.write, error.write]) {
       if (!api.setHandleInformation(h, 1, 1)) throw new Error(`esbuild handle inheritance failed: ${api.getLastError()}`)
     }
@@ -198,6 +255,7 @@ function spawnEsbuildService(file: string, args: readonly string[], options: cp.
     queueMicrotask(() => { child.emit('spawn'); if (options.signal?.aborted) abort() })
     return child
   } catch (error) {
+    security.dispose()
     clearInterval(timer)
     if (handle !== undefined && owned.has(handle)) api.terminateProcess(handle, 1)
     for (const h of [...owned]) close(h)
@@ -227,4 +285,4 @@ function installEsbuildCompatibility(): () => void {
 }
 
 if (process.platform === 'win32' && process.env.AGENT_COMPARE_WINDOWS_PIPE_COMPAT === '1') installEsbuildCompatibility()
-export = { isEsbuildService, isEsbuildVersion, quoteWindowsArg, captureSync, spawnEsbuildService, installEsbuildCompatibility }
+export = { isEsbuildService, isEsbuildVersion, quoteWindowsArg, logonSidString, captureSync, spawnEsbuildService, installEsbuildCompatibility }

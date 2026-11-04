@@ -8,6 +8,13 @@ const cp = require('node:child_process') as typeof import('node:child_process')
 const fs = require('node:fs') as typeof import('node:fs')
 
 describe('Windows project pipe compatibility', () => {
+  it('accepts only the current logon SID shape for private pipe security', () => {
+    const sid = Buffer.from([1, 3, 0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 42, 0, 0, 0, 99, 0, 0, 0])
+    expect(compat.logonSidString(sid)).toBe('S-1-5-5-42-99')
+    expect(() => compat.logonSidString(sid.subarray(0, 16))).toThrow('invalid process logon SID')
+    sid.writeUInt32LE(21, 8)
+    expect(() => compat.logonSidString(sid)).toThrow('private logon SID')
+  })
   it('limits native service handling to versioned esbuild services', () => {
     expect(compat.isEsbuildService('C:\\a space\\esbuild.exe', ['--service=0.21.5', '--ping'])).toBe(true)
     expect(compat.isEsbuildService('/project/esbuild', ['--service=0.28.2'])).toBe(true)
