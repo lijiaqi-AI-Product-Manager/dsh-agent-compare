@@ -109,7 +109,7 @@ window.fetch = async (url, init) => {
   const sessionPlan = window.__sessionPlans.findIndex(plan => plan.method === m[1] && plan.sessionId === body.sessionId);
   if (sessionPlan >= 0) {
     const plan = window.__sessionPlans.splice(sessionPlan, 1)[0];
-    const snapshot = JSON.stringify(plan.error ? {ok:false,error:plan.error} : {ok:true,value:plan.value ?? (m[1] === 'list' ? listHistory(body) : null)});
+    const snapshot = JSON.stringify(plan.error ? {ok:false,error:plan.error} : {ok:true,value:plan.value ?? (m[1] === 'list' ? listHistory(body) : m[1] === 'latest' ? listHistory(body).runs[0] ?? null : null)});
     if (plan.delayMs) await new Promise(resolve=>setTimeout(resolve,plan.delayMs));
     return new Response(snapshot,{status:plan.error?503:200,headers:{'content-type':'application/json'}});
   }
@@ -126,7 +126,8 @@ window.fetch = async (url, init) => {
   }
   if (m[1] === 'preferences') return realFetch('/harness/preferences',init);
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
-  let value = m[1] === 'list' ? listHistory(body)
+  let value = m[1] === 'latest' ? listHistory(body).runs[0] ?? null
+    : m[1] === 'list' ? listHistory(body)
     : m[1] === 'setup' ? {current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)}},dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true,...(${JSON.stringify(error)}==='old-apply-host'?{}:{protectedWorktreeApply:true})}
@@ -165,6 +166,8 @@ window.__ModuleLoader__ = {load:({factory})=>{
   }};
   window.__input=()=>input;
   draft.oninput=()=>{input={...input,draft:(claim?claim.token:'')+draft.value,draftRev:input.draftRev+1};notify()};
+  window.__toolTemplate = () => structuredClone(templateRun);
+  window.__renderTool = props => { const item=regs['tool.call.toolview']; const element=document.createElement('div'); element.dataset.toolCall=props.callId??'no-id'; document.getElementById('chat').appendChild(element); ReactDOM.createRoot(element).render(React.createElement(item.C,{...item.spec.inject('s1'),...props})); };
   const renderCommand=(result,args='')=>{const cv=regs['conversation.chat.commandview'];const host=document.createElement('div');document.getElementById('chat').appendChild(host);ReactDOM.createRoot(host).render(React.createElement(cv.C,{...cv.spec.inject('s1'),node:{name:'ab',args,outcome:result}}))};
   const remote={commands:{execute:async(sid,line,attachments)=>{
     window.__commands.push({sessionId:sid,line,attachments});

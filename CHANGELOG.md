@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Pin required host runtime checks and track the next channel separately; test the shipped compatibility evaluator and exclude next-minor prereleases.
+- Identify missing input and execution capabilities, show unsupported projects before submission, preserve drafts and keep history accessible.
+- Return model-tool admission immediately, reuse saved comparison settings and bind pending/result cards to their actual call identities.
+- Withhold candidate usage, change scale, detailed activity and prose before reveal, including conversation notes and earlier verification evidence; retain complete local records.
+- Bound validated history caching without weakening direct loads or revision checks, and retry only pending conversation milestones for attached sessions.
+- Reduce the npm payload while retaining directory screenshot assets. Separate fast checks from the complete integration suite, verify exclusive test discovery and support explicit CI runs.
+
 ## 1.0.0 — 2026-11-04
 
 - Keep npm lifecycle scripts in the foreground on Windows without changing script permissions. Capture esbuild version checks through private files and run its service over anonymous pipes with the existing restricted token; preserve input, output, argument boundaries, exit failures and cancellation. Exercise explicitly allowed and denied lifecycle scripts in the native-host regression.

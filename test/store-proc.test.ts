@@ -127,7 +127,7 @@ describe('public view', () => {
     const r = record('0a1b2c3d')
     const before = publicView(r)
     expect(JSON.stringify(before)).not.toMatch(/bold|Bold|conservative|Conservative|m1/)
-    expect(before.candidates[0]?.usage).toEqual({ kind: 'unknown', reason: 'not reported' })
+    expect(before.candidates[0]).not.toHaveProperty('usage')
     r.state = 'revealed'
     r.revealedAt = Date.now()
     const after = publicView(r)

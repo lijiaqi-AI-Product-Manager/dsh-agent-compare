@@ -43,7 +43,7 @@ describe('conversation memory notes', () => {
     expect(milestoneOf(r)).toBe('judging')
     const note = memoryNote(r)!
     expect(note).toContain('A: passed the shared acceptance')
-    expect(note).toContain('B: did not produce a result (冻结安装失败)')
+    expect(note).toContain('B: did not produce a result (依赖安装未能完成')
     expect(note).not.toMatch(/Conservative|Bold|稳妥|大胆/)
   })
   it('names the pick and its strategy after the choice, and the files after adoption', () => {
