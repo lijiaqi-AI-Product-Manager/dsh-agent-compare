@@ -542,6 +542,24 @@ try {
   check(await page.getByRole('button', { name: '恢复到采用前', exact: true }).count() === 0, 'inverse recovery must not promise the wrong destination')
   await page.getByText('查看保留内容的位置', { exact: true }).click()
   check((await page.locator('.ac-banner').filter({ hasText: '查看保留内容的位置' }).innerText()).includes('.agent-compare-transfer-'), 'retained originals must be discoverable from the comparison')
+  await open('start')
+  await page.evaluate(() => {
+    const template = window.__toolTemplate();
+    window.__insertRun({...template,runId:'abc00001',sessionId:'s1',origin:{kind:'tool',id:'tool-call-one'}});
+    window.__insertRun({...template,runId:'abc00002',sessionId:'s1',origin:{kind:'tool',id:'tool-call-two'}});
+    window.__renderTool({callId:'tool-call-one',phase:'start',block:{args:{runId:'deadbeef'}}});
+    window.__renderTool({callId:'tool-call-two',phase:'result',block:{call:{argsRaw:'{"runId":"deadbeef"}'},content:[{type:'text',text:'{"runId":"abc00002","state":"running"}'}]}});
+    window.__renderTool({phase:'start',block:{args:{runId:'deadbeef'}}});
+  })
+  const toolOne = page.locator('[data-tool-call="tool-call-one"]'), toolTwo = page.locator('[data-tool-call="tool-call-two"]')
+  await toolOne.locator('iframe').nth(1).waitFor()
+  await toolTwo.locator('iframe').nth(1).waitFor()
+  await toolOne.getByRole('button', { name: '选 A', exact: true }).click()
+  check((await requests('choose')).at(-1).body.runId === 'abc00001', 'the first pending tool card must use its own host call identity')
+  await toolTwo.getByRole('button', { name: '选 B', exact: true }).click()
+  check((await requests('choose')).at(-1).body.runId === 'abc00002', 'the settled tool card must use its own structured result')
+  check(await page.locator('[data-tool-call="no-id"] iframe').count() === 0, 'a pending card without a call identity must never guess the latest run')
+  check((await requests('get')).every(request => request.body.runId !== 'deadbeef'), 'a run id in tool arguments must not be interpreted as a result')
   for (const [fault, api] of [['missing-begin','input.beginCommand'], ['missing-subscribe','input.state.subscribe'], ['missing-snapshot','input.state.getSnapshot'], ['missing-bail','session.bail'], ['missing-execute','commands.execute']]) {
     await page.goto(harness.url + '/?state=start&error=' + fault)
     const diagnostic = page.getByRole('alert').filter({ hasText: api })

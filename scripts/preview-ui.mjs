@@ -165,6 +165,8 @@ window.__ModuleLoader__ = {load:({factory})=>{
   }};
   window.__input=()=>input;
   draft.oninput=()=>{input={...input,draft:(claim?claim.token:'')+draft.value,draftRev:input.draftRev+1};notify()};
+  window.__toolTemplate = () => structuredClone(templateRun);
+  window.__renderTool = props => { const item=regs['tool.call.toolview']; const element=document.createElement('div'); element.dataset.toolCall=props.callId??'no-id'; document.getElementById('chat').appendChild(element); ReactDOM.createRoot(element).render(React.createElement(item.C,{...item.spec.inject('s1'),...props})); };
   const renderCommand=(result,args='')=>{const cv=regs['conversation.chat.commandview'];const host=document.createElement('div');document.getElementById('chat').appendChild(host);ReactDOM.createRoot(host).render(React.createElement(cv.C,{...cv.spec.inject('s1'),node:{name:'ab',args,outcome:result}}))};
   const remote={commands:{execute:async(sid,line,attachments)=>{
     window.__commands.push({sessionId:sid,line,attachments});
