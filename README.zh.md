@@ -1,4 +1,6 @@
-<p align="center"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/icon.png" width="72" height="72" alt="AgentCompare"></p>
+<p align="center">
+  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare：同一需求，两版真跑。支持 DSH 桌面端与浏览器 / One task. Two live builds. DSH Desktop + Web."></a>
+</p>
 
 # AgentCompare
 
@@ -13,11 +15,23 @@
 
 **同一需求，两版真跑，盲选再揭晓。**
 
-> **0.2.0-alpha.18 · 预览版。** 首期支持本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
+**DSH 桌面端 + 浏览器 / Desktop + Web**
+
+<p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
+
+> **0.2.0-alpha.18 · 预览版。** 支持 DSH 桌面端与浏览器界面。首期面向本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一前端需求，生成并实际运行两份实现。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp" width="1200" alt="真跑，才好选；看清，再采用。同一任务独立运行，审查选中候选后确认写回 / Run it. Then choose. Review. Then adopt. Run separately and inspect the selected candidate before applying."></a>
+</p>
+
+<p align="center"><sub>功能示意 / Product illustrations · <a href="#demo">查看真实演示 / Watch the recorded workflow</a></sub></p>
+
+<a id="demo"></a>
 
 ## 看一次完整流程
 

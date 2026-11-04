@@ -1,4 +1,6 @@
-<p align="center"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/icon.png" width="72" height="72" alt="AgentCompare"></p>
+<p align="center">
+  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare：同一需求，两版真跑。支持 DSH 桌面端与浏览器 / One task. Two live builds. DSH Desktop + Web."></a>
+</p>
 
 # AgentCompare
 
@@ -13,11 +15,23 @@
 
 **하나의 요구, 실제로 실행되는 두 구현. 먼저 사용하고 선택한 뒤 전략을 확인하세요.**
 
+**DSH 桌面端 + 浏览器 / Desktop + Web**
+
+<p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
+
 > **0.2.0-alpha.18 · 미리보기 버전.** Git 저장소 루트의 로컬 Vite 프런트엔드를 대상으로 하며 현재 DSH 모델을 재사용합니다.
 
 AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH) 플러그인입니다. 같은 프런트엔드 작업을 독립된 두 사본에서 구현하고, 의존성 설치·빌드·공통 검증을 실제로 실행합니다. 두 페이지를 직접 사용한 뒤 A, B 또는 둘 다 선택하지 않음을 결정합니다. 적용 전에는 현재 프로젝트와 합친 결과를 임시 사본에서 검증합니다.
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp" width="1200" alt="真跑，才好选；看清，再采用。同一任务独立运行，审查选中候选后确认写回 / Run it. Then choose. Review. Then adopt. Run separately and inspect the selected candidate before applying."></a>
+</p>
+
+<p align="center"><sub>功能示意 / Product illustrations · <a href="#demo">查看真实演示 / Watch the recorded workflow</a></sub></p>
+
+<a id="demo"></a>
 
 ## 전체 흐름 보기
 
@@ -26,6 +40,8 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 고정 후보를 사용한 중국어 화면 예시입니다. 앱 실행·공통 검증·적용은 실제로 수행했으며 대기 구간은 편집하고 로컬 경로는 가렸습니다.
 
 [전체 영상(28초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+
+<a id="install"></a>
 
 ## 설치
 

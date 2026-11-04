@@ -1,4 +1,6 @@
-<p align="center"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/icon.png" width="72" height="72" alt="AgentCompare"></p>
+<p align="center">
+  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare：同一需求，两版真跑。支持 DSH 桌面端与浏览器 / One task. Two live builds. DSH Desktop + Web."></a>
+</p>
 
 # AgentCompare
 
@@ -13,11 +15,23 @@
 
 **同じ依頼を、動く二つの実装へ。試して選び、選択後に正体を確認。**
 
+**DSH 桌面端 + 浏览器 / Desktop + Web**
+
+<p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
+
 > **0.2.0-alpha.18 · プレビュー版。** 対象は Git リポジトリ直下のローカル Vite フロントエンドです。現在の DSH モデルを再利用します。
 
 AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）のプラグインです。一つのフロントエンド課題から独立した二つの実装を作り、依存関係のインストール、ビルド、共通の検証を実行します。実際のページを操作して A、B、または「どちらも選ばない」を選択できます。採用前には、現在のプロジェクトと組み合わせた状態を検証します。
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp" width="1200" alt="真跑，才好选；看清，再采用。同一任务独立运行，审查选中候选后确认写回 / Run it. Then choose. Review. Then adopt. Run separately and inspect the selected candidate before applying."></a>
+</p>
+
+<p align="center"><sub>功能示意 / Product illustrations · <a href="#demo">查看真实演示 / Watch the recorded workflow</a></sub></p>
+
+<a id="demo"></a>
 
 ## 操作の流れを見る
 
@@ -26,6 +40,8 @@ AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 固定した候補によるフロー例です。画面は中国語。アプリの実行、共通チェック、採用は実際に行い、待機部分を編集しています。ローカルパスは非表示です。
 
 [動画全編（28秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [条件と結果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+
+<a id="install"></a>
 
 ## インストール
 
