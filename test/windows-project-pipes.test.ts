@@ -29,6 +29,9 @@ describe('Windows project pipe compatibility', () => {
     try {
       cp.spawn('another', ['--version'], { stdio: 'inherit' })
       expect(spawn).toHaveBeenCalledWith('another', ['--version'], { stdio: 'inherit' })
+      const options = { stdio: ['pipe', 'pipe', 'inherit'], shell: 'cmd.exe' } as const
+      cp.spawn('esbuild.exe', ['--service=0.28.2'], { ...options, stdio: [...options.stdio] })
+      expect(spawn).toHaveBeenCalledWith('esbuild.exe', ['--service=0.28.2'], options)
       expect(cp.execFileSync('another', ['--version'])).toEqual(Buffer.from('original'))
     } finally { restore(); spawn.mockRestore(); sync.mockRestore() }
   })

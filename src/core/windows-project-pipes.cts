@@ -125,7 +125,8 @@ function privatePipeSecurity(api: NativeProcessApi): { attributes: Buffer; dispo
     const sid = info.readBigUInt64LE(8), sidSize = api.getLengthSid(sid)
     if (sidSize < 8 || sidSize > 68) throw new Error('esbuild logon SID length is invalid')
     const bytes = Buffer.alloc(sidSize)
-    if (!api.copySid(sidSize, bytes, sid)) throw new Error(`esbuild logon SID copy failed: ${api.getLastError()}`)
+    // Keep the token-information buffer alive until its embedded SID is copied.
+    if (!api.copySid(sidSize, bytes, sid) || info.readUInt32LE() !== 1) throw new Error(`esbuild logon SID copy failed: ${api.getLastError()}`)
     const sddl = `D:P(A;;GA;;;${logonSidString(bytes)})S:(ML;;NW;;;LW)`
     const result = Buffer.alloc(8)
     if (!api.convertSecurityDescriptor(sddl, 1, result, null)) throw new Error(`esbuild pipe security failed: ${api.getLastError()}`)
@@ -266,7 +267,7 @@ function spawnEsbuildService(file: string, args: readonly string[], options: cp.
 function installEsbuildCompatibility(): () => void {
   const spawn = cp.spawn, execFileSync = cp.execFileSync
   const wrappedSpawn = (function (file: string, args: readonly string[], options?: cp.SpawnOptions) {
-    if (Array.isArray(args) && isEsbuildService(file, args) && options?.shell !== true && Array.isArray(options?.stdio) && options.stdio[0] === 'pipe' && options.stdio[1] === 'pipe') {
+    if (Array.isArray(args) && isEsbuildService(file, args) && !options?.shell && !options?.detached && options?.timeout === undefined && options?.argv0 === undefined && !options?.windowsVerbatimArguments && Array.isArray(options?.stdio) && options.stdio.length === 3 && options.stdio[0] === 'pipe' && options.stdio[1] === 'pipe' && (options.stdio[2] === 'inherit' || options.stdio[2] === 'pipe')) {
       return spawnEsbuildService(file, args, options)
     }
     return Reflect.apply(spawn, cp, Array.prototype.slice.call(arguments))
