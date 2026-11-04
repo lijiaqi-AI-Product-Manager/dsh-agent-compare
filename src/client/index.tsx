@@ -142,7 +142,7 @@ function returnToComposer(sessionId: string): void {
   else inputShell(sessionId)?.focus?.()
 }
 interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route] }
-interface AbMode { preferences: AbPreferences; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
+interface AbMode { preferences: AbPreferences; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
 const registeredShells = new WeakSet<InputShell>()
 function modeFor(sessionId: string): AbMode {
@@ -781,7 +781,7 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
   </section>
 }
 
-/** A command-only blank session has no Chat timeline yet; its comparison still belongs in the conversation. */
+/** Keep blank-session and background-tool results outside the host's folded tool turns. */
 function ComposerDock({ sessionId, session }: { sessionId: string; session?: { blank?: boolean } }): React.ReactElement {
   // The host may reuse a slot component across sessions; its local state must not follow it.
   return <ComposerDockState key={sessionId} sessionId={sessionId} {...(session ? { session } : {})} />
@@ -794,27 +794,27 @@ function ComposerDockState({ sessionId, session }: { sessionId: string; session?
   const [error, setError] = useState<string>()
   const blank = session?.blank === true
   useEffect(() => {
-    if (!blank) return
     let active = true, request = 0, applied = 0
     const refresh = (): void => {
       if (document.visibilityState === 'hidden') return
       const version = ++request
-      const latestRequest = mode.runId ? call<Run>('get', { runId: mode.runId }) : call<Run | null>('latest', { sessionId })
+      const latestRequest = blank && mode.runId ? call<Run>('get', { runId: mode.runId }) : call<Run | null>('latest', { sessionId })
       latestRequest.then(value => { if (active && version >= applied) { applied = version; setLatest(value ?? undefined); setError(undefined) } }, (e: Error) => { if (active && version >= applied) { applied = version; setError(e.message) } })
     }
     refresh()
     const timer = setInterval(refresh, 5000)
     return () => { active = false; clearInterval(timer) }
-  }, [blank, sessionId, mode.runId])
-  const runId = mode.runId ?? latest?.runId
-  useEffect(() => { setCollapsed(false) }, [runId])
+  }, [blank, sessionId, mode.runId, mode.refreshVersion])
+  const resident = latest?.origin?.kind === 'tool' && latest.state !== 'abandoned' && mode.dismissedRunId !== latest.runId
+  const runId = blank ? mode.runId ?? latest?.runId : resident ? latest?.runId : undefined
+  useEffect(() => { setCollapsed(!blank && latest?.state === 'adopted' && latest.adoption?.state === 'adopted') }, [runId])
   return <>
     {capabilityError && <div className="ac-root"><Styles /><div className="ac-feedback ac-prerequisite" role="alert"><span>{capabilityError}</span><div className="ac-prerequisite-actions"><button className="ac-text-btn" onClick={() => { void loadMode(sessionId) }}>重新检查接口</button><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>比较记录</button></div></div></div>}
-    {blank && runId && <section className="ac-root ac-conversation-run" aria-label="本对话的 A|B 结果"><Styles />
+    {runId && <section className="ac-root ac-conversation-run" aria-label="本对话的 A|B 结果"><Styles />
       {collapsed && <div className="ac-conversation-run-head"><b>本次比较</b><span className="ac-meta">{runId}</span><span className="ac-spacer" /><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>记录与使用指南</button><button className="ac-text-btn" onClick={() => setCollapsed(false)}>展开结果</button></div>}
       <div className="ac-conversation-run-scroll" hidden={collapsed}><RunView key={runId} runId={runId} sessionId={sessionId} compact {...(latest?.runId === runId ? { initial: latest } : {})} onExpand={() => setOpen(sessionId, runId)} onCollapse={() => setCollapsed(true)} /></div>
     </section>}
-    {blank && error && <div className="ac-root"><div className="ac-feedback" role="alert">读取比较记录失败：{error}</div></div>}
+    {error && (blank || mode.preferences.enabled || mode.refreshVersion) ? <div className="ac-root"><div className="ac-feedback" role="alert">读取比较记录失败：{error}</div></div> : null}
     <ComposerSettings sessionId={sessionId} session={session} />
   </>
 }
@@ -1025,6 +1025,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const continueConversation = sessionId ? (): void => {
     if (!leaveMode(sessionId)) { setErr('消息正在提交，请等它结束后继续对话。'); return }
     const mode = modeFor(sessionId)
+    mode.dismissedRunId = runId
     saveMode(sessionId, { ...mode.preferences, enabled: false })
     returnToComposer(sessionId)
   } : undefined
@@ -1091,9 +1092,16 @@ function ToolView(props: { sessionId?: string; callId?: string; phase?: string; 
     return () => { active = false; clearInterval(timer) }
   }, [fromResult, props.sessionId, props.callId, props.phase, key])
   const found = fromResult ?? (binding?.key === key ? binding.runId : undefined)
+  useEffect(() => {
+    if (!found || !props.sessionId) return
+    const mode = modeFor(props.sessionId)
+    mode.refreshVersion = (mode.refreshVersion ?? 0) + 1
+    publishMode(mode)
+  }, [found, props.sessionId])
   if (found === undefined) return <div className="ac-root ac-inline"><Styles /><div className="ac-inline-note">{props.phase === 'result' ? 'A|B 比较未取得运行编号，请查看此工具的返回结果。' : <><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />正在准备 A|B 比较…</>}</div></div>
   const sid = props.sessionId
-  return <RunView key={found} runId={found} compact {...(sid ? { sessionId: sid, onExpand: () => setOpen(sid, found) } : {})} />
+  if (!sid) return <RunView key={found} runId={found} compact />
+  return <div className="ac-root ac-inline ac-tool-summary" aria-label={`A|B 工具记录 ${found}`}><Styles /><div className="ac-inline-note">本次比较 · {found}。进度、预览和采用记录持续保留。<button className="ac-text-btn" onClick={() => setOpen(sid, found)}>查看本次比较</button></div></div>
 }
 /** The composer owns comparison mode; history never replaces its entry point. */
 function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement {
