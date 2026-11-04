@@ -128,6 +128,26 @@ export interface StageError {
     readonly stage: CandidateStage;
     readonly message: string;
 }
+export interface InstallFailure {
+    readonly kind: 'network' | 'authentication' | 'filesystem' | 'runtime' | 'lockfile' | 'timeout' | 'cancelled' | 'unknown';
+    readonly summary: string;
+    readonly hint: string;
+    readonly code?: string;
+    readonly diagnostic?: string;
+}
+export interface VerificationAttempt {
+    readonly recordedAt: number;
+    readonly durationMs?: number;
+    readonly install?: NonNullable<Candidate['install']>;
+    readonly checks?: CheckResult[];
+    readonly error?: StageError;
+}
+export interface VerificationRuntime {
+    readonly hostNode: string;
+    readonly platform: string;
+    readonly packageManager: string;
+    readonly packageManagerVersion?: string;
+}
 export interface PreviewInfo {
     readonly url: string;
     readonly port: number;
@@ -193,7 +213,11 @@ export interface Candidate {
         frozen: boolean;
         durationMs: number;
         outcome?: 'passed' | 'failed' | 'timeout' | 'cancelled';
+        failure?: InstallFailure;
+        runtime?: VerificationRuntime;
     };
+    /** Completed verification attempts, retained before an explicit retry. Generation is never repeated. */
+    verificationHistory?: VerificationAttempt[];
     /** Weakest completeness reported across installation, checks and preview. */
     execution?: {
         enforcement: 'full' | 'partial' | 'unknown';
@@ -212,6 +236,8 @@ export interface Candidate {
         endedAt?: number;
     }>>;
     error?: StageError;
+    /** Retain the copy when termination of a project process tree is unconfirmed. */
+    stopUnconfirmed?: boolean;
 }
 export interface Baseline {
     readonly repoRoot: string;
@@ -262,6 +288,7 @@ export interface Adoption {
         checks?: CheckResult[];
         dir?: string;
         ownerToken?: string;
+        stopUnconfirmed?: boolean;
     };
     /** Paths journaled before each write; paths not yet reached are excluded. */
     writtenPaths?: string[];

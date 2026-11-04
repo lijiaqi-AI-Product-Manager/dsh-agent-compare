@@ -5,10 +5,11 @@ import { mkdir, rmdir } from 'node:fs/promises'
 import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
 import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdopt, preflight, targetChanges, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
 import { fileTransferDirectory, newFileTransferRef } from './file-transfer.ts'
+import { installFailure } from './install-failure.ts'
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
 import { startVitePreview, PreviewError, type Preview } from './preview.ts'
-import { commandHasMarkers, diagnosticText, killTree, observeProcess, waitGone } from './proc.ts'
+import { commandHasMarkers, diagnosticText, killTree, observeProcess, ProcessStopError, waitGone } from './proc.ts'
 import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
 import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
 import type { FileLease } from './file-lock.ts'
@@ -104,6 +105,21 @@ const SUMMARY_MAX = 1200
 export const DEFAULT_GENERATION_MS = 30 * 60_000
 const REVEALED_STATES = new Set(['revealed', 'adopting', 'adopted', 'recovery'])
 const SETTLED = new Set<CandidateStage>(['ready', 'failed', 'cancelled', 'interrupted'])
+
+function canRetryVerification(r: RunRecord, c: Candidate): boolean {
+  return (r.state === 'judging' || r.state === 'interrupted') && ['failed', 'interrupted', 'cancelled'].includes(c.stage)
+    && c.install?.failure?.kind !== 'lockfile'
+    && c.stopUnconfirmed !== true
+    && (c.error === undefined || ['installing', 'verifying', 'previewing'].includes(c.error.stage))
+    && c.dir !== undefined && existsSync(c.dir) && c.ownerToken !== undefined
+    && c.candidateCommit !== undefined && c.candidateTree !== undefined && c.patchFile !== undefined && c.patchSha256 !== undefined
+    && (c.verificationHistory?.length ?? 0) < 100
+}
+
+function verificationDuration(c: Candidate): number | undefined {
+  const timings = ['installing', 'verifying', 'previewing'].flatMap(stage => c.timings[stage as CandidateStage] ? [c.timings[stage as CandidateStage]!] : [])
+  return timings.some(t => t.endedAt === undefined) ? undefined : timings.reduce((sum, t) => sum + Math.max(0, t.endedAt! - t.startedAt), 0)
+}
 
 export class Comparer {
   readonly store: RunStore
@@ -356,6 +372,10 @@ export class Comparer {
         c.stage = 'failed'
         c.error = { stage: error instanceof StageFailure ? error.stage : stage, message: String((error as Error).message ?? error).slice(0, 2000) }
       }
+      if (error instanceof ProcessStopError) {
+        c.stopUnconfirmed = true
+        c.error = { stage, message: error.message }
+      }
       for (const t of Object.values(c.timings)) if (t && t.endedAt === undefined) t.endedAt = Date.now()
       await this.stopPreview(lr, c.label)
       delete c.preview
@@ -391,11 +411,20 @@ export class Comparer {
     c.candidateCommit = change.commit
     c.candidateTree = change.tree
     await pinRef(repo, `refs/agent-compare/${record.runId}/${c.label}`, change.commit)
-    const acc = await acceptanceChanges(repo, record.acceptance, record.baseline.snapshotTree, change.tree)
+    await this.verifyCandidate(lr, c, signal, enter)
+  }
+
+  /** Verify the original sealed candidate again without recapturing or generating code. */
+  private async verifyCandidate(lr: LiveRun, c: Candidate, signal: AbortSignal, enter: (s: CandidateStage) => Promise<void>): Promise<void> {
+    const record = lr.record, repo = record.baseline.repoRoot, dir = c.dir!
+    if (!c.ownerToken || !c.candidateTree) throw new StageFailure('installing', '缺少封存内容或副本归属，不能重新验收')
+    const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken } }
+    const artifacts = this.store.artifacts(record.runId)
+    const acc = await acceptanceChanges(repo, record.acceptance, record.baseline.snapshotTree, c.candidateTree)
     c.acceptanceTouched = acc.touched
     c.dependencyChange = acc.dependencyChange
 
-    const v = await this.verifyCopy(record.acceptance, dir, copy, change.tree, path.join(artifacts, c.label), signal, enter, async evidence => {
+    const v = await this.verifyCopy(record.acceptance, dir, copy, c.candidateTree, path.join(artifacts, c.label), signal, enter, async evidence => {
       Object.assign(c, evidence)
       await this.persist(record)
     })
@@ -413,6 +442,67 @@ export class Comparer {
     await enter('ready')
   }
 
+  /** Explicit environment retry: same sealed bytes, original acceptance and no generation calls. */
+  retryVerification(runId: string, label: CandidateLabel): Promise<RunRecord> {
+    return this.operation(() => this.serial(runId, () => this.retryRunVerification(runId, label)), runId)
+  }
+
+  private async retryRunVerification(runId: string, label: CandidateLabel): Promise<RunRecord> {
+    const current = await this.fresh(runId), previous = current.candidates.find(c => c.label === label)
+    if (previous?.install?.failure?.kind === 'lockfile') throw new Error('封存的依赖声明与锁文件不一致；请修正后开始新的比较，当前候选与记录仍保留')
+    if (!previous || !canRetryVerification(current, previous)) throw new Error('现在不能重新验收：需要保留完整封存内容的失败、中断或已停止候选，且尚未选择或清理')
+    const active = [...this.live.values()].filter(lr => lr.record.state === 'running').length
+    if (active + this.startReservations.size >= (this.opts.maxActiveRuns ?? 1)) throw new BusyError('已有比较正在运行，请等它结束或停止后再重新验收')
+    const reservation = {}
+    this.startReservations.add(reservation)
+    try {
+      const copy = { repo: current.baseline.repoRoot, owner: { runId, label, token: previous.ownerToken! } }
+      if ((await ownedCopyTree(previous.dir!, copy)) !== previous.candidateTree) throw new Error('候选副本已变化，不能用原封存内容重新验收；已保留现有文件与补丁')
+      if ((await treeOf(current.baseline.repoRoot, previous.candidateCommit!)) !== previous.candidateTree
+        || (await readPatchSha(previous.patchFile!)) !== previous.patchSha256) throw new Error('封存提交或补丁与记录不一致，已停止重新验收')
+      this.assertOpen()
+      const record = structuredClone(current), c = record.candidates.find(c => c.label === label)!
+      const durationMs = verificationDuration(c)
+      ;(c.verificationHistory ??= []).push({ recordedAt: Date.now(), ...(durationMs === undefined ? {} : { durationMs }), ...(c.install ? { install: c.install } : {}), ...(c.checks ? { checks: c.checks } : {}), ...(c.error ? { error: c.error } : {}) })
+      for (const stage of ['installing', 'verifying', 'previewing', 'ready'] as const) delete c.timings[stage]
+      delete c.install; delete c.checks; delete c.checkedTree; delete c.drift; delete c.preview
+      delete c.screenshot; delete c.mobileScreenshot; delete c.verdict; delete c.execution; delete c.error
+      c.stage = 'installing'; c.timings.installing = { startedAt: Date.now() }
+      record.state = 'running'; delete record.checksFavoured
+      // Publish the new record atomically before replacing the live view. A
+      // failed initial save leaves the previous result and attempts intact.
+      await this.store.save(record)
+      const old = this.live.get(runId), ctl = new AbortController()
+      const lr: LiveRun = { record, hostContext: old?.hostContext, controller: new AbortController(), perCandidate: new Map([[label, ctl]]), previews: old?.previews ?? new Map(), done: Promise.resolve() }
+      const signal = AbortSignal.any([this.lifetime.signal, lr.controller.signal, ctl.signal])
+      this.live.set(runId, lr)
+      const enter = async (stage: CandidateStage): Promise<void> => {
+        if (c.stage === stage) { await this.persist(record); return }
+        const prior = c.timings[c.stage]
+        if (prior && prior.endedAt === undefined) prior.endedAt = Date.now()
+        c.stage = stage; c.timings[stage] = { startedAt: Date.now() }
+        await this.persist(record)
+      }
+      lr.done = Promise.resolve().then(async () => {
+        try { await this.verifyCandidate(lr, c, signal, enter) }
+        catch (error) {
+          const stage = error instanceof StageFailure ? error.stage : c.stage === 'stopping'
+            ? (Object.entries(c.timings).find(([, timing]) => timing?.endedAt === undefined)?.[0] as CandidateStage | undefined) ?? 'installing' : c.stage
+          c.stage = signal.aborted ? 'cancelled' : 'failed'
+          c.error = { stage, message: signal.aborted && !(error instanceof ProcessStopError) ? '重新验收已停止；封存内容仍保留' : String((error as Error).message ?? error).slice(0, 2000) }
+          if (error instanceof ProcessStopError) c.stopUnconfirmed = true
+          for (const timing of Object.values(c.timings)) if (timing && timing.endedAt === undefined) timing.endedAt = Date.now()
+          await this.stopPreview(lr, label)
+          delete c.preview
+        } finally {
+          record.state = 'judging'; record.checksFavoured = favoured(record.candidates)
+          await this.persist(record)
+        }
+      }).catch(() => {})
+      return record
+    } finally { this.startReservations.delete(reservation) }
+  }
+
   /**
    * Seal and verify what a candidate had written when it failed during
    * generation (stopped by the budget, an earlier version, or a host
@@ -427,7 +517,7 @@ export class Comparer {
     const r = await this.mustLoad(runId)
     if (r.state !== 'judging' && r.state !== 'interrupted') throw new Error(`现在不能验收（${r.state}）`)
     const c = r.candidates.find((x) => x.label === label)
-    if (c === undefined || (c.stage !== 'failed' && c.stage !== 'interrupted') || (c.error?.stage !== 'generating' && c.error?.stage !== 'sealing')) throw new Error('只有在生成阶段中止的候选可以验收已写的改动')
+    if (c === undefined || c.stopUnconfirmed || (c.stage !== 'failed' && c.stage !== 'interrupted') || (c.error?.stage !== 'generating' && c.error?.stage !== 'sealing')) throw new Error('只有在生成阶段中止且已停止的候选可以验收已写的改动')
     if (c.dir === undefined || c.ownerToken === undefined || !existsSync(c.dir)) throw new Error('这个候选的副本已经不在了')
     const lr: LiveRun = this.live.get(runId) ?? { record: r, hostContext: undefined, controller: new AbortController(), perCandidate: new Map(), previews: new Map(), done: Promise.resolve() }
     this.live.set(runId, lr)
@@ -456,6 +546,10 @@ export class Comparer {
         const failedStage = cand.stage
         cand.stage = signal.aborted ? 'cancelled' : 'failed'
         if (!signal.aborted) cand.error = { stage: error instanceof StageFailure ? error.stage : failedStage, message: String((error as Error).message ?? error).slice(0, 2000) }
+        if (error instanceof ProcessStopError) {
+          cand.stopUnconfirmed = true
+          cand.error = { stage: failedStage, message: error.message }
+        }
         for (const t of Object.values(cand.timings)) if (t && t.endedAt === undefined) t.endedAt = Date.now()
         await this.stopPreview(lr, label)
         delete cand.preview
@@ -495,16 +589,23 @@ export class Comparer {
     const info = await inspectProject(dir)
     if (info.kind === 'unsupported') throw new StageFailure('installing', info.reason ?? '改动后项目不再受支持')
     const inst = installArgv(info)
+    const observed = await runProjectProcess([inst.argv[0]!, '--version'], { cwd: dir, timeoutMs: 10_000, signal, env: { CI: '1' } }, prepare).catch(error => {
+      if (error instanceof ProcessStopError) throw error
+      return undefined
+    })
+    signal.throwIfAborted()
+    const reportedVersion = observed?.stdout.trim()
+    const packageManagerVersion = observed?.code === 0 && !observed.truncated && reportedVersion && /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(reportedVersion) ? reportedVersion : undefined
+    const runtime = { hostNode: process.version, platform: process.platform, packageManager: inst.argv[0]!, ...(packageManagerVersion ? { packageManagerVersion } : {}) }
     const t0 = Date.now()
     const r = await runProjectProcess(inst.argv, { cwd: dir, timeoutMs: 600_000, signal, env: { CI: '1' } }, prepare)
-    const install: NonNullable<Candidate['install']> = { argv: inst.argv, frozen: inst.frozen, durationMs: Date.now() - t0, outcome: r.timedOut ? 'timeout' : r.aborted ? 'cancelled' : r.code === 0 ? 'passed' : 'failed' }
+    const failure = r.code !== 0 || r.aborted || r.timedOut ? installFailure(r) : undefined
+    const install: NonNullable<Candidate['install']> = { argv: inst.argv, frozen: inst.frozen, durationMs: Date.now() - t0, outcome: r.timedOut ? 'timeout' : r.aborted ? 'cancelled' : r.code === 0 ? 'passed' : 'failed', runtime, ...(failure ? { failure } : {}) }
     await onEvidence?.({ install })
     signal.throwIfAborted()
-    if (r.code !== 0) {
-      const tail = diagnosticText((r.stderr || r.stdout).trim(), 1200)
-      throw new StageFailure('installing', inst.frozen
-        ? `按锁文件 ${info.lockfile} 冻结安装失败。改了依赖就必须同时更新锁文件，AgentCompare 不会换成非冻结安装。\n${tail}`
-        : `依赖安装失败：\n${tail}`)
+    if (r.code !== 0 || r.timedOut) {
+      const reason = failure!
+      throw new StageFailure('installing', `${reason.summary}。${reason.hint}${inst.frozen ? `\n仍使用锁文件 ${info.lockfile} 冻结安装，不改用非冻结安装。` : ''}${reason.diagnostic ? `\n${reason.diagnostic}` : ''}`)
     }
 
     await enter?.('verifying')
@@ -520,6 +621,7 @@ export class Comparer {
       const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal, prepareProjectProcess: prepare })
       preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: dir } }
     } catch (error) {
+      if (error instanceof ProcessStopError) throw error
       if (signal.aborted) throw error
       const log = error instanceof PreviewError ? `\n${diagnosticText(error.log, 1500)}` : ''
       throw new StageFailure('previewing', `${(error as Error).message}${log}`)
@@ -688,6 +790,7 @@ export class Comparer {
       if (c.verdict?.eligible !== true) {
         throw new AdoptError('ineligible', `这一版没有通过共同验收，不能写入工作区：${(c.verdict?.reasons ?? ['没有验收结论']).join('；')}。可以另存为分支查看。`)
       }
+      if (r.adoption?.rehearsal?.stopUnconfirmed) throw new AdoptError('state', '先前预演的进程停止状态未知，副本仍保留；请先检查该任务进程')
       r.adoption = { label: pick, mode, state: 'rehearsing', startedAt: Date.now() }
       r.state = 'adopting'
       await this.save(r)
@@ -798,7 +901,7 @@ export class Comparer {
     const repo = r.baseline.repoRoot
     const dir = path.join(this.store.copies(r.runId), 'R')
     const token = randomBytes(12).toString('hex')
-    const record = { reused: false, tree, dir, ownerToken: token }
+    const record: NonNullable<NonNullable<RunRecord['adoption']>['rehearsal']> = { reused: false, tree, dir, ownerToken: token }
     r.adoption!.rehearsal = record
     await this.save(r)
     const commit = await commitTree(repo, tree, [head], `agent-compare rehearsal ${r.runId}`)
@@ -813,10 +916,13 @@ export class Comparer {
       ]
       return { ok: reasons.length === 0, reasons, record: { ...record, checks: v.checks } }
     } catch (error) {
+      if (error instanceof ProcessStopError) record.stopUnconfirmed = true
       return { ok: false, reasons: [(error as Error).message.split('\n')[0] ?? '预演失败'], record }
     } finally {
-      await removeOwnedWorktree(repo, dir, { runId: r.runId, label: 'R', token })
-      await dropRefs(repo, `refs/agent-compare/${r.runId}/rehearsal`)
+      if (!record.stopUnconfirmed) {
+        await removeOwnedWorktree(repo, dir, { runId: r.runId, label: 'R', token })
+        await dropRefs(repo, `refs/agent-compare/${r.runId}/rehearsal`)
+      }
     }
   }
 
@@ -941,7 +1047,7 @@ export class Comparer {
       await this.releaseResources(r)
       if (r.state === 'running' || r.state === 'judging' || r.state === 'revealed' || r.state === 'interrupted') {
         r.state = 'abandoned'
-        await dropRefs(r.baseline.repoRoot, `refs/agent-compare/${runId}/`)
+        if (!r.leftovers?.length) await dropRefs(r.baseline.repoRoot, `refs/agent-compare/${runId}/`)
       }
       if (!r.leftovers?.length) this.live.delete(runId)
       await this.store.save(r)
@@ -955,6 +1061,10 @@ export class Comparer {
     const leftovers: string[] = []
     const repo = r.baseline.repoRoot
     for (const c of r.candidates) {
+      if (c.stopUnconfirmed) {
+        leftovers.push(`候选 ${c.label} 的任务进程停止状态未知；保留副本：${c.dir ?? '未记录路径'}。请检查该任务及其子进程后再手动清理。`)
+        continue
+      }
       try {
         if (lr?.previews.has(c.label)) await this.stopPreview(lr, c.label)
         else if (c.preview !== undefined) await stopOwnedPreview(c.preview)
@@ -973,7 +1083,8 @@ export class Comparer {
       }
     }
     const reh = r.adoption?.rehearsal
-    if (reh?.dir !== undefined && reh.ownerToken !== undefined) {
+    if (reh?.stopUnconfirmed) leftovers.push(`预演进程停止状态未知；保留副本：${reh.dir ?? '未记录路径'}。请检查该任务及其子进程后再手动清理。`)
+    else if (reh?.dir !== undefined && reh.ownerToken !== undefined) {
       const res = await removeOwnedWorktree(repo, reh.dir, { runId: r.runId, label: 'R', token: reh.ownerToken })
       if (!res.removed) leftovers.push(`${reh.dir}（${res.reason ?? '删除失败'}）`)
     }
@@ -1247,6 +1358,7 @@ function favoured(cands: readonly Candidate[]): RunRecord['checksFavoured'] {
 export function verdictOf(c: Candidate, acceptance: Acceptance): Verdict {
   const reasons: string[] = []
   const warnings: string[] = []
+  if (c.install?.runtime && (c.install.runtime.hostNode !== acceptance.runtime.node || c.install.runtime.platform !== acceptance.runtime.platform)) warnings.push('验收宿主环境与基线记录不同；请在检查依据中核对版本，不能据此视为完全相同的运行条件')
   if (c.execution?.enforcement === 'partial') warnings.push('宿主报告部分文件写入约束，不能视为完整安全沙箱；文件读取和网络也不在此边界内')
   else if (c.execution?.enforcement !== 'full') warnings.push('没有完整的项目进程约束记录，不能据此认定执行已隔离')
   const NAMES: Record<string, string> = { typecheck: '类型检查', lint: 'Lint', test: '测试', build: '构建', browser: '页面验收' }
@@ -1291,6 +1403,9 @@ export interface PublicCandidate {
   readonly error?: Candidate['error']
   readonly verdict?: Verdict
   readonly usage?: Usage
+  readonly install?: Candidate['install']
+  readonly verificationHistory?: Candidate['verificationHistory']
+  readonly canRetryVerification: boolean
   readonly hasScreenshot: boolean
   readonly hasMobileScreenshot: boolean
   readonly generation?: Candidate['generation']
@@ -1355,6 +1470,9 @@ export function publicView(r: RunRecord): PublicRun {
       salvageable: (r.state === 'judging' || r.state === 'interrupted') && (c.stage === 'failed' || c.stage === 'interrupted')
         && (c.error?.stage === 'generating' || c.error?.stage === 'sealing') && c.dir !== undefined && existsSync(c.dir),
       canReopenPreview: c.stage === 'ready' && c.preview === undefined && c.dir !== undefined && existsSync(c.dir),
+      canRetryVerification: canRetryVerification(r, c),
+      ...(c.install === undefined ? {} : { install: c.install }),
+      ...(c.verificationHistory === undefined ? {} : { verificationHistory: c.verificationHistory }),
       ...(c.generation === undefined ? {} : { generation: c.generation }),
       ...(c.progress === undefined || c.stage !== 'generating' ? {} : { progress: c.progress }),
       ...(c.preview === undefined ? {} : { previewUrl: c.preview.url, previewKind: c.preview.kind }),

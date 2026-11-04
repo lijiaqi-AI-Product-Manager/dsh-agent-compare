@@ -26,6 +26,8 @@ const checks = (ok) => [
 const acceptance = { source: 'repository', checks: ['typecheck', 'build', 'browser'], steps: 12, frozenInstall: true, sha256: 'abc' }
 const base = { runId: '0a1b2c3d', rev: 1, task: '给商品列表加上搜索框和分类筛选，手机上也要好用。要求：搜索不区分大小写；分类可与搜索组合；有「清空」按钮；390px 手机可用。', mode: 'same-model', isolation: 'own-root', createdAt: now - 95000, baseline: { dirty: true, repoRoot: 'D:\\Projects\\demo-shop' }, acceptance }
 const reported = { kind: 'reported', totalTokens: 48210 }
+const networkFailure = { kind: 'network', summary: '包服务连接或证书检查失败', hint: '检查网络、registry、代理和证书；连接恢复后可重新验收原候选。无需因此修改锁文件。', code: 'ECONNRESET', diagnostic: 'npm error code ECONNRESET\nnpm error network connection reset' }
+const previousVerification = { recordedAt: now - 40000, durationMs: 10000, install: { argv: ['npm', 'ci'], frozen: true, durationMs: 10000, outcome: 'failed', failure: networkFailure } }
 const A = { label: 'A', stage: 'ready', execution: { enforcement: 'full' }, previewUrl: 'http://127.0.0.1:4318/a', previewKind: 'build', checks: checks(true), verdict: { eligible: true, reasons: [], warnings: [] }, patchStats: { files: 2, insertions: 48, deletions: 9, binary: 0 }, timings: done, usage: reported, hasScreenshot: false }
 const B = { label: 'B', stage: 'ready', execution: { enforcement: 'partial' }, previewUrl: 'http://127.0.0.1:4318/b', previewKind: 'build', checks: checks(false), verdict: { eligible: false, reasons: ['页面验收未通过'], warnings: ['改动了依赖（已按锁文件安装）'] }, patchStats: { files: 3, insertions: 121, deletions: 4, binary: 0 }, timings: done, usage: { kind: 'reported', totalTokens: 71533 }, hasScreenshot: false }
 const strat = { A: { strategy: { id: 'conservative', title: '稳妥 · Conservative' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '在现有列表上方加了搜索框、分类按钮和清空按钮，沿用原有样式；手机上筛选区换行。' }, B: { strategy: { id: 'bold', title: '大胆 · Bold' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '重做了列表顶部：分类改为可横向滚动的标签，搜索框吸顶。' } }
@@ -50,6 +52,8 @@ const states = {
     { label: 'B', stage: 'failed', timings: { preparing: t(1910, 1909), generating: t(1909, 2) }, usage: { kind: 'reported', totalTokens: 257649 }, salvageable: true, error: { stage: 'generating', message: '超出生成时间预算（30 分钟），已停止这个候选' } },
   ] }],
   failed: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, { label: 'B', stage: 'failed', timings: { preparing: t(60, 59), generating: t(59, 20), sealing: t(20, 19), installing: t(19, 10) }, error: { stage: 'installing', message: '按锁文件 package-lock.json 冻结安装失败。改了依赖就必须同时更新锁文件，AgentCompare 不会换成非冻结安装。\nnpm ERR! `npm ci` can only install packages when your package.json and package-lock.json are in sync.' } }] }],
+  'install-failure': [{ ...base, state: 'judging', candidates: [{ label: 'A', stage: 'failed', timings: { generating: t(70, 20), installing: t(20, 10) }, install: previousVerification.install, error: { stage: 'installing', message: networkFailure.summary }, canRetryVerification: true, usage: { kind: 'unknown', reason: 'not reported' } }, B] }],
+  retrying: [{ ...base, state: 'running', candidates: [{ label: 'A', stage: 'installing', timings: { generating: t(86400, 86360), installing: t(5) }, verificationHistory: [previousVerification], usage: { kind: 'unknown', reason: 'not reported' } }, B] }],
   judging: [{ ...base, state: 'judging', checksFavoured: 'A', candidates: [A, B] }],
   foreign: [{ ...base, state: 'judging', control: { allowed: false, retryable: true, reason: '另一个宿主正在管理这次比较。此处可查看结果；需要选择、停止、采用或清理时，请回到原窗口，或等它关闭后重试。' }, candidates: [A, B] }],
   'old-owner': [{ ...base, state: 'running', control: { allowed: false, reason: '这条旧记录没有宿主归属凭据，当前仅可查看。请先关闭旧版本实例并保留原始记录。' }, candidates: [{ label: 'A', stage: 'generating', timings: { generating: t(60) } }, { ...B, previewUrl: undefined, canReopenPreview: true }] }],
@@ -130,6 +134,10 @@ window.fetch = async (url, init) => {
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
   if (m[1] === 'adopt' && selected >= 0) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'adopted',adoption:{state:'adopted',mode:body.mode,message:'已采用'}}; value=runs[selected]; }
+  if (m[1] === 'retryVerification' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method===m[1])?.error) {
+    runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,state:'judging',candidates:runs[selected].candidates.map(c=>c.label===body.label?{...c,...${JSON.stringify({ A, B })}[c.label],usage:c.usage,install:{argv:['npm','ci'],frozen:true,durationMs:1000,outcome:'passed'},error:undefined,canRetryVerification:false,verificationHistory:[...(c.verificationHistory??[]),{recordedAt:Date.now(),durationMs:10000,install:c.install,error:c.error}]}:c)};
+    value=runs[selected];
+  }
   if (m[1] === 'cleanup' && selected >= 0) { runs[selected] = {...runs[selected],leftovers:undefined}; value=runs[selected]; }
   // Delayed snapshots intentionally ignore abort, exercising the client's own guards.
   const plan=m[1]==='get'?window.__getPlans.shift():undefined;

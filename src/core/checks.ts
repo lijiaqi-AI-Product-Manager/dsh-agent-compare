@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
-import { diagnosticText } from './proc.ts'
+import { diagnosticText, ProcessStopError } from './proc.ts'
 import type { BrowserCheck, BrowserStep, CheckResult, ChecksSpec } from './types.ts'
 
 const tailOf = (s: string, n = 1500): string => (s.length > n ? s.slice(-n) : s)
@@ -24,6 +24,7 @@ export async function runCommandChecks(dir: string, spec: ChecksSpec, signal?: A
       const outcome = r.timedOut ? 'timeout' : r.aborted ? 'skipped' : r.code === 0 ? 'passed' : 'failed'
       results.push({ name: cmd.name, outcome, durationMs: Date.now() - started, tail: diagnosticText((r.code === 0 ? `${r.stdout}\n${r.stderr}` : `${r.stderr}\n${r.stdout}`).trim()), ...(r.aborted ? { reason: 'cancelled' } : {}) })
     } catch (error) {
+      if (error instanceof ProcessStopError) throw error
       results.push({ name: cmd.name, outcome: 'failed', durationMs: Date.now() - started, tail: '', reason: (error as Error).message })
     }
   }

@@ -1,14 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 — 2026-11-04
 
-- Recover bounded Windows loose-object sharing conflicts during snapshot and candidate tree writes while preserving independent indexes and permanent errors.
-
-- Pin documented npm installation targets to the published package version, including all language guides.
-
-- Ship prebuilt runtime files for GitHub installations and check build freshness in CI.
-- Add a square storefront icon, four recorded screenshots, and a standard screenshot declaration.
-- Document directory integration, installation routes, data handling and recommendation applications.
+- Diagnose installation failures from observed output: distinguish network and certificate errors, registry access, filesystem resources, unsupported runtimes, lock mismatches, timeout and cancellation. Keep bounded diagnostics with recognizable credentials redacted; never infer a lock mismatch merely from frozen installation failing.
+- Offer explicit verification retry for sealed candidates after environment failures or interruption. Reuse the same commit, patch and acceptance, reject changed content, retain earlier attempts and usage, and never repeat generation. Preserve admission on save failure and coordinate retry with cancellation, restart and run capacity.
+- Keep actionable recovery above collapsed logs, retain prior verification facts, show the current verification time without idle history, and record the observed package-manager version and verification host environment. Lock mismatches require a corrected new comparison instead of repeating an unchanged failure.
+- Pin the documented npm installation to the tested release so stale package-manager metadata cannot silently select an earlier build. Keep source-install archives and all language guides aligned.
+- Bound Windows process inspection and tree-stop helpers. If a stop cannot be confirmed, preserve the candidate or adoption rehearsal, prevent another verification or adoption from racing it, and retain the cleanup record across restart.
+- Preserve original candidate-preparation diagnostics in the integration fixtures before reporting later adoption assertions.
+- Provide bilingual product illustrations with explicit Desktop and Web scope, recorded demonstrations, localized guides and tested prebuilt runtime artifacts.
 
 ## 0.2.0-alpha.18 — 2026-11-03
 
