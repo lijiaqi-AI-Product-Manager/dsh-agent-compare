@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Return request-format errors as HTTP 400 and keep oversized requests eligible for a proper HTTP 413 response.
+
 - Pin required host runtime checks and track the next channel separately; test the shipped compatibility evaluator and exclude next-minor prereleases.
 - Identify missing input and execution capabilities, show unsupported projects before submission, preserve drafts and keep history accessible.
 - Return model-tool admission immediately, reuse saved comparison settings and bind pending/result cards to their actual call identities.
