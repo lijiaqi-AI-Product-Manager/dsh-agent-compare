@@ -11,6 +11,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { runIdFromToolResult } from './tool-result.js'
+import { clientCapabilities } from './capabilities.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
 interface SlotsLike {
@@ -24,7 +25,7 @@ interface Route { provider?: string; model?: string }
 interface InstallFailure { kind: string; summary: string; hint: string; code?: string; diagnostic?: string }
 interface VerificationRuntime { hostNode: string; platform: string; packageManager: string; packageManagerVersion?: string }
 interface VerificationAttempt { recordedAt: number; durationMs?: number; install?: { failure?: InstallFailure; outcome?: string; runtime?: VerificationRuntime }; error?: { message: string }; checks?: Check[] }
-interface Setup { current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string } }
+interface Setup { pluginVersion?: string; dshVersion?: string; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string } }
 interface Cand {
   label: 'A' | 'B'
   stage: Stage
@@ -112,7 +113,10 @@ interface SessionScope { get?(name: string): unknown; bail?(scope: SessionScope,
 interface RemoteCommands { execute(sessionId: string, line: string, attachments: readonly unknown[]): Promise<{ ok: boolean; error?: { message?: string }; value?: { result: { kind: 'success' | 'error'; text?: string } } }> }
 let clientCtx: { get?(name: string): unknown; remote?: { commands?: RemoteCommands }; events?: { dispatch(mode: 'emit', args: unknown[]): Iterable<(...args: unknown[]) => unknown> } } | undefined
 function sessionScope(sessionId: string): SessionScope | undefined {
-  return (clientCtx?.get?.('sessions') as { scope?(id: string): SessionScope | undefined } | undefined)?.scope?.(sessionId)
+  try {
+    const sessions = clientCtx?.get?.('sessions') as { scope?(id: string): SessionScope | undefined } | undefined
+    return typeof sessions?.scope === 'function' ? sessions.scope(sessionId) : undefined
+  } catch { return undefined }
 }
 function inputShell(sessionId: string): InputShell | undefined {
   try {
@@ -122,6 +126,16 @@ function inputShell(sessionId: string): InputShell | undefined {
   } catch {
     return undefined
   }
+}
+function inputSnapshot(sessionId: string): ReturnType<NonNullable<InputShell['state']>['getSnapshot']> | undefined {
+  try { return inputShell(sessionId)?.state?.getSnapshot?.() } catch { return undefined }
+}
+function clientSupport(sessionId: string) {
+  return clientCapabilities(inputShell(sessionId), sessionScope(sessionId), clientCtx?.remote?.commands)
+}
+function clientSupportMessage(sessionId: string): string | undefined {
+  const support = clientSupport(sessionId)
+  return support.ok ? undefined : '当前 DSH 输入接口不兼容：' + support.missing.join('、') + '。请升级或回退至已验证的 DSH 版本；草稿和比较记录保留。'
 }
 function returnToComposer(sessionId: string): void {
   if (openSession) { focusComposerOnClose = sessionId; setOpen(undefined) }
@@ -157,7 +171,8 @@ function useAbMode(sessionId: string): AbMode {
   useEffect(() => {
     const update = (): void => force((n) => n + 1)
     mode.listeners.add(update)
-    const unsubscribe = inputShell(sessionId)?.state?.subscribe?.(update)
+    const state = inputShell(sessionId)?.state
+    const unsubscribe = typeof state?.subscribe === 'function' ? state.subscribe(update) : undefined
     if (!mode.loaded && !mode.loading) void loadMode(sessionId)
     return () => { mode.listeners.delete(update); unsubscribe?.() }
   }, [mode, sessionId])
@@ -168,6 +183,11 @@ async function executeComparison(sessionId: string, task: string, example = fals
   const preferences = mode.preferences
   if (!mode.loaded) return { kind: 'error', text: '比较设置尚未读取，请稍后重试' }
   await mode.pending
+  const support = clientSupport(sessionId)
+  if (!support.canExecute || (!example && !support.ok)) return { kind: 'error', text: clientSupportMessage(sessionId) ?? '会话命令执行接口不可用，请检查 DSH 版本。' }
+  const setup = await call<Setup>('setup', { sessionId })
+  if (setup.capabilities?.ok === false) return { kind: 'error', text: '当前 DSH ' + (setup.dshVersion ?? '（版本未知）') + ' 缺少比较所需接口：' + setup.capabilities.missing.join('、') + '。请升级或回退至已验证的版本；草稿保留。' }
+  if (!example && setup.project?.supported === false) return { kind: 'error', text: '当前项目不受支持：' + (setup.project.reason ?? '请使用仓库根目录的 Vite 项目。') + ' 草稿保留，也可以试跑内置示例。' }
   const remote = clientCtx?.remote?.commands
   if (!remote) throw new Error('会话命令执行器不可用，请重新打开对话')
   const result = await remote.execute(sessionId, `/ab @ui ${JSON.stringify({ version: 1, task, example, preferences })}`, [])
@@ -175,12 +195,15 @@ async function executeComparison(sessionId: string, task: string, example = fals
   if (!result.value) throw new Error('比较命令未注册，请检查插件是否已加载')
   const outcome = result.value.result
   const args = ['command/executed', sessionId, 'ab', outcome]
-  for (const listener of clientCtx?.events?.dispatch('emit', args) ?? []) {
-    try {
-      const returned = listener(sessionId, 'ab', outcome)
-      if (returned && typeof (returned as Promise<unknown>).then === 'function') void Promise.resolve(returned).catch(() => {})
-    } catch { /* A notification observer cannot change command admission. */ }
-  }
+  // Match the host's local acknowledgment; it is separate from durable command events.
+  try {
+    if (typeof clientCtx?.events?.dispatch === 'function') for (const listener of clientCtx.events.dispatch('emit', args)) {
+      try {
+        const returned = listener(sessionId, 'ab', outcome)
+        if (returned && typeof (returned as Promise<unknown>).then === 'function') void Promise.resolve(returned).catch(() => {})
+      } catch { /* A notification observer cannot change command admission. */ }
+    }
+  } catch { /* An unavailable notification seam cannot undo an admitted command. */ }
   if (outcome.kind === 'success') {
     mode.runId = /运行 ([0-9a-f]{8})/.exec(outcome.text ?? '')?.[1]
     mode.collapsed = true; publishMode(mode)
@@ -189,14 +212,14 @@ async function executeComparison(sessionId: string, task: string, example = fals
   return outcome
 }
 function enterMode(sessionId: string): boolean {
-  const shell = inputShell(sessionId), state = shell?.state?.getSnapshot()
-  if (!shell?.beginCommand || !state || !['plain', 'claimed'].includes(state.phase) || (state.claim && state.claim.name !== 'ab')) return false
+  const shell = inputShell(sessionId), state = inputSnapshot(sessionId)
+  if (typeof shell?.beginCommand !== 'function' || !state || !['plain', 'claimed'].includes(state.phase) || (state.claim && state.claim.name !== 'ab')) return false
   const applied = shell.beginCommand({ name: 'ab', token: '/ab ', hint: '只需写需求；模型与时长在上方选择', submit: (task) => executeComparison(sessionId, task) }, { start: 0, end: state.claim?.name === 'ab' ? 1 : 0, draftRev: state.draftRev })
   if (applied) registeredShells.add(shell)
   return applied
 }
 function leaveMode(sessionId: string): boolean {
-  const scope = sessionScope(sessionId), state = inputShell(sessionId)?.state?.getSnapshot()
+  const scope = sessionScope(sessionId), state = inputSnapshot(sessionId)
   if (!state || !['plain', 'claimed'].includes(state.phase)) return false
   if (state.claim?.name !== 'ab') return true
   return scope?.bail?.(scope, 'slash/input-consume-token', { guard: { kind: 'span', span: { start: 0, end: 1, draftRev: state.draftRev } } }) === true
@@ -451,6 +474,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-start-foot>div{display:flex;flex-direction:column;gap:4px}.ac-start-foot b{font-size:13px}.ac-start-foot span{font-size:12px;color:var(--ac-fg2)}.ac-start-foot .ac-btn{height:42px;min-width:155px;justify-content:center}
 .ac-text-btn{border:0;background:transparent;color:var(--ac-brand);font:inherit;font-size:12px;padding:4px;cursor:pointer;white-space:nowrap}
 .ac-feedback{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px;border:1px solid color-mix(in srgb,var(--ac-err) 35%,transparent);background:color-mix(in srgb,var(--ac-err) 6%,var(--ac-bg));border-radius:10px;white-space:pre-wrap}
+.ac-prerequisite{display:block;overflow-wrap:anywhere}.ac-prerequisite-actions{display:flex;flex-wrap:wrap;gap:16px;margin-top:8px}
 .ac-run-heading{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--ac-border)}
 .ac-action-dock{position:sticky;top:0;z-index:3;background:var(--ac-bg)}.ac-bar{border-top:0;border-bottom:1px solid var(--ac-border);padding:12px 20px;min-height:60px}
 .ac-review{display:flex;justify-content:space-between;gap:20px;margin:16px 20px 0;padding:16px;border:1px solid var(--ac-brand);border-radius:12px;background:color-mix(in srgb,var(--ac-brand) 5%,var(--ac-bg))}.ac-review p{margin:6px 0;font-size:12px;color:var(--ac-fg2)}.ac-review .ac-row{align-self:flex-start;flex:none}.ac-project-path{overflow-wrap:anywhere}
@@ -698,7 +722,7 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
   const [setupError, setSetupError] = useState<string>()
   const [setupRetry, setSetupRetry] = useState(0)
   const [error, setError] = useState<string>()
-  const state = inputShell(sessionId)?.state?.getSnapshot()
+  const state = inputSnapshot(sessionId)
   const enabled = p.enabled || state?.claim?.name === 'ab'
   const loadModels = useCallback(async () => {
     setLoading(true); setModelError(undefined)
@@ -716,14 +740,14 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
       call<Setup>('setup', { sessionId }).then(value => { if (active && version >= applied) { applied = version; setSetup(value); setSetupError(undefined) } }, (error: Error) => { if (active && version >= applied) { applied = version; setSetup(undefined); setSetupError(error.message) } })
     }
     refresh()
-    const timer = setInterval(refresh, 4000)
+    const timer = setInterval(refresh, 10000)
     return () => { active = false; clearInterval(timer) }
   }, [enabled, mode.collapsed, session, sessionId, setupRetry])
   useEffect(() => { if (enabled && p.mode === 'cross-model') void loadModels() }, [enabled, p.mode, loadModels])
   useEffect(() => {
-    if (!p.enabled || !mode.loaded || !state || !['plain', 'claimed'].includes(state.phase)) return
+    if (!p.enabled || !mode.loaded || !state || !clientSupport(sessionId).ok || !['plain', 'claimed'].includes(state.phase)) return
     if (!state.claim || (state.claim.name === 'ab' && !registeredShells.has(inputShell(sessionId)!))) {
-      if (!enterMode(sessionId)) setError('当前输入框暂时无法进入比较模式，请稍后重试。草稿未改动。')
+      if (!enterMode(sessionId)) setError(clientSupportMessage(sessionId) ?? '当前输入框暂时无法进入比较模式，请稍后重试。草稿未改动。')
     }
   }, [p.enabled, mode.loaded, state?.phase, state?.draftRev, sessionId])
   const close = (): void => {
@@ -740,10 +764,13 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
   if (!enabled && !mode.error) return null
   return <section className="ac-root ac-composer-settings" aria-label="A|B 比较设置"><Styles />
     <div className="ac-settings-head"><span className="ac-logo">A|B</span><div><b>对比模式</b><span>{mode.collapsed ? `${p.mode === 'same-model' ? '同一模型 · 两种策略' : '两个模型 · 同一要求'} · 每版 ${p.generationMinutes} 分钟` : '在下方写需求，发送后在这条对话里运行两版。'}</span></div><button className="ac-text-btn" onClick={() => { mode.collapsed = !mode.collapsed; publishMode(mode) }}>{mode.collapsed ? '展开设置' : '收起'}</button><button className="ac-icon-btn" onClick={close} disabled={busy} aria-label="退出 A|B 模式"><IconClose /></button></div>
+    {setup?.capabilities?.ok === false && <div className="ac-feedback" role="alert">当前 DSH {setup.dshVersion ?? '（版本未知）'} 缺少比较所需接口：{setup.capabilities.missing.join('、')}。请升级或回退至已验证版本；比较记录和草稿保留。</div>}
+    {setup?.capabilities?.warnings.includes('sessionController.resolveAgent') && <div className="ac-feedback" role="status">当前 DSH 缺少会话恢复接口：sessionController.resolveAgent。已打开的对话仍可使用；历史对话请先在 DSH 中重新打开。</div>}
+    {setup?.project?.supported === false && <div className="ac-feedback" role="status">当前项目不受支持：{setup.project.reason ?? '请使用仓库根目录的 Vite 项目。'} 草稿保留，可试跑内置示例。</div>}
     {!mode.collapsed && <>
     <div className="ac-settings-row"><div className="ac-seg" role="group" aria-label="比较方式"><button className={p.mode === 'same-model' ? 'on' : ''} aria-pressed={p.mode === 'same-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'same-model' })}>同一模型 · 两种策略</button><button className={p.mode === 'cross-model' ? 'on' : ''} aria-pressed={p.mode === 'cross-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'cross-model' })}>两个模型 · 同一要求</button></div>
       <label className="ac-budget">每版上限 <select aria-label="每版生成上限" value={p.generationMinutes} onChange={e => saveMode(sessionId, { ...p, generationMinutes: Number(e.target.value) })}>{[...new Set([5, 15, 30, 60, 90, 120, p.generationMinutes])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m} 分钟</option>)}</select></label>
-      <button className="ac-btn sm" disabled={busy || !mode.loaded || (p.mode === 'cross-model' ? !validPair : !setup?.current.model)} onClick={() => { void example() }}>{busy ? '正在创建示例…' : '试跑内置示例'}</button>
+      <button className="ac-btn sm" disabled={busy || !mode.loaded || setup?.capabilities?.ok === false || !clientSupport(sessionId).canExecute || (p.mode === 'cross-model' ? !validPair : !setup?.current.model)} onClick={() => { void example() }}>{busy ? '正在创建示例…' : '试跑内置示例'}</button>
     </div>
     {p.mode === 'cross-model' ? <div className="ac-models">{[0, 1].map(i => <label key={i}>{i === 0 ? '模型一' : '模型二'}<select disabled={loading || busy} value={p.models[i]?.model ? `${p.models[i]?.provider}/${p.models[i]?.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const pair: [Route, Route] = [...p.models]; pair[i] = item ? { provider: item.provider, model: item.id } : {}; saveMode(sessionId, { ...p, models: pair }) }}><option value="">选择已配置的模型</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={p.models[1-i]?.provider === m.provider && p.models[1-i]?.model === m.id}>{m.name} · {m.providerName}</option>)}</select></label>)}{loading ? <span className="ac-meta" role="status">正在读取模型…</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>重试模型列表</button></span> : models.length < 2 ? <span className="ac-meta">当前可读取的模型不足两个，可先使用同一模型的两种策略。</span> : null}</div>
       : <div className="ac-meta">当前模型：{routeText(setup?.current) || (setup ? '请先在输入框右下角选择模型' : '正在读取…')}{setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}> · 项目：{setup.project.path}</span> : ''}</div>}
@@ -760,6 +787,7 @@ function ComposerDock({ sessionId, session }: { sessionId: string; session?: { b
 }
 function ComposerDockState({ sessionId, session }: { sessionId: string; session?: { blank?: boolean } }): React.ReactElement {
   const mode = useAbMode(sessionId)
+  const capabilityError = clientSupportMessage(sessionId)
   const [latest, setLatest] = useState<Run>()
   const [collapsed, setCollapsed] = useState(false)
   const [error, setError] = useState<string>()
@@ -779,6 +807,7 @@ function ComposerDockState({ sessionId, session }: { sessionId: string; session?
   const runId = mode.runId ?? latest?.runId
   useEffect(() => { setCollapsed(false) }, [runId])
   return <>
+    {capabilityError && <div className="ac-root"><Styles /><div className="ac-feedback ac-prerequisite" role="alert"><span>{capabilityError}</span><div className="ac-prerequisite-actions"><button className="ac-text-btn" onClick={() => { void loadMode(sessionId) }}>重新检查接口</button><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>比较记录</button></div></div></div>}
     {blank && runId && <section className="ac-root ac-conversation-run" aria-label="本对话的 A|B 结果"><Styles />
       {collapsed && <div className="ac-conversation-run-head"><b>本次比较</b><span className="ac-meta">{runId}</span><span className="ac-spacer" /><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>记录与使用指南</button><button className="ac-text-btn" onClick={() => setCollapsed(false)}>展开结果</button></div>}
       <div className="ac-conversation-run-scroll" hidden={collapsed}><RunView key={runId} runId={runId} sessionId={sessionId} compact {...(latest?.runId === runId ? { initial: latest } : {})} onExpand={() => setOpen(sessionId, runId)} onCollapse={() => setCollapsed(true)} /></div>
@@ -1066,16 +1095,17 @@ function ToolView(props: { sessionId?: string; callId?: string; phase?: string; 
 /** The composer owns comparison mode; history never replaces its entry point. */
 function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement {
   const mode = useAbMode(sessionId)
-  const state = inputShell(sessionId)?.state?.getSnapshot()
+  const state = inputSnapshot(sessionId)
   const enabled = mode.preferences.enabled || state?.claim?.name === 'ab'
+  const capabilityError = clientSupportMessage(sessionId)
   const toggle = (): void => {
     if (!mode.loaded) { void loadMode(sessionId); return }
     const applied = enabled ? leaveMode(sessionId) : enterMode(sessionId)
-    if (!applied) { mode.error = '输入框正在提交或已有其他命令模式，请等它结束后再切换。'; publishMode(mode); return }
+    if (!applied) { mode.error = clientSupportMessage(sessionId) ?? '输入框正在提交或已有其他命令模式，请等它结束后再切换。'; publishMode(mode); return }
     mode.collapsed = false
     saveMode(sessionId, { ...mode.preferences, enabled: !enabled }); inputShell(sessionId)?.focus?.()
   }
-  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={mode.loading} aria-pressed={enabled} title={enabled ? 'A|B 对比模式已开启，点此退出' : '开启 A|B 对比模式，在主对话里运行两版'} aria-label="A|B 对比模式">A|B</button></>
+  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? 'A|B 对比模式已开启，点此退出' : '开启 A|B 对比模式，在主对话里运行两版')} aria-label="A|B 对比模式">A|B</button></>
 }
 function History({ data, open, busy, failed, scope, query, onScope, onSearch, onPage, onlyUnavailable, problemSupported, onUnavailable }: {
   data?: ListResult; open: (r: Run) => void; busy: boolean; failed?: string
@@ -1244,10 +1274,12 @@ function HeaderButton({ sessionId }: { sessionId: string }): React.ReactElement 
 /** The host does not mount header utilities while its blank-session Hero is shown. */
 function HeroHeader({ sessionId }: { sessionId: string }): React.ReactElement {
   const ref = useRef<HTMLDivElement>(null)
+  const [anchored, setAnchored] = useState(false)
   useEffect(() => {
     const corner = document.querySelector<HTMLElement>('[data-conversation-header-corner]')
     const element = ref.current
     if (!corner || !element) return
+    setAnchored(true)
     const align = (): void => {
       const rect = corner.getBoundingClientRect()
       if (!rect.width || !rect.height) return
@@ -1262,7 +1294,7 @@ function HeroHeader({ sessionId }: { sessionId: string }): React.ReactElement {
     window.addEventListener('resize', align)
     return () => { observer?.disconnect(); window.removeEventListener('resize', align) }
   }, [])
-  return <div ref={ref} className="ac-header-tools-hero"><HeaderButton sessionId={sessionId} /></div>
+  return <div ref={ref} className="ac-header-tools-hero" hidden={!anchored}>{anchored && <HeaderButton sessionId={sessionId} />}</div>
 }
 function Overlay(): React.ReactElement | null {
   const open = useOpen()

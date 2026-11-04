@@ -127,7 +127,7 @@ window.fetch = async (url, init) => {
   if (m[1] === 'preferences') return realFetch('/harness/preferences',init);
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
   let value = m[1] === 'list' ? listHistory(body)
-    : m[1] === 'setup' ? {current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:true},generationMinutes:30}
+    : m[1] === 'setup' ? {current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)}},dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true,...(${JSON.stringify(error)}==='old-apply-host'?{}:{protectedWorktreeApply:true})}
     : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false} : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
@@ -182,7 +182,14 @@ window.__ModuleLoader__ = {load:({factory})=>{
     try{const outcome=await claim.submit(draft.value,scope,[]);if(outcome.kind==='success'){draft.value='';claim=undefined;input={...input,draft:'',claim:undefined,phase:'plain',draftRev:input.draftRev+1}}else{input={...input,phase:'claimed'};document.getElementById('notice').textContent=outcome.text} }
     catch(error){input={...input,phase:'claimed'};document.getElementById('notice').textContent=error.message}notify();
   };
-  mod.apply({get:n=>n==='sessions'?{scope:()=>scope}:undefined,remote,events:{dispatch:()=>[(sessionId,name,result)=>window.__commandAcks.push({sessionId,name,result})]},slots:{inject:(n,cb)=>cb(),register:(spec,C)=>{regs[spec.name]={spec,C};return()=>{}}}});
+  if (${JSON.stringify(error)} === 'missing-begin') delete shell.beginCommand;
+  if (${JSON.stringify(error)} === 'missing-subscribe') delete shell.state.subscribe;
+  if (${JSON.stringify(error)} === 'missing-snapshot') delete shell.state.getSnapshot;
+  if (${JSON.stringify(error)} === 'missing-bail') delete scope.bail;
+  if (${JSON.stringify(error)} === 'missing-execute') delete remote.commands.execute;
+  if (${JSON.stringify(error)} === 'missing-anchor') document.querySelector('[data-conversation-header-corner]')?.remove();
+  const events = ${JSON.stringify(error)} === 'missing-notify' ? {} : {dispatch:()=>{if (${JSON.stringify(error)} === 'throwing-notify') throw new Error('notification unavailable');return [(sessionId,name,result)=>window.__commandAcks.push({sessionId,name,result})]}};
+  mod.apply({get:n=>n==='sessions'?{scope:()=>scope}:undefined,remote,events,slots:{inject:(n,cb)=>cb(),register:(spec,C)=>{regs[spec.name]={spec,C};return()=>{}}}});
   const blank=${JSON.stringify(state==='blank'||state==='blank-history')};
   const headerRoots={normal:ReactDOM.createRoot(document.getElementById('btn')),hero:ReactDOM.createRoot(document.getElementById('hero-options'))};
   window.__switchHeader=(sessionId,isBlank)=>{for(const [key,slot,visible]of [['normal','conversation.session.header.utilities',!isBlank],['hero','conversation.hero.options',isBlank]]){const item=regs[slot];headerRoots[key].render(visible?React.createElement(item.C,{...item.spec.inject(sessionId),key:sessionId}):null)}};

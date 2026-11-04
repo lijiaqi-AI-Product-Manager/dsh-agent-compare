@@ -27,7 +27,7 @@ export async function startToolComparison<A extends { session: { id: string } }>
   const mode = args.mode ?? saved.mode
   const current = ports.currentRoute(exec.agent)
   const routes: readonly [AgentRoute, AgentRoute] = mode === 'cross-model' ? saved.models : [current, current]
-  if (routes.some(route => !route.provider || !route.model)) throw new Error(mode === 'cross-model' ? '请在比较设置中选择两个完整的模型配置' : '当前对话尚未选择完整的模型配置')
+  if (routes.some(route => !route.model || (mode === 'cross-model' && !route.provider))) throw new Error(mode === 'cross-model' ? '请在比较设置中选择两个完整的模型配置' : '当前对话尚未选择模型')
   if (mode === 'cross-model' && routes[0].provider === routes[1].provider && routes[0].model === routes[1].model) throw new Error('两个模型模式需要不同的模型配置')
   const repo = await ports.repoFor(exec.agent, exec.signal)
   exec.signal.throwIfAborted()

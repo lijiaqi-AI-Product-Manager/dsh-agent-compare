@@ -19,9 +19,10 @@ describe('client bundle', () => {
     const window = { __ModuleLoader__: { load: (spec: { id: string; factory: typeof factory }) => { expect(spec.id).toBe('dsh-agent-compare'); factory = spec.factory } } }
     vm.runInNewContext(src, { window, console })
     const requested: string[] = []
-    const react = { createElement: () => null, useState: (v: unknown) => [v, () => {}], useEffect: () => {}, useCallback: (f: unknown) => f, useRef: () => ({ current: null }), Fragment: 'f' }
+    const elements: any[] = []
+    const react = { createElement: (type: unknown, props: unknown, ...children: unknown[]) => { const element = { type, props, children }; elements.push(element); return element }, useState: (v: unknown) => [v, () => {}], useEffect: () => {}, useCallback: (f: unknown) => f, useRef: () => ({ current: null }), Fragment: 'f' }
     const exports = factory!((id) => { requested.push(id); if (id === 'react') return react; throw new Error(`unexpected require ${id}`) })
-    return { exports, requested, slots }
+    return { exports, requested, slots, elements }
   }
 
   it('registers through the module loader, requires only react, and exports apply/inject', () => {
@@ -29,6 +30,20 @@ describe('client bundle', () => {
     expect(requested).toEqual(['react'])
     expect(typeof exports.apply).toBe('function')
     expect(exports.inject).toEqual(['slots', 'remote', 'remote.commands'])
+  })
+
+  it('renders a concrete diagnostic when the input contract is missing', () => {
+    const { exports, elements } = load(undefined)
+    let component: ((props: { sessionId: string }) => unknown) | undefined
+    let dock: ((props: { sessionId: string }) => any) | undefined
+    const scope = { get: () => ({ input: { for: () => ({ state: { getSnapshot: () => ({ draft: 'keep this task', draftRev: 1, phase: 'plain' }), subscribe: () => () => {} } }) } }), bail: () => true }
+    exports.apply({ get: () => ({ scope: () => scope }), remote: { commands: { execute: () => {} } }, slots: { inject: (_name: string, callback: () => unknown) => callback(), register: (spec: any, value: any) => { if (spec.name === 'conversation.input.left') component = value; if (spec.name === 'conversation.input.dock') dock = value; return () => {} } } })
+    expect(() => component!({ sessionId: 'missing-input' })).not.toThrow()
+    const view = dock!({ sessionId: 'missing-input' })
+    expect(() => view.type(view.props)).not.toThrow()
+    expect(elements.some(element => element.props?.role === 'alert')).toBe(true)
+    expect(elements.some(element => element.children.some((child: unknown) => typeof child === 'string' && child.includes('input.beginCommand')))).toBe(true)
+    expect(elements.find(element => element.props?.['aria-label'] === 'A|B 对比模式')?.props.disabled).toBe(true)
   })
 
   it('apply registers every surface and does not throw when a slot is unavailable', () => {

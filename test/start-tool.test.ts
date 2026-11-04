@@ -36,6 +36,12 @@ describe('background start tool', () => {
     await startToolComparison({ task: 'task', time_limit_minutes: 120 }, exec, ports)
     expect(ports.start).toHaveBeenCalledWith(expect.objectContaining({ generationMs: 7200000 }))
   })
+  it('keeps the parent-inherited provider usable in same-model mode', async () => {
+    const { exec, ports } = setup()
+    ports.currentRoute.mockReturnValue({ model: 'selected' } as any)
+    await startToolComparison({ task: 'task', mode: 'same-model' }, exec, ports)
+    expect(ports.start).toHaveBeenCalledWith(expect.objectContaining({ routes: [{ model: 'selected' }, { model: 'selected' }] }))
+  })
   it('rejects missing models and duplicate cross-model routes', async () => {
     const { exec, ports, saved } = setup()
     ports.preferences.mockResolvedValue({ ...saved, models: [{}, {}] } as any)
