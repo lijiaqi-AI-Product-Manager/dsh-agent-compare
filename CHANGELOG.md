@@ -7,6 +7,7 @@
 - Pin required host runtime checks and track the next channel separately; test the shipped compatibility evaluator and exclude next-minor prereleases.
 - Identify missing input and execution capabilities, show unsupported projects before submission, preserve drafts and keep history accessible.
 - Return model-tool admission immediately, reuse saved comparison settings and bind pending/result cards to their actual call identities.
+- Keep background tool comparisons in the resident conversation result area when tool turns fold; preserve individual history links without duplicating preview frames.
 - Withhold candidate usage, change scale, detailed activity and prose before reveal, including conversation notes and earlier verification evidence; retain complete local records.
 - Bound validated history caching without weakening direct loads or revision checks, and retry only pending conversation milestones for attached sessions.
 - Reduce the npm payload while retaining directory screenshot assets. Separate fast checks from the complete integration suite, verify exclusive test discovery and support explicit CI runs.
