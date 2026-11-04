@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { realpath } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
 import { which } from '../core/proc.ts'
 import type { PrepareProjectProcess, ProjectProcessRequest } from '../core/project-process.ts'
 
@@ -39,6 +40,7 @@ export function createProjectProcess(
     if (typeof service.scrubbedParentEnv !== 'function') throw new Error('宿主缺少规范的子进程环境接口，请更新宿主')
     return service.scrubbedParentEnv()
   },
+  windowsProcessModule?: string,
 ): PrepareProjectProcess {
   return async (request: ProjectProcessRequest) => {
     request.signal?.throwIfAborted()
@@ -61,9 +63,20 @@ export function createProjectProcess(
     // store setting; each manager still keeps its own mutable cache.
     if (/^(pnpm|pnpm\.cmd|pnpm\.exe)$/i.test(path.basename(request.argv[0] ?? ''))) explicit.npm_config_store_dir = path.join(cache, 'pnpm')
     if (process.platform === 'win32') {
+      // npm's foreground mode reuses inherited stdio for lifecycle scripts.
+      // Confined Windows grandchildren cannot create the background pipes.
+      // This changes output handling, not which scripts the project permits.
+      if (/^npm(?:\.cmd|\.exe)?$/i.test(path.basename(request.argv[0] ?? ''))) explicit.npm_config_foreground_scripts = 'true'
       const extension = import.meta.url.endsWith('.ts') ? 'cts' : 'cjs'
       const preload = fileURLToPath(new URL(`../core/windows-vite-probe.${extension}`, import.meta.url)).replace(/\\/g, '/')
-      explicit.NODE_OPTIONS = `${env.NODE_OPTIONS ?? ''} --require "${preload}"`.trim()
+      const pipes = fileURLToPath(new URL(`../core/windows-project-pipes.${extension}`, import.meta.url)).replace(/\\/g, '/')
+      explicit.NODE_OPTIONS = `${env.NODE_OPTIONS ?? ''} --require "${preload}" --require "${pipes}"`.trim()
+      explicit.AGENT_COMPARE_WINDOWS_PIPE_COMPAT = '1'
+      if (windowsProcessModule) explicit.AGENT_COMPARE_WIN32_PROCESS_MODULE = windowsProcessModule
+      else {
+        try { explicit.AGENT_COMPARE_WIN32_PROCESS_MODULE = createRequire(import.meta.url).resolve('@deepseek-ai/dsh-win32-process') }
+        catch { /* The compatibility layer reports a missing native host API only when needed. */ }
+      }
     }
     // Windows environment names are case-insensitive. Remove an older spelling
     // before setting a deliberate override instead of passing duplicate keys.

@@ -15,4 +15,4 @@ export declare function projectCommandArgv(argv: readonly string[], cwd: string,
  * The canonical scrub is supplied by the host; no credential-bearing ambient
  * environment is copied back over it. Each copy owns its package caches.
  */
-export declare function createProjectProcess(sandbox: () => ProjectSandbox | undefined, baseEnvironment?: () => Promise<NodeJS.ProcessEnv>): PrepareProjectProcess;
+export declare function createProjectProcess(sandbox: () => ProjectSandbox | undefined, baseEnvironment?: () => Promise<NodeJS.ProcessEnv>, windowsProcessModule?: string): PrepareProjectProcess;

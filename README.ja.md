@@ -49,7 +49,7 @@ AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 Node 26.13.0 と npm 12.2.1 が開発基準です。公式の最新 DSH パッケージ 0.2.1-rc.5 で動作確認しています。既存の DSH プロファイル名を確認してください。
 
-npm のプレビュー版を既定の Web プロファイルに追加します。公開状態は上部の npm バッジで確認できます。
+npm パッケージを既定の Web プロファイルに追加します。公開状態は上部の npm バッジで確認できます。
 
 ```bash
 dsh plugin --profile web add dsh-agent-compare@1.0.0
