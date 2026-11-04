@@ -79,7 +79,27 @@ jobs:
           cache: npm
       - run: npm install --global npm@12.2.1 --ignore-scripts
       - run: npm ci
-      - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@latest
+      - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.5
+      - run: npm run test:runtime
+
+  host-next:
+    name: next host canary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          check-latest: true
+          cache: npm
+      - run: npm install --global npm@12.2.1 --ignore-scripts
+      - run: npm ci
+      - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@next
       - run: npm run test:runtime
 
   dependency-audit:

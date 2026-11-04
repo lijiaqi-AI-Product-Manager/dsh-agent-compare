@@ -197,6 +197,7 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 | DSH 0.2.1-rc.3 desktop, Windows 11 | Historical compatibility case: real-model generation, verification, choice and adoption completed; candidate sessions requested their own copy's write boundary and shell commands ran |
 | DSH 0.2.1-rc.5, Web UI, Windows 11 | Production command, real child sessions, live previews, adoption, refreshed history, and adopted-result context in the next main-session request; local scripted adapter |
 | Linux, Ubuntu CI, DSH 0.2.1-rc.5 | Core regressions and real host confinement, environment scrub, frozen install, build, preview reopening and cancellation passed; no complete external-model delivery case yet |
+| DSH next channel | Separate Windows/Linux native runtime canaries print the resolved version; see [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). This is separate from full model-delivery acceptance |
 | macOS | Not tested yet |
 | Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
 | Projects | Root-level Vite projects in a Git repository with at least one commit. npm installation and checks have run; complete pnpm/yarn execution remains unverified |

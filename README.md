@@ -219,6 +219,7 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 | DSH 0.2.1-rc.3 桌面版，Windows 11 | 历史兼容案例：真实模型完成生成、验收、盲选和采用；候选会话申请各自副本的写入边界，shell 命令已运行 |
 | DSH 0.2.1-rc.5，Windows 11 Web UI | 生产版指令、真实子会话、预览、采用、历史恢复及采用说明进入主对话下一次请求已通过；使用本地脚本化适配器 |
 | Linux，Ubuntu CI，DSH 0.2.1-rc.5 | 核心回归和真实宿主进程约束、环境清理、冻结安装、构建、预览重开、取消检查已通过；未测外部模型完整交付 |
+| DSH next 通道 | 独立 Windows／Linux 原生运行 canary，记录实际版本；状态见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)，不等同于完整模型交付验收 |
 | macOS | 尚未实测 |
 | Node | 26.13.0 为主开发基线；22／24 维护线的最新补丁版也纳入 CI 兼容检查 |
 | 项目类型 | 仓库根目录的 Vite 项目；至少有一次提交的 Git 仓库。npm 已执行安装和验收；pnpm / yarn 的完整运行待验证 |

@@ -1,5 +1,5 @@
 // Real host confinement with a controlled project; no provider credentials or
-// model calls. Install the current host in the separate runtime directory.
+// model calls. Install the selected host in the separate runtime directory.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -24,8 +24,17 @@ for (const name of ['dsh-sandbox', 'dsh-sandbox-local', 'dsh-subprocess']) {
   assert.equal(JSON.parse(await readFile(resolveRuntime.resolve(`@deepseek-ai/${name}/package.json`), 'utf8')).version, hostVersion, 'host packages must belong to one release')
 }
 
+const { evaluatePluginCompatibility } = await load('@deepseek-ai/dsh-app-boot')
+const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+const admitted = ['0.2.1-rc.3', '0.2.1-rc.5', '0.2.1', '0.2.2-alpha.3', '0.2.2-rc.1', '0.2.2', '0.2.3-rc.1']
+const rejected = ['0.2.0', '0.2.1-rc.2', '0.3.0-alpha.1', '0.3.0-rc.1', '0.3.0', '1.0.0']
+for (const version of admitted) assert.equal(evaluatePluginCompatibility(manifest, {}, version), undefined, version)
+for (const version of rejected) assert.ok(evaluatePluginCompatibility(manifest, {}, version)?.requirements['engines.dsh'], version)
+assert.equal(evaluatePluginCompatibility(manifest, {}, hostVersion), undefined, 'the executing host must admit this package')
+console.log(JSON.stringify({ host: hostVersion, compatibilityRange: manifest.engines.dsh, admitted, rejected }))
+
 // Place the negative canary outside platform-wide writable temp areas.
-const base = path.resolve('.runtime-checks')
+const base = path.resolve(process.env.AGENT_COMPARE_RUNTIME_WORK ?? '.runtime-checks')
 await mkdir(base, { recursive: true })
 const root = await mkdtemp(path.join(base, 'native-'))
 const ctx = new Context(), fiber = ctx.plugin(LocalSandboxProvider, {})
