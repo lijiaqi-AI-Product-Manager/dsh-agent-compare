@@ -1,3 +1,4 @@
+import { blindEvidence } from './blind-view.ts'
 import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -1461,7 +1462,9 @@ export function publicView(r: RunRecord): PublicRun {
         ...(a.rehearsal === undefined ? {} : { rehearsed: !a.rehearsal.reused, ...(a.rehearsal.checks ? { rehearsalChecks: a.rehearsal.checks } : {}) }),
       },
     }),
-    candidates: candidates.map((c) => ({
+    candidates: candidates.map((candidate) => {
+      const c = revealed ? candidate : { ...candidate, ...blindEvidence(candidate) }
+      return {
       label: c.label,
       stage: c.stage,
       timings: c.timings,
@@ -1478,12 +1481,13 @@ export function publicView(r: RunRecord): PublicRun {
       ...(c.preview === undefined ? {} : { previewUrl: c.preview.url, previewKind: c.preview.kind }),
       ...(c.checks === undefined ? {} : { checks: c.checks }),
       ...(c.execution === undefined ? {} : { execution: c.execution }),
-      ...(c.patchStats === undefined ? {} : { patchStats: c.patchStats }),
-      ...(c.touchedFiles === undefined ? {} : { touchedFiles: c.touchedFiles }),
+      ...(!revealed || c.patchStats === undefined ? {} : { patchStats: c.patchStats }),
+      ...(!revealed || c.touchedFiles === undefined ? {} : { touchedFiles: c.touchedFiles }),
       ...(c.error === undefined ? {} : { error: c.error }),
       ...(c.verdict === undefined ? {} : { verdict: c.verdict }),
-      ...(c.usage === undefined ? {} : { usage: c.usage }),
+      ...(!revealed || c.usage === undefined ? {} : { usage: c.usage }),
       ...(revealed ? { strategy: c.strategy, route: c.route, ...(c.actualRoute ? { actualRoute: c.actualRoute } : {}), ...(c.summary === undefined ? {} : { summary: c.summary }) } : {}),
-    })),
+      }
+    }),
   }
 }

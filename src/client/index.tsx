@@ -10,6 +10,7 @@
  * fallbacks for other hosts), so the sheet follows the active theme.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { runIdFromToolResult } from './tool-result.js'
 import { clientCapabilities } from './capabilities.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
@@ -645,7 +646,7 @@ function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): Rea
   </details>
 }
 function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, hidden }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; compact: boolean; hidden?: boolean }): React.ReactElement {
-  const usage = c.usage?.kind !== 'reported' ? '用量未知' : [
+  const usage = !revealed ? undefined : c.usage?.kind !== 'reported' ? '用量未知' : [
     c.usage.totalTokens === undefined ? '总用量未知' : `${c.usage.totalTokens.toLocaleString()} tokens`,
     ...([['inputTokens', '未缓存输入'], ['outputTokens', '输出'], ['cacheReadTokens', '缓存读取'], ['cacheWriteTokens', '缓存写入']] as const)
       .flatMap(([key, label]) => c.usage?.kind === 'reported' && c.usage[key] !== undefined ? [`${label} ${c.usage[key].toLocaleString()}`] : []),
@@ -667,12 +668,13 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         </div>
         {busyStage(c.stage) && <Track c={c} />}
         {step > 0 && <div className="ac-meta">第 {step}/{PIPELINE.length} 步 · {STAGE_TEXT[c.stage]}</div>}
-        {c.stage === 'generating' && c.progress && <Activity p={c.progress} />}
+        {c.stage === 'generating' && c.progress && <Activity p={revealed ? c.progress : { steps: c.progress.steps, lastActivityAt: c.progress.lastActivityAt, ...(c.progress.lastAction ? { lastAction: '正在处理项目' } : {}) }} />}
         <Checks checks={c.checks} />
-        <details className="ac-details ac-evidence"><summary>检查依据与用量{c.verdict ? c.verdict.eligible ? ' · 已通过配置检查' : ' · 存在采用阻碍' : ''}</summary><Verdict c={c} />
+        <details className="ac-details ac-evidence"><summary>{revealed ? '检查依据与用量' : '检查依据 · 盲选中'}{c.verdict ? c.verdict.eligible ? ' · 已通过配置检查' : ' · 存在采用阻碍' : ''}</summary><Verdict c={c} />
+        {!revealed && <div className="ac-meta">模型、策略、用量、改动规模和详细日志在选择后显示。</div>}
         {c.execution && <div className="ac-meta">项目命令：{c.execution.enforcement === 'full' ? '宿主报告完整文件写入约束' : c.execution.enforcement === 'partial' ? '宿主报告部分文件写入约束' : '约束完整性未知'}。不包含文件读取与网络隔离。</div>}
         {c.install?.runtime && <div className="ac-meta">验收宿主 Node {c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? '版本未记录'}</div>}
-        {(c.patchStats || usage) && (
+        {revealed && (c.patchStats || usage) && (
           <div className="ac-meta">
             {c.patchStats ? `${c.patchStats.files} 个文件 · +${c.patchStats.insertions} −${c.patchStats.deletions}${c.patchStats.binary ? ` · ${c.patchStats.binary} 个二进制` : ''}` : ''}
             {c.patchStats && usage ? ' · ' : ''}{usage}
@@ -691,7 +693,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
           <b>{c.install?.failure?.summary ?? (c.error ? `${ERROR_STAGE[c.error.stage] ?? STAGE_TEXT[c.error.stage] ?? c.error.stage}${c.stage === 'interrupted' ? '时中断' : c.stage === 'cancelled' ? '已停止' : '失败'}` : '验收已停止')}</b>
           {c.install?.failure ? <p>{c.install.failure.hint}{c.install.failure.code ? `（${c.install.failure.code}）` : ''}</p> : c.error?.message}
           {c.canRetryVerification && <div className="ac-salvage"><span>保留已封存代码与共同验收，不重新生成。</span><button className="ac-btn primary sm" disabled={busy} onClick={() => act('retryVerification', { label: c.label })}>重新验收 {c.label}</button></div>}
-          {c.install?.failure?.diagnostic && <details className="ac-details"><summary>查看安装日志</summary><pre className="ac-install-log" tabIndex={0}>{c.install.failure.diagnostic}</pre></details>}
+          {revealed && c.install?.failure?.diagnostic && <details className="ac-details"><summary>查看安装日志</summary><pre className="ac-install-log" tabIndex={0}>{c.install.failure.diagnostic}</pre></details>}
           {c.salvageable && (
             <div className="ac-salvage">
               <span>副本里还保留着它已经写的改动，可以照样封存并跑完整验收，由验收结果决定能否采用。</span>
@@ -850,6 +852,7 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
         return (
           <div className="ac-bar">
             <span className="ac-bar-text"><strong>两边都没有可体验的结果。</strong>{salvageable ? '改动仍保留。可以在卡片里查看原因并验收，或结束这次比较。' : '可以结束这次比较，调整描述或时间上限后再来。'}</span>
+            <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>两版都不采用并揭晓</button>
             <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>结束并清理</button>
           </div>
         )
@@ -1069,18 +1072,28 @@ function CommandView({ node, sessionId }: { node: { name?: string; args?: string
   return <RunView runId={runId} compact {...(sessionId ? { sessionId, onExpand: () => setOpen(sessionId, runId) } : {})} />
 }
 /** The model's `agent_compare_start` tool call in the conversation: the same live card. */
-function ToolView(props: { sessionId?: string; phase?: string; block?: unknown }): React.ReactElement {
-  const fromResult = runIdIn(JSON.stringify(props.block ?? null))
-  const [found, setFound] = useState<string | undefined>(fromResult)
+function ToolView(props: { sessionId?: string; callId?: string; phase?: string; block?: unknown }): React.ReactElement {
+  const fromResult = runIdFromToolResult(props.block, props.phase)
+  const key = JSON.stringify([props.sessionId, props.callId])
+  const [binding, setBinding] = useState<{ key: string; runId: string }>()
   useEffect(() => {
-    if (fromResult !== undefined) { setFound(fromResult); return }
-    if (props.sessionId === undefined) return
-    // Still running: the newest comparison this conversation's model started.
-    call<ListResult>('list', { sessionId: props.sessionId }).then((l) => setFound(l.runs.find((r) => r.origin?.kind === 'tool')?.runId), () => {})
-  }, [fromResult, props.sessionId])
-  if (found === undefined) return <div className="ac-root ac-inline"><Styles /><div className="ac-inline-note"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />正在准备 A|B 比较…</div></div>
+    if (fromResult !== undefined || !props.sessionId || !props.callId || props.phase === 'result') return
+    let active = true
+    const refresh = (): void => {
+      if (document.visibilityState === 'hidden') return
+      call<ListResult>('list', { sessionId: props.sessionId }).then(list => {
+        const run = list.runs.find(record => record.origin?.kind === 'tool' && record.origin.id === props.callId)
+        if (active && run) setBinding({ key, runId: run.runId })
+      }, () => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 5000)
+    return () => { active = false; clearInterval(timer) }
+  }, [fromResult, props.sessionId, props.callId, props.phase, key])
+  const found = fromResult ?? (binding?.key === key ? binding.runId : undefined)
+  if (found === undefined) return <div className="ac-root ac-inline"><Styles /><div className="ac-inline-note">{props.phase === 'result' ? 'A|B 比较未取得运行编号，请查看此工具的返回结果。' : <><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />正在准备 A|B 比较…</>}</div></div>
   const sid = props.sessionId
-  return <RunView runId={found} compact {...(sid ? { sessionId: sid, onExpand: () => setOpen(sid, found) } : {})} />
+  return <RunView key={found} runId={found} compact {...(sid ? { sessionId: sid, onExpand: () => setOpen(sid, found) } : {})} />
 }
 /** The composer owns comparison mode; history never replaces its entry point. */
 function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement {

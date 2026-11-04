@@ -4,7 +4,7 @@
  * (generation finished, the user's pick, adoption) so later turns can build on
  * it. Notes state recorded facts only.
  */
-import type { AgentRoute, RunRecord } from '../core/index.ts'
+import { publicView, type AgentRoute, type RunRecord } from '../core/index.ts'
 
 export interface AbInput {
   readonly task: string
@@ -76,10 +76,10 @@ export function memoryNote(r: RunRecord): string | undefined {
   if (m === undefined) return undefined
   const head = `[AgentCompare run ${r.runId}] Task: ${r.task.slice(0, 400)}\nTarget repository: ${r.baseline.repoRoot}`
   if (m === 'judging') {
-    const lines = r.candidates.map((c) => {
+    const lines = publicView(r).candidates.map((c) => {
       if (c.stage !== 'ready') return `- ${c.label}: did not produce a result (${c.error?.message.split('\n')[0] ?? c.stage})`
       const v = c.verdict
-      return `- ${c.label}: ${v?.eligible ? 'passed the shared acceptance' : `did not pass (${v?.reasons.join('; ') ?? 'no verdict'})`}; changed ${c.patchStats?.files ?? 0} file(s)`
+      return `- ${c.label}: ${v?.eligible ? 'passed the shared acceptance' : `did not pass (${v?.reasons.join('; ') ?? 'no verdict'})`}`
     })
     return `${head}\nBoth candidates have finished in isolated copies; nothing in the project has changed yet. The user tries both in the A|B card and chooses; do not choose for them or reveal strategies.\n${lines.join('\n')}`
   }
