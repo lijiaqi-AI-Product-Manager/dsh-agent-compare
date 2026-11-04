@@ -19,7 +19,7 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **0.2.0-alpha.18 · Preview.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+> **1.0.0 · Stable release.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
@@ -50,7 +50,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm preview into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
+dsh plugin --profile web add dsh-agent-compare@1.0.0
 ```
 
 For another self-managed profile, replace `web` with its actual name.
@@ -68,7 +68,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.18.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.0.0.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:

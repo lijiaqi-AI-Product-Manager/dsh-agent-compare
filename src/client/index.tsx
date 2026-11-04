@@ -20,6 +20,9 @@ interface ClientCtx { slots: SlotsLike; effect?(fn: () => () => void): void }
 type Stage = 'queued' | 'preparing' | 'generating' | 'sealing' | 'installing' | 'verifying' | 'previewing' | 'ready' | 'failed' | 'stopping' | 'cancelled' | 'interrupted'
 interface Check { name: string; outcome: 'passed' | 'failed' | 'skipped' | 'timeout'; reason?: string; durationMs: number; steps?: Array<{ label: string; ok: boolean; detail?: string }> }
 interface Route { provider?: string; model?: string }
+interface InstallFailure { kind: string; summary: string; hint: string; code?: string; diagnostic?: string }
+interface VerificationRuntime { hostNode: string; platform: string; packageManager: string; packageManagerVersion?: string }
+interface VerificationAttempt { recordedAt: number; durationMs?: number; install?: { failure?: InstallFailure; outcome?: string; runtime?: VerificationRuntime }; error?: { message: string }; checks?: Check[] }
 interface Setup { current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string } }
 interface Cand {
   label: 'A' | 'B'
@@ -38,6 +41,9 @@ interface Cand {
   generation?: { ended: 'completed' | 'budget' | 'agent-stopped'; stopReason?: string }
   progress?: { steps: number; lastAction?: string; lastActivityAt: number; tokens?: number }
   salvageable?: boolean
+  canRetryVerification?: boolean
+  install?: { failure?: InstallFailure; frozen: boolean; runtime?: VerificationRuntime }
+  verificationHistory?: VerificationAttempt[]
   canReopenPreview?: boolean
   strategy?: { id: string; title: string }
   route?: Route
@@ -229,6 +235,8 @@ function fmt(ms: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`
 }
 function elapsed(c: Cand): number {
+  if (c.verificationHistory?.length) return Object.entries(c.timings).filter(([stage]) => ['installing', 'verifying', 'previewing'].includes(stage))
+    .reduce((sum, [, timing]) => sum + (timing ? Math.max(0, (timing.endedAt ?? (busyStage(c.stage) ? Date.now() : timing.startedAt)) - timing.startedAt) : 0), 0)
   const timings = Object.entries(c.timings).filter(([s]) => s !== 'ready')
   const starts = timings.map(([, t]) => t?.startedAt ?? Infinity)
   const ends = timings.map(([, t]) => t?.endedAt ?? (busyStage(c.stage) ? Date.now() : t?.startedAt ?? 0))
@@ -359,6 +367,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-fail b{display:block;color:var(--ac-err);font-family:var(--dsw-font-family,inherit);margin-bottom:6px}
 .ac-fail.interrupted{background:color-mix(in srgb,var(--ac-warn) 8%,transparent)}
 .ac-fail.interrupted b{color:var(--ac-warn)}
+.ac-install-log{max-height:180px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 .ac-salvage{display:flex;align-items:center;gap:12px;margin-top:14px;padding:10px 12px;border-radius:var(--ac-r-sm);background:var(--ac-bg);border:1px solid var(--ac-border);font-family:var(--dsw-font-family,inherit);white-space:normal;color:var(--ac-fg2)}
 .ac-salvage span{flex:1}
 .ac-activity code{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;color:var(--ac-fg2)}
@@ -627,7 +636,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
           <span className="ac-label">{c.label}</span>
           <StagePill c={c} />
           {c.previewKind === 'dev' && live && <span className="ac-pill warn" title="构建没有通过，这是开发模式，只供观察">开发模式</span>}
-          <span className="ac-meta">{fmt(elapsed(c))}</span>
+          <span className="ac-meta">{c.verificationHistory?.length ? '本次验收 ' : ''}{fmt(elapsed(c))}</span>
           {run.state === 'running' && busyStage(c.stage) && c.stage !== 'stopping' && <button className="ac-btn sm" disabled={busy} onClick={() => act('cancel', { label: c.label })}>停止这一版</button>}
           {live && <a className="ac-icon-btn ac-preview-open" href={c.previewUrl} target="_blank" rel="noreferrer" title={`在浏览器标签页中打开 ${c.previewUrl}；Cookie 与存储上下文可能和嵌入预览不同`} aria-label={`在浏览器中打开 ${c.label}`}><IconExternal /></a>}
           {revealed && c.strategy && <span className="ac-strategy">{c.strategy.title}{model ? ` · ${model}` : ''}</span>}
@@ -638,6 +647,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         <Checks checks={c.checks} />
         <details className="ac-details ac-evidence"><summary>检查依据与用量{c.verdict ? c.verdict.eligible ? ' · 已通过配置检查' : ' · 存在采用阻碍' : ''}</summary><Verdict c={c} />
         {c.execution && <div className="ac-meta">项目命令：{c.execution.enforcement === 'full' ? '宿主报告完整文件写入约束' : c.execution.enforcement === 'partial' ? '宿主报告部分文件写入约束' : '约束完整性未知'}。不包含文件读取与网络隔离。</div>}
+        {c.install?.runtime && <div className="ac-meta">验收宿主 Node {c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? '版本未记录'}</div>}
         {(c.patchStats || usage) && (
           <div className="ac-meta">
             {c.patchStats ? `${c.patchStats.files} 个文件 · +${c.patchStats.insertions} −${c.patchStats.deletions}${c.patchStats.binary ? ` · ${c.patchStats.binary} 个二进制` : ''}` : ''}
@@ -645,15 +655,19 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
           </div>
         )}
         {revealed && c.summary && <div className="ac-summary">{c.summary}</div>}</details>
+        {!!c.verificationHistory?.length && <details className="ac-details"><summary>先前验收记录 · {c.verificationHistory.length} 次</summary><ol>{c.verificationHistory.map((attempt, index) => <li key={index}><b>{attempt.install?.failure?.summary ?? attempt.error?.message.split('\n')[0] ?? '先前验收未完成'}</b><div className="ac-meta">重试前归档于 {when(attempt.recordedAt)} · {attempt.durationMs === undefined ? '耗时未知' : fmt(attempt.durationMs)}{attempt.install?.failure?.code ? ` · ${attempt.install.failure.code}` : ''}</div><Checks checks={attempt.checks} /></li>)}</ol></details>}
         {revealed && c.patchStats && <PatchReview runId={run.runId} label={c.label} />}
       </div>
       {live ? (
         <div className="ac-browser">
           <LivePreview c={c} device={device} compact={compact} />
         </div>
-      ) : c.error ? (
+      ) : c.error || c.canRetryVerification ? (
         <div className={`ac-fail${c.stage === 'interrupted' ? ' interrupted' : ''}`}>
-          <b>{ERROR_STAGE[c.error.stage] ?? STAGE_TEXT[c.error.stage] ?? c.error.stage}{c.stage === 'interrupted' ? '时中断' : '失败'}</b>{c.error.message}
+          <b>{c.install?.failure?.summary ?? (c.error ? `${ERROR_STAGE[c.error.stage] ?? STAGE_TEXT[c.error.stage] ?? c.error.stage}${c.stage === 'interrupted' ? '时中断' : c.stage === 'cancelled' ? '已停止' : '失败'}` : '验收已停止')}</b>
+          {c.install?.failure ? <p>{c.install.failure.hint}{c.install.failure.code ? `（${c.install.failure.code}）` : ''}</p> : c.error?.message}
+          {c.canRetryVerification && <div className="ac-salvage"><span>保留已封存代码与共同验收，不重新生成。</span><button className="ac-btn primary sm" disabled={busy} onClick={() => act('retryVerification', { label: c.label })}>重新验收 {c.label}</button></div>}
+          {c.install?.failure?.diagnostic && <details className="ac-details"><summary>查看安装日志</summary><pre className="ac-install-log" tabIndex={0}>{c.install.failure.diagnostic}</pre></details>}
           {c.salvageable && (
             <div className="ac-salvage">
               <span>副本里还保留着它已经写的改动，可以照样封存并跑完整验收，由验收结果决定能否采用。</span>
@@ -789,22 +803,23 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
   if (run.control?.allowed === false) return <div className="ac-bar" role="status" aria-label="比较操作权限"><span className="ac-bar-text"><strong>当前仅可查看。</strong>{run.control.reason}</span></div>
   const pick = run.choice?.pick
   const picked = run.candidates.find((c) => c.label === pick)
-  const total = Math.max(...run.candidates.map(elapsed))
+  const retrying = run.candidates.filter(c => c.verificationHistory?.length && busyStage(c.stage))
+  const total = Math.max(...(retrying.length ? retrying : run.candidates).map(elapsed))
   const ready = run.candidates.filter((c) => c.stage === 'ready').length
   switch (run.state) {
     case 'running':
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text">两个候选并行进行中 · 已用 <strong>{fmt(total)}</strong>{ready ? ` · ${ready} 个已可体验` : ''}</span>
-          <button className="ac-btn danger" disabled={busy} onClick={() => act('cancel')}>全部停止</button>
+          <span className="ac-bar-text">{retrying.length ? `正在重新验收 ${retrying.map(c => c.label).join('、')} · 本次已用 ` : '两个候选并行进行中 · 已用 '}<strong>{fmt(total)}</strong>{ready ? ` · ${ready} 个已可体验` : ''}</span>
+          <button className="ac-btn danger" disabled={busy} onClick={() => act('cancel')}>{retrying.length ? '停止验收' : '全部停止'}</button>
         </div>
       )
     case 'judging':
       if (ready === 0) {
-        const salvageable = run.candidates.some((c) => c.salvageable)
+        const salvageable = run.candidates.some((c) => c.salvageable || c.canRetryVerification)
         return (
           <div className="ac-bar">
-            <span className="ac-bar-text"><strong>两边都没有可体验的结果。</strong>{salvageable ? '可以在卡片里验收它们已经写的改动，或结束这次比较。' : '可以结束这次比较，调整描述或时间上限后再来。'}</span>
+            <span className="ac-bar-text"><strong>两边都没有可体验的结果。</strong>{salvageable ? '改动仍保留。可以在卡片里查看原因并验收，或结束这次比较。' : '可以结束这次比较，调整描述或时间上限后再来。'}</span>
             <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>结束并清理</button>
           </div>
         )

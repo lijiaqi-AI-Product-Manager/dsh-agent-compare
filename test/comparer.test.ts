@@ -219,7 +219,9 @@ describe.concurrent('comparison run', () => {
     const a = done.candidates[0]!
     expect(a.stage).toBe('failed')
     expect(a.error?.stage).toBe('installing')
-    expect(a.error?.message).toMatch(/冻结安装失败/)
+    expect(a.install?.failure?.kind).toBe('lockfile')
+    expect(a.error?.message).toMatch(/锁文件与依赖定义不一致/)
+    await expect(comparer.retryVerification(runId, 'A')).rejects.toThrow('锁文件不一致')
     expect(done.candidates[1]!.stage).toBe('ready')
     await comparer.cleanup(runId)
   }, T)

@@ -61,6 +61,14 @@ export interface RunOptions {
   readonly maxOutput?: number
 }
 
+/** A stop request did not establish that the whole process tree exited. */
+export class ProcessStopError extends Error {
+  constructor(readonly pid: number | undefined) {
+    super(`无法确认任务进程${pid === undefined ? '' : ` ${pid}`}及其子进程已停止；已停止等待，请保留副本并检查任务进程后再清理`)
+    this.name = 'ProcessStopError'
+  }
+}
+
 /**
  * Resolve an executable on PATH. On Windows this honours PATHEXT, so `npm`
  * resolves to `npm.cmd`. Returns undefined when nothing matches.
@@ -132,35 +140,73 @@ export function run(argv: readonly string[], opts: RunOptions): Promise<RunResul
     let timedOut = false
     let aborted = false
     let truncated = false
+    let closed = false
+    let stopping: Promise<void> | undefined
+    let stopTimer: ReturnType<typeof setTimeout> | undefined
+    let finished = false
     child.stdout?.setEncoding('utf8').on('data', (d: string) => {
       if (stdout.length + d.length <= max) stdout += d
       else truncated = true
     })
     child.stderr?.setEncoding('utf8').on('data', (d: string) => {
       if (stderr.length + d.length <= max) stderr += d
-      else stderr = (stderr + d).slice(-max)
+      else { stderr = (stderr + d).slice(-max); truncated = true }
     })
     if (opts.input !== undefined) child.stdin?.end(opts.input)
     else child.stdin?.end()
+    const clear = (): void => {
+      finished = true
+      if (timer) clearTimeout(timer)
+      if (stopTimer) clearTimeout(stopTimer)
+      opts.signal?.removeEventListener('abort', onAbort)
+    }
+    const fail = (error: unknown): void => { if (!finished) { clear(); reject(error) } }
+    const stop = (): void => {
+      if (stopping || finished) return
+      if (timer) clearTimeout(timer)
+      // A parent may have exited while a descendant still holds its pipes.
+      // Its old numeric PID is no longer authority to terminate a process.
+      stopping = Promise.resolve().then(async () => {
+        if (child.exitCode !== null || child.signalCode !== null) throw new ProcessStopError(child.pid)
+        await killTree(child.pid)
+      }).catch(error => {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+        throw error
+      })
+      void stopping.catch(error => {
+        child.stdin?.destroy(); child.stdout?.destroy(); child.stderr?.destroy()
+        fail(error)
+      })
+      stopTimer = setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+        child.stdin?.destroy(); child.stdout?.destroy(); child.stderr?.destroy()
+        fail(new ProcessStopError(child.pid))
+      }, 5000)
+    }
     const timer = opts.timeoutMs === undefined ? undefined : setTimeout(() => {
       timedOut = true
-      void killTree(child.pid)
+      stop()
     }, opts.timeoutMs)
     const onAbort = (): void => {
       aborted = true
-      void killTree(child.pid)
+      stop()
     }
     opts.signal?.addEventListener('abort', onAbort, { once: true })
     if (opts.signal?.aborted) onAbort()
     child.on('error', (error) => {
-      if (timer) clearTimeout(timer)
-      opts.signal?.removeEventListener('abort', onAbort)
-      reject(error)
+      fail(stopping ? new ProcessStopError(child.pid) : error)
     })
     child.on('close', (code) => {
-      if (timer) clearTimeout(timer)
-      opts.signal?.removeEventListener('abort', onAbort)
-      resolve({ code, stdout, stderr, timedOut, aborted, truncated })
+      closed = true
+      const complete = (): void => {
+        if (finished || !closed) return
+        clear()
+        resolve({ code, stdout, stderr, timedOut, aborted, truncated })
+      }
+      // Completion of taskkill, rather than the parent's close event alone,
+      // establishes that tree termination was attempted successfully.
+      if (stopping) void stopping.then(complete, fail)
+      else complete()
     })
   })
 }
@@ -183,12 +229,19 @@ export async function runOk(argv: readonly string[], opts: RunOptions): Promise<
  */
 export async function killTree(pid: number | undefined): Promise<void> {
   if (pid === undefined) return
+  if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error('invalid process id')
   if (isWin) {
+    if (!isAlive(pid)) return
+    let succeeded = false
     await new Promise<void>((resolve) => {
       const k = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
-      k.on('close', () => resolve())
-      k.on('error', () => resolve())
+      let done = false
+      const finish = (): void => { if (!done) { done = true; clearTimeout(timer); resolve() } }
+      const timer = setTimeout(() => { k.kill('SIGKILL'); finish() }, 3000)
+      k.once('close', code => { if (code === 0 || !isAlive(pid)) succeeded = true; finish() })
+      k.once('error', finish)
     })
+    if (!succeeded) throw new ProcessStopError(pid)
     return
   }
   let target = -pid
@@ -226,13 +279,13 @@ export type ProcessObservation =
   | { readonly state: 'unavailable'; readonly reason: string }
 
 /** A missing observation is uncertainty, never proof that a process exited. */
-export async function observeProcess(pid: number): Promise<ProcessObservation> {
+export async function observeProcess(pid: number, timeoutMs = 15_000): Promise<ProcessObservation> {
   if (!Number.isInteger(pid) || pid <= 0 || !isAlive(pid)) return { state: 'gone' }
   const argv = isWin
     ? ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`]
     : ['ps', '-o', 'args=', '-p', String(pid)]
   try {
-    const r = await run(argv, { cwd: process.cwd(), timeoutMs: 15_000 })
+    const r = await run(argv, { cwd: process.cwd(), timeoutMs })
     const line = r.stdout.trim()
     if (r.code === 0 && line !== '') return { state: 'observed', commandLine: line }
     if (!isAlive(pid)) return { state: 'gone' }

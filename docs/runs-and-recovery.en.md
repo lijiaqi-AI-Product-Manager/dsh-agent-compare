@@ -26,4 +26,10 @@ Direct application supports ordinary files, up to 10,000 paths and 128 MiB total
 
 `/ab <task>` remains an optional shortcut. Common settings are graphical controls above the composer.
 
+Before choosing a result, a sealed candidate that failed or was interrupted during installation, verification or preview can be retried from its card. Retry uses the original commit, patch and acceptance without another generation request, and refuses changed copies or patches. Earlier checks and failures are archived, generation usage stays intact, and the observed package-manager and verification-host versions are recorded. A changed host environment is disclosed; missing versions or durations are not recorded as zero. Current verification time excludes historical idle time.
+
+Retry shares run capacity and can be stopped independently while keeping the completed peer. Retained candidates can be checked again after a restart. Chosen, adopted, cleaned-up or lock-mismatched results cannot use this action. Correct a lock mismatch in a new comparison; frozen installation is never relaxed. Each record can archive up to 100 retries.
+
 A model can also call the `agent_compare_start` tool (`task`, optional `time_limit_minutes`); the conversation shows the same A|B card.
+
+Windows process inspection and termination helpers have bounded waits. If termination of a task's whole process tree cannot be confirmed, the record preserves its candidate or adoption rehearsal and blocks another verification or adoption on that copy. Restart does not turn uncertainty into a successful stop. Check the task and its descendants before manually cleaning the retained copy. Completed peers remain available for review and selection.

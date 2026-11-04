@@ -49,7 +49,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '0.2.0-alpha.18'
+const VERSION = '1.0.0'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -578,6 +578,11 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const l = label(b.label)
       if (l === undefined) throw new HttpError(400, 'label must be A or B')
       return present(await comparer.salvage(runIdOf(b), l))
+    },
+    async retryVerification(b) {
+      const l = label(b.label)
+      if (l === undefined) throw new HttpError(400, 'label must be A or B')
+      return present(await comparer.retryVerification(runIdOf(b), l))
     },
     async choose(b) {
       const pick = b.pick === 'none' ? 'none' : label(b.pick)

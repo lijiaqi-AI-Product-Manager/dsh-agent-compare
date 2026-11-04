@@ -104,6 +104,11 @@ export declare class Comparer {
     private driveCandidate;
     /** Freeze what the copy holds, then run the full acceptance on it. Ends in `ready` or throws. */
     private sealAndVerify;
+    /** Verify the original sealed candidate again without recapturing or generating code. */
+    private verifyCandidate;
+    /** Explicit environment retry: same sealed bytes, original acceptance and no generation calls. */
+    retryVerification(runId: string, label: CandidateLabel): Promise<RunRecord>;
+    private retryRunVerification;
     /**
      * Seal and verify what a candidate had written when it failed during
      * generation (stopped by the budget, an earlier version, or a host
@@ -225,6 +230,9 @@ export interface PublicCandidate {
     readonly error?: Candidate['error'];
     readonly verdict?: Verdict;
     readonly usage?: Usage;
+    readonly install?: Candidate['install'];
+    readonly verificationHistory?: Candidate['verificationHistory'];
+    readonly canRetryVerification: boolean;
     readonly hasScreenshot: boolean;
     readonly hasMobileScreenshot: boolean;
     readonly generation?: Candidate['generation'];

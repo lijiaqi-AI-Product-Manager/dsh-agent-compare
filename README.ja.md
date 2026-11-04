@@ -19,7 +19,7 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **0.2.0-alpha.18 · プレビュー版。** 対象は Git リポジトリ直下のローカル Vite フロントエンドです。現在の DSH モデルを再利用します。
+> **1.0.0 · 正式版。** 対象は Git リポジトリ直下のローカル Vite フロントエンドです。現在の DSH モデルを再利用します。
 
 AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）のプラグインです。一つのフロントエンド課題から独立した二つの実装を作り、依存関係のインストール、ビルド、共通の検証を実行します。実際のページを操作して A、B、または「どちらも選ばない」を選択できます。採用前には、現在のプロジェクトと組み合わせた状態を検証します。
 
@@ -52,7 +52,7 @@ Node 26.13.0 と npm 12.2.1 が開発基準です。公式の最新 DSH パッ�
 npm のプレビュー版を既定の Web プロファイルに追加します。公開状態は上部の npm バッジで確認できます。
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@0.2.0-alpha.18
+dsh plugin --profile web add dsh-agent-compare@1.0.0
 ```
 
 別の自己管理プロファイルを使う場合は、`web` を実際の名前に置き換えてください。
@@ -69,7 +69,7 @@ npm pack
 `<your-profile>` を実際に使っているプロファイル名に置き換えます。
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-0.2.0-alpha.18.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.0.0.tgz
 ```
 
 DSH を再起動します。同じ記録を使う古いプラグインの実行は、更新前に終了してください。旧版と新版による同時変更はサポートしません。

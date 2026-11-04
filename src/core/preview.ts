@@ -85,15 +85,16 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
       const pid = child.pid
       let stopping: Promise<void> | undefined
       return { url: entry(), port, pid, log, stop: () => closed ? Promise.resolve() : stopping ??= (async () => {
-        await killTree(pid)
-        if (!closed) child.kill('SIGKILL')
+        try { await killTree(pid) }
+        finally { if (!closed && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL') }
         let timer: ReturnType<typeof setTimeout> | undefined
         try {
           await Promise.race([exit, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`预览进程 ${pid} 未在终止后退出`)), 5000) })])
         } finally { if (timer) clearTimeout(timer) }
       })().catch((error) => { stopping = undefined; throw error }) }
     }
-    await killTree(child.pid)
+    try { await killTree(child.pid) }
+    finally { if (!closed && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL') }
     lastError = new PreviewError(outcome === 'exited' ? '预览服务在响应前退出' : outcome === 'aborted' ? 'cancelled' : `预览服务 ${Math.round(timeoutMs / 1000)} 秒内没有响应`, log.toString())
     if (outcome === 'aborted') break
     // A port taken between probe and bind shows up as an early exit; retry with a new port.

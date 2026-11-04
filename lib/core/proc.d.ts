@@ -36,6 +36,11 @@ export interface RunOptions {
     /** Cap on captured stdout/stderr each (bytes of text). */
     readonly maxOutput?: number;
 }
+/** A stop request did not establish that the whole process tree exited. */
+export declare class ProcessStopError extends Error {
+    readonly pid: number | undefined;
+    constructor(pid: number | undefined);
+}
 /**
  * Resolve an executable on PATH. On Windows this honours PATHEXT, so `npm`
  * resolves to `npm.cmd`. Returns undefined when nothing matches.
@@ -74,7 +79,7 @@ export type ProcessObservation = {
     readonly reason: string;
 };
 /** A missing observation is uncertainty, never proof that a process exited. */
-export declare function observeProcess(pid: number): Promise<ProcessObservation>;
+export declare function observeProcess(pid: number, timeoutMs?: number): Promise<ProcessObservation>;
 /** The command line when observation succeeded; callers needing certainty use observeProcess. */
 export declare function processCommandLine(pid: number): Promise<string | undefined>;
 /**
