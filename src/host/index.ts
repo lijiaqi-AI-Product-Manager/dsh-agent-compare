@@ -32,6 +32,7 @@ import { conversationResolver, SessionAccessError, type SessionController } from
 import { readComparisonStatus } from './status.ts'
 import { startToolComparison, type StartToolArgs } from './start-tool.ts'
 import { hostCapabilities } from './capabilities.ts'
+import { HttpError, readBody } from './request.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -639,26 +640,9 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   }), 'agent-compare: /agent-compare/api routes'))
 }
 
-class HttpError extends Error {
-  constructor(readonly status: number, message: string) { super(message) }
-}
-
 function json(res: ServerResponse, status: number, body: unknown): void {
   if (res.headersSent) return
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
   res.end(JSON.stringify(body))
 }
 
-async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length
-    if (size > 256 * 1024) throw new HttpError(413, 'body too large')
-    chunks.push(chunk as Buffer)
-  }
-  if (size === 0) return {}
-  const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new HttpError(400, 'body must be a JSON object')
-  return parsed as Record<string, unknown>
-}
