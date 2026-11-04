@@ -1,4 +1,6 @@
-<p align="center"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/icon.png" width="72" height="72" alt="AgentCompare"></p>
+<p align="center">
+  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare：同一需求，两版真跑。支持 DSH 桌面端与浏览器 / One task. Two live builds. DSH Desktop + Web."></a>
+</p>
 
 # AgentCompare
 
@@ -13,11 +15,24 @@
 
 **Same task. Two live builds. Pick blind.**
 
-> **0.2.0-alpha.18 · Preview.** Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+**DSH 桌面端 + 浏览器 / Desktop + Web**
+
+<p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
+
+> **0.2.0-alpha.18 · Preview.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/live-comparison.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/live-comparison.webp" width="400" alt="真跑，才好选：同一任务，独立运行 / Run it. Then choose. One task, separate runs."></a>
+  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/reviewed-adoption.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/reviewed-adoption.webp" width="400" alt="看清，再采用：审查选中候选的改动后确认写回 / Review. Then adopt. Inspect the selected candidate before applying."></a>
+</p>
+
+<p align="center"><sub>功能示意 / Product illustrations · <a href="#demo">查看真实演示 / Watch the recorded workflow</a></sub></p>
+
+<a id="demo"></a>
 
 ## Watch the complete workflow
 
@@ -26,6 +41,8 @@ AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-har
 Fixed-candidate sample with a Chinese interface. Application execution, shared checks and adoption are real; waiting periods are cut and local paths are hidden.
 
 [Full video (28 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+
+<a id="install"></a>
 
 ## Install
 
