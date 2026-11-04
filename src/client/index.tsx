@@ -10,6 +10,7 @@
  * fallbacks for other hosts), so the sheet follows the active theme.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { runIdFromToolResult } from './tool-result.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
 interface SlotsLike {
@@ -1039,18 +1040,28 @@ function CommandView({ node, sessionId }: { node: { name?: string; args?: string
   return <RunView runId={runId} compact {...(sessionId ? { sessionId, onExpand: () => setOpen(sessionId, runId) } : {})} />
 }
 /** The model's `agent_compare_start` tool call in the conversation: the same live card. */
-function ToolView(props: { sessionId?: string; phase?: string; block?: unknown }): React.ReactElement {
-  const fromResult = runIdIn(JSON.stringify(props.block ?? null))
-  const [found, setFound] = useState<string | undefined>(fromResult)
+function ToolView(props: { sessionId?: string; callId?: string; phase?: string; block?: unknown }): React.ReactElement {
+  const fromResult = runIdFromToolResult(props.block, props.phase)
+  const key = JSON.stringify([props.sessionId, props.callId])
+  const [binding, setBinding] = useState<{ key: string; runId: string }>()
   useEffect(() => {
-    if (fromResult !== undefined) { setFound(fromResult); return }
-    if (props.sessionId === undefined) return
-    // Still running: the newest comparison this conversation's model started.
-    call<ListResult>('list', { sessionId: props.sessionId }).then((l) => setFound(l.runs.find((r) => r.origin?.kind === 'tool')?.runId), () => {})
-  }, [fromResult, props.sessionId])
-  if (found === undefined) return <div className="ac-root ac-inline"><Styles /><div className="ac-inline-note"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />正在准备 A|B 比较…</div></div>
+    if (fromResult !== undefined || !props.sessionId || !props.callId || props.phase === 'result') return
+    let active = true
+    const refresh = (): void => {
+      if (document.visibilityState === 'hidden') return
+      call<ListResult>('list', { sessionId: props.sessionId }).then(list => {
+        const run = list.runs.find(record => record.origin?.kind === 'tool' && record.origin.id === props.callId)
+        if (active && run) setBinding({ key, runId: run.runId })
+      }, () => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 5000)
+    return () => { active = false; clearInterval(timer) }
+  }, [fromResult, props.sessionId, props.callId, props.phase, key])
+  const found = fromResult ?? (binding?.key === key ? binding.runId : undefined)
+  if (found === undefined) return <div className="ac-root ac-inline"><Styles /><div className="ac-inline-note">{props.phase === 'result' ? 'A|B 比较未取得运行编号，请查看此工具的返回结果。' : <><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />正在准备 A|B 比较…</>}</div></div>
   const sid = props.sessionId
-  return <RunView runId={found} compact {...(sid ? { sessionId: sid, onExpand: () => setOpen(sid, found) } : {})} />
+  return <RunView key={found} runId={found} compact {...(sid ? { sessionId: sid, onExpand: () => setOpen(sid, found) } : {})} />
 }
 /** The composer owns comparison mode; history never replaces its entry point. */
 function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement {

@@ -30,6 +30,7 @@ import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, type ProjectSandbox } from './project-process.ts'
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 import { readComparisonStatus } from './status.ts'
+import { startToolComparison, type StartToolArgs } from './start-tool.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -81,7 +82,7 @@ interface ChildCtx {
   systemPrompt?: { context(spec: { name: string; order?: number; text: string }): void; getContextOrder?(name: string): number }
 }
 interface PresetService { composedPreset?(ctx: unknown): unknown; composeFrom?(child: unknown, parent: unknown): void }
-interface ToolExec { readonly agent?: AgentLike; readonly signal: AbortSignal }
+interface ToolExec { readonly callId?: string; readonly agent?: AgentLike; readonly signal: AbortSignal }
 interface ContentBlock { readonly type: string; readonly text?: string }
 interface Activation { readonly childId: string; readonly result: Promise<{ output: readonly ContentBlock[]; stopReason: string; diagnostic?: string }>; dispose(): Promise<void> }
 interface WebCtx {
@@ -399,36 +400,23 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     description:
       'Build two independent implementations of one front-end task (UI layout, interaction, visual design) in isolated copies of the current Git repository, build and serve both apps, and run the same bound checks on each. ' +
       'Use it when the user asks to compare versions or wants to try two approaches before choosing; do not use it for bug fixes or refactors with a single right answer. ' +
-      'Waits until both candidates are ready or failed, then returns a blind summary (labels A/B only). The user then tries both live apps in the AgentCompare panel, picks one, and adopts it. Never claim which strategy produced which candidate before the user has chosen.',
+      'Returns immediately after admission with a runId; generation, verification and previews continue in the conversation A|B card while the main conversation remains available. Saved comparison mode, models and time budget are reused unless explicitly overridden. The user then tries both live apps, picks one, and reviews adoption. Use agent_compare_status for progress; do not start another comparison to poll. Never claim which strategy produced which candidate before the user has chosen.',
     parameters: {
       task: { type: 'string', required: true, description: 'The complete task, as the user stated it, plus every requirement and constraint. Both candidates receive exactly this text.' },
-      time_limit_minutes: { type: 'number', description: 'Per-candidate generation budget in minutes (default 30).' },
+      time_limit_minutes: { type: 'number', description: 'Optional per-candidate generation budget, 5 to 120 minutes; defaults to the saved conversation setting.' },
+      mode: { type: 'string', enum: ['same-model', 'cross-model'], description: 'Optional override; defaults to the saved comparison mode. Cross-model uses the two saved model configurations.' },
     },
     output: {
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
-    async execute(args: { task: string; time_limit_minutes?: number }, exec: ToolExec) {
+    async execute(args: StartToolArgs, exec: ToolExec) {
       if (exec.agent === undefined) throw new Error('agent_compare_start must be called by an agent')
       if (isDelegated(exec.agent)) return { error: 'A delegated or candidate agent cannot start another comparison.' }
-      const minutes = typeof args.time_limit_minutes === 'number' && args.time_limit_minutes > 0 ? Math.min(args.time_limit_minutes, 120) : undefined
-      const started = await comparer.start({
-        repo: await repoFor(exec.agent, exec.signal),
-        task: args.task,
-        routes: [currentRoute(exec.agent), currentRoute(exec.agent)],
-        hostContext: exec.agent,
-        sessionId: exec.agent.session.id,
-        origin: { kind: 'tool' },
-        ...(minutes === undefined ? {} : { generationMs: minutes * 60_000 }),
+      return startToolComparison(args, { ...exec, agent: exec.agent }, {
+        preferences: sessionId => preferences.load(sessionId), currentRoute, repoFor,
+        start: input => comparer.start(input),
       })
-      const onAbort = (): void => { void comparer.cancel(started.runId) }
-      exec.signal.addEventListener('abort', onAbort, { once: true })
-      try {
-        const done = await comparer.wait(started.runId)
-        return { ...(brief(done ?? started) as object), next: 'Ask the user to open the AgentCompare panel (A|B header button), try A and B, and pick one. Do not guess which is better on their behalf.' }
-      } finally {
-        exec.signal.removeEventListener('abort', onAbort)
-      }
     },
   })), 'agent-compare: agent_compare_start tool')
 
