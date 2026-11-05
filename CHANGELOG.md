@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0
+
 - Check tracked source inside build directories instead of ignoring every path named dist. Use baseline-bound Git exclusions for generated output, exercise a custom Vite output directory in smoke acceptance, and explain unsealed output without skipping source checks.
 
 - Bind a bounded current-state summary to each owning main conversation prompt assembly, so restored or delayed milestone notes cannot leave selection mistaken for adoption. Preserve historical notes and other prompt contributions, exclude delegated and diagnostic scopes, and create no inbox messages or extra steps.

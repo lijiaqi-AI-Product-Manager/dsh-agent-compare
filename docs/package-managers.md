@@ -23,7 +23,7 @@ Exact project declarations take precedence. Ambiguous lockfiles, missing command
 
 ## 已知限制
 
-pnpm 12.16.1 在 Windows 上通过系统 API 将用户存储锁放在 LocalAppData；`storeDir`、`PNPM_HOME` 或临时目录设置不能迁移这组锁。当前 DSH 沙箱没有为该额外目录提供声明接口，因此本插件保守阻止 Windows pnpm 12+ 生成。Linux 执行是独立验证项，不能用 Linux 成功推断 Windows 可用。依据：[pnpm 锁目录实现](https://github.com/pnpm/pnpm/blob/main/pnpm/crates/fs/src/secure_temp_lock.rs)、[存储说明](https://github.com/pnpm/pnpm/blob/main/pnpm/docs/settings/store.md)。
+pnpm 12.16.1 在 Windows 上通过系统 API 将用户存储锁放在 LocalAppData；`storeDir`、`PNPM_HOME` 或临时目录设置不能迁移这组锁。DSH 0.2.1-rc.5 的规范接口没有额外目录字段；0.2.2-rc.1 虽增加该字段，Windows 后端仍在启动进程前明确返回 SANDBOX_UNSUPPORTED_POLICY，因此本插件保守阻止 Windows pnpm 12+ 生成。Linux 执行是独立验证项，不能用 Linux 成功推断 Windows 可用。依据：[pnpm 锁目录实现](https://github.com/pnpm/pnpm/blob/main/pnpm/crates/fs/src/secure_temp_lock.rs)、[存储说明](https://github.com/pnpm/pnpm/blob/main/pnpm/docs/settings/store.md)。
 
 Unix 下将 `XDG_RUNTIME_DIR` 指向副本自己的缓存目录，由已经进入宿主约束的命令入口创建；不继承可能位于写入范围之外的 `/run/user/...`。创建前后检查目录包含关系和已有父路径，不在未约束的宿主中预先创建候选指定路径。运行数据与可变依赖仍按副本分开。
 
