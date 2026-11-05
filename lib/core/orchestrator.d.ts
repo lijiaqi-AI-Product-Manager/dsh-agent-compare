@@ -1,3 +1,4 @@
+import { type CopyCleanupPlan } from './copy-resources.ts';
 import { type PrepareProjectProcess } from './project-process.ts';
 import { RunStore } from './run-store.ts';
 import { type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts';
@@ -185,6 +186,9 @@ export declare class Comparer {
      * proven are kept and listed in `leftovers`.
      */
     cleanup(runId: string): Promise<RunRecord | undefined>;
+    /** Explicit, inspectable copy release; source records and undo refs remain. */
+    copyCleanupPlan(runId: string, signal?: AbortSignal): Promise<CopyCleanupPlan>;
+    releaseCopies(runId: string, token: string): Promise<RunRecord>;
     private cleanupRun;
     /** Stop this run's previews and delete its owned copies; keep the record. */
     private releaseResources;

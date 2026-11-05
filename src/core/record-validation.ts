@@ -127,7 +127,7 @@ const record = shape({
   mode: oneOf('same-model', 'cross-model'), isolation: oneOf('own-root', 'shared-root'), budget: shape({ generationMs: count(1) }),
   state: oneOf('running', 'judging', 'revealed', 'adopting', 'adopted', 'recovery', 'abandoned', 'interrupted'), candidates: array(candidate, 2),
   choice: optional(shape({ pick: oneOf('A', 'B', 'none'), at: count(), note: optional(text()) })), revealedAt: optional(count()), checksFavoured: optional(oneOf('A', 'B', 'tie', 'none')),
-  adoption: optional(adoption), outsideChanges: optional(paths), leftovers: optional(array(text())),
+  adoption: optional(adoption), outsideChanges: optional(paths), leftovers: optional(array(text())), copiesReleasedAt: optional(count()),
 })
 
 /** Validate data, not authority: no record is allowed to select its own filename. */

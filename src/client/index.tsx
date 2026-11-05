@@ -72,7 +72,9 @@ interface Run {
   adoption?: Adoption
   outsideChanges?: string[]
   leftovers?: string[]
+  copiesReleasedAt?: number
 }
+interface CopyPlan { version: 1; runId: string; rev: number; state: string; allowed: boolean; reasons: string[]; bytes: number; token: string; otherSession?: boolean; retained?: { gitRefs?: number; childSessions: number; sealedPatches: number; sourceRepository: string }; resources: Array<{ label: string; path: string; bytes: number; files: number; links: number; stopsPreview: boolean; reason?: string }> }
 interface Legacy { runId: string; task: string; createdAt: number; state: string; legacy: true; unavailable?: true; reason?: string }
 interface HistoryMeta { version: 1; scope: 'all' | 'session'; query: string; total: number; offset: number; limit: number; hasNext: boolean; onlyUnavailable?: boolean; unavailable?: number }
 interface ListResult { runs: Run[]; legacy: Legacy[]; isolation: 'own-root' | 'shared-root'; history?: HistoryMeta }
@@ -406,6 +408,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-banner.err{background:color-mix(in srgb,var(--ac-err) 8%,transparent);border-color:color-mix(in srgb,var(--ac-err) 25%,transparent)}
 .ac-banner code{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px}
 .ac-banner .disclaimer{color:var(--ac-fg3);font-size:12px}
+.ac-copy-space{margin:16px;padding:14px;border:1px solid var(--ac-border);border-radius:var(--ac-r-md);background:var(--ac-l1);font-size:13px}.ac-copy-space .ac-note{margin:5px 0}.ac-copy-plan{margin-top:12px;border-top:1px solid var(--ac-border);padding-top:8px}.ac-copy-plan p{line-height:1.7}.ac-copy-plan ul{padding-left:20px}.ac-copy-plan li{margin:10px 0}.ac-copy-plan code{overflow-wrap:anywhere}.ac-copy-plan .ac-row{flex-wrap:wrap}.ac-inline .ac-copy-space{margin:12px}
 .ac-next{flex:none;margin:16px;padding:16px;border-radius:var(--ac-r-lg);border:1px solid var(--ac-border);display:flex;flex-direction:column;gap:10px}
 .ac-next b{font-size:14px}
 .ac-link{color:var(--dsw-alias-link,var(--ac-brand));text-decoration:underline;text-underline-offset:2px}
@@ -854,7 +857,6 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
           <div className="ac-bar">
             <span className="ac-bar-text"><strong>两边都没有可体验的结果。</strong>{salvageable ? '改动仍保留。可以在卡片里查看原因并验收，或结束这次比较。' : '可以结束这次比较，调整描述或时间上限后再来。'}</span>
             <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>两版都不采用并揭晓</button>
-            <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>结束并清理</button>
           </div>
         )
       }
@@ -870,7 +872,7 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
       return (
         <div className="ac-bar">
           <span className="ac-bar-text">{pick === 'none' || picked === undefined ? '这次两版都没选。可以换个描述再来一次。' : eligible ? '先核对目标与改动，必要时在副本中预演；确认后才写入。' : '这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。'}</span>
-          <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>结束并清理</button>
+          <button className="ac-btn" disabled={busy} onClick={() => act('reviewCopyCleanup')}>整理工作副本</button>
           {picked !== undefined && <button className="ac-btn" disabled={busy} onClick={() => act('adopt', { mode: 'branch' })} title="只新建分支（含一个提交），不切换、不改当前文件">另存为分支</button>}
           {picked !== undefined && eligible && <button className="ac-btn primary" disabled={busy} onClick={() => act('reviewAdoption')}>审查并采用 {pick}</button>}
         </div>
@@ -901,10 +903,52 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
       return (
         <div className="ac-bar">
           <span className="ac-bar-text">{run.state === 'interrupted' ? '这次比较在宿主停止时中断，可验收副本里已经写出的改动。' : '这次比较已结束。'}</span>
-          {run.state === 'interrupted' && <button className="ac-btn" disabled={busy} onClick={() => act('cleanup')}>清理</button>}
+          {run.state === 'interrupted' && <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>不采用本次结果，查看保留内容</button>}
         </div>
       )
   }
+}
+function copySize(bytes: number): string { return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB` }
+function CopySpace({ run, sessionId, blocked, publish, requestKey = 0, onReleaseBusy }: { run: Run; sessionId?: string; blocked: boolean; publish(next: Run): void; requestKey?: number; onReleaseBusy(value: boolean): void }): React.ReactElement {
+  const [plan, setPlan] = useState<CopyPlan>()
+  const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState<'read' | 'release'>()
+  const [otherConfirmed, setOtherConfirmed] = useState(false)
+  const request = useRef(0)
+  const abort = useRef<AbortController | undefined>(undefined)
+  useEffect(() => { setPlan(undefined); setError(undefined); setBusy(undefined); setOtherConfirmed(false); request.current++; return () => { request.current++; abort.current?.abort() } }, [run.runId])
+  const inspect = async (): Promise<void> => {
+    const id = ++request.current, controller = new AbortController()
+    abort.current?.abort(); abort.current = controller
+    setBusy('read'); setError(undefined); setPlan(undefined); setOtherConfirmed(false)
+    try { const value = await call<CopyPlan>('copyCleanupPlan', { runId: run.runId, sessionId }, controller.signal); if (id === request.current) setPlan(value) }
+    catch (err) { if (!controller.signal.aborted && id === request.current) setError((err as Error).message) }
+    finally { if (id === request.current) setBusy(undefined) }
+  }
+  useEffect(() => { if (requestKey > 0) void inspect() }, [requestKey])
+  const release = async (): Promise<void> => {
+    if (!plan?.allowed || (plan.otherSession && !otherConfirmed) || busy || blocked) return
+    const id = ++request.current
+    setBusy('release'); onReleaseBusy(true); setError(undefined)
+    try { const value = await call<Run>('releaseCopies', { runId: run.runId, sessionId, token: plan.token, confirmOtherSession: otherConfirmed }); if (id === request.current) { publish(value); setPlan(undefined) } }
+    catch (err) { if (id === request.current) { setError((err as Error).message); setPlan(undefined) } }
+    finally { if (id === request.current) { setBusy(undefined); onReleaseBusy(false) } }
+  }
+  const stale = !!plan && run.rev !== undefined && plan.rev !== run.rev
+  return <section className="ac-copy-space" aria-label="副本空间">
+    <div className="ac-row" style={{ flexWrap: 'wrap', justifyContent: 'space-between' }}><div><b>副本空间</b><div className="ac-note">{run.copiesReleasedAt ? '副本已释放；运行记录、源码补丁、截图与撤销原件继续保留。' : '查看空间与清单后再决定是否释放；没有自动过期删除。'}</div></div><button className="ac-btn" disabled={blocked || !!busy || !sessionId} onClick={() => { void inspect() }}>{busy === 'read' ? '正在核对空间…' : '查看副本空间'}</button></div>
+    {error && <p className="ac-feedback" role="alert">{error}</p>}
+    {plan && <div className="ac-copy-plan">
+      <p><strong>本次清单：{copySize(plan.bytes)}</strong>（文件逻辑大小；不跟随链接，硬链接的实际释放量可能更少）</p>
+      <p>确认后停止清单内的预览，删除对应副本及依赖。运行记录、封存源码与 Git 引用、截图、示例原仓库、候选会话及撤销原件保留；不修改当前项目。释放后不能重开这些副本的预览，仍可查看截图、审查采用或撤销已有采用。</p>
+      {plan.retained && <details><summary>单独保留的资源</summary><p>记录了 {plan.retained.sealedPatches} 份封存补丁、{plan.retained.childSessions} 个候选会话，以及 {plan.retained.gitRefs === undefined ? '数量暂不可确认的' : plan.retained.gitRefs + ' 个'} Git 引用。会话、原仓库和采用恢复目录均不在删除清单中；占用空间不计入上面的可释放量。</p><code>{plan.retained.sourceRepository}</code></details>}
+      {plan.resources.length > 0 && <ul>{plan.resources.map(resource => <li key={resource.label}><b>副本 {resource.label} · {copySize(resource.bytes)}</b> · {resource.files} 个文件{resource.links ? ` · ${resource.links} 个链接未跟随` : ''}{resource.stopsPreview ? ' · 将停止预览' : ''}<details><summary>目录位置</summary><code>{resource.path}</code></details>{resource.reason && <p>{resource.reason}</p>}</li>)}</ul>}
+      {plan.reasons.map(reason => <p className="ac-feedback" key={reason}>{reason}</p>)}
+      {stale && <p className="ac-feedback" role="alert">比较已变化，请重新查看清单后再确认。</p>}
+      {plan.otherSession && <label className="ac-row"><input type="checkbox" checked={otherConfirmed} onChange={event => setOtherConfirmed(event.target.checked)} />这是其他对话的比较，确认释放该比较的副本。</label>}
+      <div className="ac-row"><button className="ac-btn" disabled={!!busy} onClick={() => setPlan(undefined)}>保留副本</button><button className="ac-btn primary" disabled={blocked || !!busy || !plan.allowed || stale || (!!plan.otherSession && !otherConfirmed)} onClick={() => { void release() }}>{busy === 'release' ? '正在停止预览并释放…' : `确认释放 ${copySize(plan.bytes)} 副本`}</button></div>
+    </div>}
+  </section>
 }
 function Banners({ run }: { run: Run }): React.ReactElement {
   const pick = run.choice?.pick
@@ -954,6 +998,8 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const [readErr, setReadErr] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<string>()
+  const [copyBusy, setCopyBusy] = useState(false)
+  const [copyRequest, setCopyRequest] = useState<{ runId: string; id: number }>()
   const activeId = useRef(runId)
   activeId.current = runId
   const mounted = useRef(true)
@@ -986,7 +1032,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   useEffect(() => {
     mounted.current = true
     action.current.version++; action.current.pending = false
-    setBusy(false); setPending(undefined); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
+    setBusy(false); setCopyBusy(false); setCopyRequest(undefined); setPending(undefined); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
     setRun(previous => previous?.runId === runId ? previous : initial?.runId === runId ? initial : undefined)
     void refresh(true)
     return () => { mounted.current = false; reads.current.version++; reads.current.controller?.abort(); action.current.version++ }
@@ -1000,8 +1046,13 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   }, [live, refresh])
   useTick(run?.state === 'running')
   const act: Act = (method, extra = {}) => {
-    if (!run || run.runId !== runId || action.current.pending) return
+    if (!run || run.runId !== runId || action.current.pending || copyBusy) return
     if (run?.control?.allowed === false) { setErr(run.control.reason ?? '当前仅可查看这次比较'); return }
+    if (method === 'cleanup' || method === 'reviewCopyCleanup') {
+      if (!REVEALED.has(run.state) && run.choice === undefined) { setErr('请先结束选择，再查看副本清单；尚未删除任何内容。'); return }
+      setCopyRequest(previous => ({ runId, id: (previous?.id ?? 0) + 1 }))
+      return
+    }
     const version = ++action.current.version, targetId = runId
     action.current.pending = true
     reads.current.version++; reads.current.controller?.abort()
@@ -1021,7 +1072,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       .finally(finished)
   }
   if (run === undefined || run.runId !== runId) return <div className={compact ? 'ac-inline-note' : 'ac-empty'}>{err ?? readErr ?? '正在读取这次比较…'}</div>
-  const blocked = busy || run.control?.allowed === false
+  const blocked = busy || copyBusy || run.control?.allowed === false
   const revealed = REVEALED.has(run.state) || run.choice !== undefined
   const continueConversation = sessionId ? (): void => {
     if (!leaveMode(sessionId)) { setErr('消息正在提交，请等它结束后继续对话。'); return }
@@ -1035,10 +1086,11 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const body = (
     <>
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
-      <div className="ac-action-dock"><ActionBar run={run} busy={busy} pending={pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
+      <div className="ac-action-dock"><ActionBar run={run} busy={busy || copyBusy} pending={pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>重试清理</button></div></section>}
       {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.ok && <p>先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />
+      {revealed && <CopySpace key={runId} run={run} sessionId={sessionId} blocked={busy || run.control?.allowed === false} requestKey={copyRequest?.runId === runId ? copyRequest.id : 0} publish={next => publish(next, runId)} onReleaseBusy={value => { if (activeId.current === runId) setCopyBusy(value) }} />}
       <div className="ac-compare-tools"><div className="ac-seg" aria-label="比较布局">{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: '并排比较', A: '专注 A', B: '专注 B' }[v]}</button>)}</div><div className="ac-seg" aria-label="预览尺寸"><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>适应窗口</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>桌面 1280</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>手机 390</button></div><span className="ac-meta">{device === 'adaptive' ? '直接在对话中操作真实页面' : '相同视口 · 按可用宽度缩放'}</span></div>
       {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>预览环境与限制</summary><p>{independentHosts ? '候选使用独立本地地址，避免同名 Cookie 相互影响。' : '这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。'}嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。</p></details>}
       <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
