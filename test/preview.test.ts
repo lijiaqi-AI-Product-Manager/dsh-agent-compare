@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { startVitePreview } from '../src/core/preview.ts'
+import { isPreviewProcess, startVitePreview } from '../src/core/preview.ts'
 import { fetchPreview, parsePreviewUrl, previewRequest, PREVIEW_HOST } from '../src/core/preview-url.ts'
 import { prepareFixtureProcess, tmp } from './fixture.ts'
 
@@ -15,6 +15,16 @@ server.listen(port,'127.0.0.1',()=>{fs.writeFileSync('listening.json',JSON.strin
 }
 
 describe('local preview browser hosts', () => {
+  it('requires a Yarn wrapper to name the exact project, invocation and port', () => {
+    const cwd = path.join(process.cwd(), 'copy with space')
+    const preview = { cwd, port: 1234, pid: 3, url: 'http://127.0.0.1:1234/', kind: 'build' as const, launcher: 'yarn' as const }
+    const command = `node yarn.js --cwd "${cwd}" exec vite preview --port 1234 --strictPort`
+    expect(isPreviewProcess(preview, command)).toBe(true)
+    expect(isPreviewProcess(preview, command.replace('1234', '12345'))).toBe(false)
+    expect(isPreviewProcess(preview, command.replace(cwd, cwd + '-other'))).toBe(false)
+    expect(isPreviewProcess(preview, command.replace('exec vite', 'exec other'))).toBe(false)
+    expect(isPreviewProcess({ ...preview, launcher: undefined }, command)).toBe(false)
+  })
   it('uses distinct browser hosts per launch, probes the actual Host and keeps the configured entry path', async () => {
     const dir = await project(), previews = []
     try {

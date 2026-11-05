@@ -16,6 +16,7 @@ function installOf(install: Candidate['install']): Candidate['install'] {
 
 function errorOf(error: StageError | undefined): StageError | undefined {
   if (!error) return undefined
+  if (error.stage === 'preparing' && /^项目包管理器未就绪：(npm|pnpm|yarn) /.test(error.message)) return { stage: error.stage, message: error.message.split('\n')[0]! }
   // The no-change message is produced by the sealer; candidate prose follows
   // a distinct separator. Keep its factual first part without the explanation.
   if (error.stage === 'sealing' && error.message.includes('\nAgent 的说明：')) return { ...error, message: error.message.split('\nAgent 的说明：')[0]! }

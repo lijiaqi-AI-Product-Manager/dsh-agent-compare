@@ -222,7 +222,7 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 | DSH next 通道 | 独立 Windows／Linux 原生运行 canary，记录实际版本；状态见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)，不等同于完整模型交付验收 |
 | macOS | 尚未实测 |
 | Node | 26.13.0 为主开发基线；22／24 维护线的最新补丁版也纳入 CI 兼容检查 |
-| 项目类型 | 仓库根目录的 Vite 项目；至少有一次提交的 Git 仓库。npm 已执行安装和验收；pnpm / yarn 的完整运行待验证 |
+| 项目类型 | 仓库根目录的 Vite 项目；至少有一次提交的 Git 仓库。包管理器的完整通过项与已知限制见[执行矩阵](docs/package-managers.md) |
 
 <a id="verified-maintained-through-current-ci-and-the-cases-below"></a>
 

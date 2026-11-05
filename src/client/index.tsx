@@ -25,7 +25,7 @@ interface Route { provider?: string; model?: string }
 interface InstallFailure { kind: string; summary: string; hint: string; code?: string; diagnostic?: string }
 interface VerificationRuntime { hostNode: string; platform: string; packageManager: string; packageManagerVersion?: string }
 interface VerificationAttempt { recordedAt: number; durationMs?: number; install?: { failure?: InstallFailure; outcome?: string; runtime?: VerificationRuntime }; error?: { message: string }; checks?: Check[] }
-interface Setup { pluginVersion?: string; dshVersion?: string; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string } }
+interface Setup { pluginVersion?: string; dshVersion?: string; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string; warning?: string } }
 interface Cand {
   label: 'A' | 'B'
   stage: Stage
@@ -768,6 +768,7 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {setup?.capabilities?.ok === false && <div className="ac-feedback" role="alert">当前 DSH {setup.dshVersion ?? '（版本未知）'} 缺少比较所需接口：{setup.capabilities.missing.join('、')}。请升级或回退至已验证版本；比较记录和草稿保留。</div>}
     {setup?.capabilities?.warnings.includes('sessionController.resolveAgent') && <div className="ac-feedback" role="status">当前 DSH 缺少会话恢复接口：sessionController.resolveAgent。已打开的对话仍可使用；历史对话请先在 DSH 中重新打开。</div>}
     {setup?.project?.supported === false && <div className="ac-feedback" role="status">当前项目不受支持：{setup.project.reason ?? '请使用仓库根目录的 Vite 项目。'} 草稿保留，可试跑内置示例。</div>}
+    {setup?.project?.supported && setup.project.warning && <div className="ac-feedback" role="status">{setup.project.warning}</div>}
     {!mode.collapsed && <>
     <div className="ac-settings-row"><div className="ac-seg" role="group" aria-label="比较方式"><button className={p.mode === 'same-model' ? 'on' : ''} aria-pressed={p.mode === 'same-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'same-model' })}>同一模型 · 两种策略</button><button className={p.mode === 'cross-model' ? 'on' : ''} aria-pressed={p.mode === 'cross-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'cross-model' })}>两个模型 · 同一要求</button></div>
       <label className="ac-budget">每版上限 <select aria-label="每版生成上限" value={p.generationMinutes} onChange={e => saveMode(sessionId, { ...p, generationMinutes: Number(e.target.value) })}>{[...new Set([5, 15, 30, 60, 90, 120, p.generationMinutes])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m} 分钟</option>)}</select></label>

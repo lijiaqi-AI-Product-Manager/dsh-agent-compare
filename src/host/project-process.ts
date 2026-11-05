@@ -13,14 +13,28 @@ export interface ProjectSandbox {
   }>
 }
 
+/** Public profileContext packageManager shape supplied by packaged hosts. */
+export interface ManagedPnpm {
+  readonly command: string
+  readonly args: readonly string[]
+  readonly env?: Readonly<Record<string, string>>
+}
+
+interface CommandResolution { readonly path?: string; readonly pnpm?: ManagedPnpm }
+
 /** Resolve shell shims before confinement, but interpret them only inside it. */
-export function projectCommandArgv(argv: readonly string[], cwd: string, platform = process.platform): string[] {
+export function projectCommandArgv(argv: readonly string[], cwd: string, platform = process.platform, resolution?: CommandResolution): string[] {
   const [command, ...args] = argv
   if (!command || argv.some(a => typeof a !== 'string' || a.includes('\0'))) throw new Error('项目命令参数无效')
   const file = command === 'node' ? process.execPath
     : path.isAbsolute(command) ? command
     : /[\\/]/.test(command) ? path.resolve(cwd, command)
-    : which(command)
+    : which(command, resolution?.path)
+  if (!file && command === 'pnpm' && resolution?.pnpm) {
+    const managed = resolution.pnpm
+    if (!path.isAbsolute(managed.command) || !Array.isArray(managed.args) || managed.args.some(value => typeof value !== 'string' || value.includes('\0'))) throw new Error('宿主内置 pnpm 的入口格式不受支持')
+    return projectCommandArgv([managed.command, ...managed.args, ...args], cwd, platform)
+  }
   if (!file) throw new Error(`没有找到项目命令 ${command}`)
   if (platform === 'win32' && /\.(cmd|bat)$/i.test(file)) {
     const extension = import.meta.url.endsWith('.ts') ? 'ts' : 'js'
@@ -41,13 +55,15 @@ export function createProjectProcess(
     return service.scrubbedParentEnv()
   },
   windowsProcessModule?: string,
+  bundledPnpm: () => ManagedPnpm | undefined = () => undefined,
 ): PrepareProjectProcess {
   return async (request: ProjectProcessRequest) => {
     request.signal?.throwIfAborted()
     const provider = sandbox()
     if (typeof provider?.confine !== 'function') throw new Error('宿主没有可用的进程沙箱，请更新并启用进程沙箱；不会尝试无约束执行')
     const root = await realpath(request.cwd)
-    const argv = projectCommandArgv(request.argv, root)
+    const bundled = bundledPnpm()
+    const argv = projectCommandArgv(request.argv, root, process.platform, { pnpm: bundled })
     const confined = await provider.confine(argv, { mode: 'workspace-write', workspaceRoot: root }, request.signal)
     if (confined.enforcement !== 'full' && confined.enforcement !== 'partial') throw new Error('宿主没有报告有效的文件写入约束，本轮项目命令已停止')
     const env = { ...await baseEnvironment() }
@@ -58,10 +74,18 @@ export function createProjectProcess(
       COREPACK_HOME: path.join(cache, 'corepack'),
       YARN_CACHE_FOLDER: path.join(cache, 'yarn'),
       YARN_GLOBAL_FOLDER: path.join(cache, 'yarn-global'),
+      YARN_INSTALL_STATE_PATH: path.join(cache, 'yarn-install-state.gz'),
+      YARN_PNP_UNPLUGGED_FOLDER: path.join(cache, 'yarn-unplugged'),
     }
     // npm rejects unknown environment configuration. Only pnpm receives its
     // store setting; each manager still keeps its own mutable cache.
-    if (/^(pnpm|pnpm\.cmd|pnpm\.exe)$/i.test(path.basename(request.argv[0] ?? ''))) explicit.npm_config_store_dir = path.join(cache, 'pnpm')
+    if (/^(pnpm|pnpm\.cmd|pnpm\.exe)$/i.test(path.basename(request.argv[0] ?? ''))) {
+      explicit.npm_config_store_dir = path.join(cache, 'pnpm')
+      explicit.PNPM_HOME = path.join(cache, 'pnpm-home')
+      // Preserve only this runtime switch from a host-owned invocation. Its
+      // package-operation environment can contain unrelated credentials.
+      if (!which('pnpm') && bundled?.env?.ELECTRON_RUN_AS_NODE === '1') explicit.ELECTRON_RUN_AS_NODE = '1'
+    }
     if (process.platform === 'win32') {
       // npm's foreground mode reuses inherited stdio for lifecycle scripts.
       // Confined Windows grandchildren cannot create the background pipes.

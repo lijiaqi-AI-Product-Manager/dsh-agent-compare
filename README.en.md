@@ -202,7 +202,7 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 | DSH next channel | Separate Windows/Linux native runtime canaries print the resolved version; see [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). This is separate from full model-delivery acceptance |
 | macOS | Not tested yet |
 | Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
-| Projects | Root-level Vite projects in a Git repository with at least one commit. npm installation and checks have run; complete pnpm/yarn execution remains unverified |
+| Projects | Root-level Vite projects in a Git repository with at least one commit. See the [execution matrix](docs/package-managers.md) for complete package-manager checks and known limitations |
 
 ## Verified (maintained through current CI and the cases below)
 

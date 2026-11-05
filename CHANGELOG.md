@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Honor exact package-manager declarations, distinguish Yarn lock generations and use immutable modern Yarn installs. Detect missing commands and reject incompatible versions before model work.
+- Reuse the host's public bundled-pnpm invocation when absent from PATH without copying its package-operation credentials. Keep mutable caches and Yarn runtime state private to each copy.
+- Seal source through a trusted private Git index, regenerate modern Yarn loaders, and retain project/port ownership when previews launch through Yarn.
+- Exercise native npm, pnpm and both Yarn generations, project registries and local proxies on Windows/Linux CI. Explicitly retain the Windows pnpm lock and TypeScript 7/PnP limitations instead of bypassing checks.
+- Record verification platform and architecture consistently with the baseline.
+
 ## 1.0.1
 
 - Return request-format errors as HTTP 400 and keep oversized requests eligible for a proper HTTP 413 response.
