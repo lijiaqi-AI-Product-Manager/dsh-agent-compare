@@ -1,4 +1,5 @@
 import { blindEvidence } from './blind-view.ts'
+import { planCopyCleanup, type CopyCleanupPlan } from './copy-resources.ts'
 import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -713,7 +714,7 @@ export class Comparer {
   /** Record the blind choice and reveal at once. Any finished candidate can be picked; adoption rules come later. */
   choose(runId: string, pick: CandidateLabel | 'none', note?: string): Promise<RunRecord> {
     return this.operation(() => this.mutate(runId, (r) => {
-      if (r.state !== 'judging') throw new Error(r.state === 'revealed' ? '已经选过了' : `现在不能选择（${r.state}）`)
+      if (r.state !== 'judging' && !(r.state === 'interrupted' && pick === 'none')) throw new Error(r.state === 'revealed' ? '已经选过了' : `现在不能选择（${r.state}）`)
       if (pick !== 'none' && r.candidates.find((c) => c.label === pick)?.stage !== 'ready') throw new Error(`候选 ${pick} 还没有可体验的结果`)
       r.choice = { pick, at: Date.now(), ...(note === undefined ? {} : { note }) }
       r.state = 'revealed'
@@ -1055,6 +1056,32 @@ export class Comparer {
    */
   cleanup(runId: string): Promise<RunRecord | undefined> {
     return this.operation(() => this.cleanupRun(runId), runId)
+  }
+
+  /** Explicit, inspectable copy release; source records and undo refs remain. */
+  async copyCleanupPlan(runId: string, signal?: AbortSignal): Promise<CopyCleanupPlan> {
+    const record = await this.mustLoad(runId)
+    const control = await this.control(record)
+    if (!control.allowed) return { version: 1, runId, rev: record.rev, state: record.state, allowed: false, reasons: [control.reason ?? '当前不可操作这次比较'], resources: [], bytes: 0, token: '' }
+    return planCopyCleanup(record, signal)
+  }
+
+  releaseCopies(runId: string, token: string): Promise<RunRecord> {
+    return this.operation(async () => {
+      const initial = await this.mustLoad(runId)
+      return withRepositoryWrite(initial.baseline.repoRoot, () => this.serial(runId, async () => {
+        const record = await this.fresh(runId)
+        const plan = await planCopyCleanup(record, this.lifetime.signal)
+        if (!plan.allowed) throw new BusyError(plan.reasons.join('；'))
+        if (!/^[0-9a-f]{64}$/.test(token) || plan.token !== token) throw new BusyError('比较或副本内容在确认后发生变化，尚未删除副本。请重新查看清单。')
+        await this.releaseResources(record)
+        if (!record.leftovers?.length) record.copiesReleasedAt = Date.now()
+        // No abandonment and no dropRefs: selection, sealed source and undo
+        // remain usable after disposable dependencies and previews are gone.
+        await this.save(record)
+        return record
+      }), { busyMessage: '仓库正在采用或恢复，请稍后再释放副本' })
+    }, runId)
   }
 
   private async cleanupRun(runId: string): Promise<RunRecord | undefined> {

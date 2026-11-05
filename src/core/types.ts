@@ -323,6 +323,8 @@ export interface RunRecord {
   outsideChanges?: string[]
   /** Paths cleanup refused to delete because ownership could not be proven. */
   leftovers?: string[]
+  /** Explicitly released copies; records, source refs and undo originals remain. */
+  copiesReleasedAt?: number
   /** Monotonic save counter; a save against a stale copy is refused. */
   rev: number
   updatedAt: number
