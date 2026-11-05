@@ -55,7 +55,7 @@ interface Cand {
 interface Adoption { state: string; mode: string; message?: string; branch?: string; attention?: string[]; rehearsed?: boolean; rehearsalChecks?: Check[]; transferDirection?: 'apply' | 'undo'; retainedDirectory?: string; retainedDirectories?: string[] }
 interface Run {
   rev?: number
-  control?: { allowed: boolean; reason?: string; retryable?: boolean }
+  control?: { allowed: boolean; reason?: string; retryable?: boolean; canCancelAdoption?: boolean; adoptionCancellationRequested?: boolean }
   runId: string
   task: string
   state: string
@@ -886,7 +886,7 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
     }
     case 'adopting':
       return (
-        <div className="ac-bar"><span className="ac-bar-text"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{run.adoption?.state === 'reverting' ? '正在恢复文件并核对，原始内容继续保留…' : run.adoption?.state === 'writing' ? '正在保留原始内容、写入并核对…' : '正在你当前项目的副本里预演并验收…'}</span></div>
+        <div className="ac-bar"><span className="ac-bar-text"><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{run.adoption?.state === 'reverting' ? '正在恢复文件并核对，原始内容继续保留…' : run.adoption?.state === 'writing' ? '正在保留原始内容、写入并核对…' : run.control?.adoptionCancellationRequested ? '正在停止预演并确认进程退出；候选成果继续保留…' : '正在你当前项目的副本里预演并验收…'}</span>{run.adoption?.state === 'rehearsing' && run.control?.canCancelAdoption && <button className="ac-btn danger" disabled={pending === 'cancelAdoption' || run.control.adoptionCancellationRequested} onClick={() => act('cancelAdoption')}>停止采用预演</button>}</div>
       )
     case 'recovery':
       return (
@@ -1005,6 +1005,8 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<string>()
   const [copyBusy, setCopyBusy] = useState(false)
+  const [cancelBusy, setCancelBusy] = useState(false)
+  const cancellation = useRef({ version: 0, pending: false })
   const [copyRequest, setCopyRequest] = useState<{ runId: string; id: number }>()
   const activeId = useRef(runId)
   activeId.current = runId
@@ -1038,6 +1040,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   useEffect(() => {
     mounted.current = true
     action.current.version++; action.current.pending = false
+    cancellation.current.version++; cancellation.current.pending = false; setCancelBusy(false)
     setBusy(false); setCopyBusy(false); setCopyRequest(undefined); setPending(undefined); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
     setRun(previous => previous?.runId === runId ? previous : initial?.runId === runId ? initial : undefined)
     void refresh(true)
@@ -1052,6 +1055,15 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   }, [live, refresh])
   useTick(run?.state === 'running')
   const act: Act = (method, extra = {}) => {
+    if (method === 'cancelAdoption') {
+      if (!run || run.runId !== runId || !run.control?.canCancelAdoption || run.control.allowed === false || cancellation.current.pending) return
+      const version = ++cancellation.current.version, targetId = runId
+      cancellation.current.pending = true; setCancelBusy(true); setErr(undefined)
+      const current = (): boolean => mounted.current && activeId.current === targetId && cancellation.current.version === version
+      call<Run>('cancelAdoption', { runId, sessionId }).then(next => { if (current()) publish(next, targetId) }, error => { if (current()) setErr((error as Error).message) })
+        .finally(() => { if (current()) { cancellation.current.pending = false; setCancelBusy(false); void refresh(true) } })
+      return
+    }
     if (!run || run.runId !== runId || action.current.pending || copyBusy) return
     if (run?.control?.allowed === false) { setErr(run.control.reason ?? '当前仅可查看这次比较'); return }
     if (method === 'cleanup' || method === 'reviewCopyCleanup') {
@@ -1092,7 +1104,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const body = (
     <>
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
-      <div className="ac-action-dock"><ActionBar run={run} busy={busy || copyBusy} pending={pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
+      <div className="ac-action-dock"><ActionBar run={run} busy={busy || copyBusy} pending={cancelBusy ? 'cancelAdoption' : pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>重试清理</button></div></section>}
       {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.ok && <p>先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}
       <Banners run={run} />

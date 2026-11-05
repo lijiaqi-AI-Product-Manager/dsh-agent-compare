@@ -6,6 +6,7 @@ import { Comparer, type AgentRunner, type ComparerOptions } from '../src/core/or
 import { BusyError, RunStore } from '../src/core/run-store.ts'
 import * as gitModule from '../src/core/git.ts'
 import { fetchPreview } from '../src/core/preview-url.ts'
+import { waitGone } from '../src/core/proc.ts'
 import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 
 function latch() {
@@ -188,6 +189,75 @@ describe('comparison lifecycle', () => {
       await disposal
       expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop A</h1>\n')
       expect((await store.load(record.runId))?.state).toBe('adopted')
+    } finally { gate.release(); save.mockRestore(); await comparer.dispose() }
+  }, 180000)
+
+  it('stops a running rehearsal process tree without writing and can retry adoption afterwards', async () => {
+    let pause = true
+    const { repo, store, comparer, record } = await ready(async request => {
+      const prepared = await prepareFixtureProcess(request)
+      if (pause && path.basename(request.cwd) === 'R' && request.argv.includes('ci')) {
+        const script = `const fs=require('fs'),{spawn}=require('child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});fs.writeFileSync('stalled-process.json',JSON.stringify([process.pid,child.pid]));setInterval(()=>{},1000)`
+        return { ...prepared, argv: [process.execPath, '-e', script] }
+      }
+      return prepared
+    })
+    const other = new Comparer({ store, runner: edits, version: 'test', prepareProjectProcess: prepareFixtureProcess })
+    await writeFile(path.join(repo, 'keep.txt'), 'user edits after generation\n')
+    const head = await gitModule.git(repo, ['rev-parse', 'HEAD']), index = await gitModule.git(repo, ['ls-files', '-s'])
+    await comparer.choose(record.runId, 'A')
+    const adopting = comparer.adopt(record.runId)
+    void adopting.catch(() => {})
+    try {
+      const pidFile = path.join(store.copies(record.runId), 'R', 'stalled-process.json')
+      const deadline = Date.now() + 60000
+      while (!existsSync(pidFile)) {
+        if (Date.now() > deadline) throw new Error('Did not observe rehearsal process tree')
+        await new Promise(resolve => setTimeout(resolve, 20))
+      }
+      const pids = JSON.parse(await readFile(pidFile, 'utf8')) as number[]
+      expect(await comparer.control((await store.load(record.runId))!)).toMatchObject({ canCancelAdoption: true, adoptionCancellationRequested: false })
+      await expect(other.cancelAdoption(record.runId)).rejects.toThrow('当前没有可停止')
+      await comparer.cancelAdoption(record.runId)
+      expect(await comparer.control((await store.load(record.runId))!)).toMatchObject({ adoptionCancellationRequested: true })
+      const stopped = await adopting
+      expect(stopped).toMatchObject({ state: 'revealed', adoption: { state: 'blocked' } })
+      expect(stopped.adoption!.message).toContain('已停止采用预演')
+      expect(stopped.adoption!.writtenPaths).toBeUndefined()
+      for (const pid of pids) expect(await waitGone(pid)).toBe(true)
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+      expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('user edits after generation\n')
+      expect(await gitModule.git(repo, ['rev-parse', 'HEAD'])).toBe(head)
+      expect(await gitModule.git(repo, ['ls-files', '-s'])).toBe(index)
+      expect(existsSync(stopped.candidates[0]!.patchFile!)).toBe(true)
+      expect(existsSync(stopped.candidates[0]!.dir)).toBe(true)
+      expect(existsSync(path.join(store.copies(record.runId), 'R'))).toBe(false)
+      await expect(comparer.cancelAdoption(record.runId)).rejects.toThrow('当前没有可停止')
+      pause = false
+      expect((await comparer.adopt(record.runId)).state).toBe('adopted')
+      await comparer.revert(record.runId)
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+      expect(await readFile(path.join(repo, 'keep.txt'), 'utf8')).toBe('user edits after generation\n')
+    } finally { await comparer.dispose(); await other.dispose() }
+  }, 180000)
+
+  it('refuses cancellation after the durable writing journal and completes file handoff', async () => {
+    const { repo, store, comparer, record } = await ready()
+    await comparer.choose(record.runId, 'A')
+    const entered = latch(), gate = latch(), original = store.save.bind(store)
+    const save = vi.spyOn(store, 'save').mockImplementation(async value => {
+      await original(value)
+      if (value.adoption?.state === 'writing') { entered.release(); await gate.promise }
+    })
+    const adopting = comparer.adopt(record.runId)
+    void adopting.catch(() => {})
+    try {
+      await observed(entered.promise, 'durable adoption journal')
+      await expect(comparer.cancelAdoption(record.runId)).rejects.toThrow('文件交接开始后')
+      expect((await comparer.control((await store.load(record.runId))!)).canCancelAdoption).toBeUndefined()
+      gate.release()
+      expect((await adopting).state).toBe('adopted')
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop A</h1>\n')
     } finally { gate.release(); save.mockRestore(); await comparer.dispose() }
   }, 180000)
 

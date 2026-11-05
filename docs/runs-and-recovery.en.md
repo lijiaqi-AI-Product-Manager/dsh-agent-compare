@@ -1,5 +1,7 @@
 # Records and recovery
 
+When adoption needs to combine later project edits, the original conversation can stop the rehearsal before file handoff begins. It waits for the process tree to exit, keeps candidate source, patches and records, and allows another adoption review. An unconfirmed exit keeps the rehearsal copy and blocks another attempt. Once original-file preservation and writing begin, cancellation is unavailable until handoff and verification finish.
+
 [中文](runs-and-recovery.md) · **English** · [Back to usage](../README.en.md#install)
 
 The upper-right **comparison records** and **tutorial** controls work in both new and existing conversations. They open history or guidance directly, preserving the host's corner control. Stopped previews show explicit status and available screenshots; retained copies can be reopened.

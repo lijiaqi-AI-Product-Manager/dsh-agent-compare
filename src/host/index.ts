@@ -609,6 +609,13 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     },
     async preflight(b) { return { ...await comparer.adoptPreflight(runIdOf(b)), protectedWorktreeApply: true } },
     async adopt(b) { return present(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : 'worktree')) },
+    async cancelAdoption(b, signal) {
+      const agent = await agentFor(b, signal)
+      const runId = runIdOf(b), record = await comparer.get(runId)
+      if (!record) throw new HttpError(404, '没有这次比较')
+      if (record.sessionId && record.sessionId !== agent.session.id) throw new HttpError(409, '请回到这次比较所属的对话，停止采用预演。')
+      return present(await comparer.cancelAdoption(runId))
+    },
     async revert(b) { return present(await comparer.revert(runIdOf(b))) },
     async recover(b) { return present(await comparer.recoverAdoption(runIdOf(b), b.action === 'keep' ? 'keep' : 'restore')) },
     async cancel(b) { const r = await comparer.cancel(runIdOf(b), label(b.label)); return r === undefined ? null : present(r) },

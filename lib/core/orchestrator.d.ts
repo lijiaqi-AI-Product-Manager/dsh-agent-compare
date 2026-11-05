@@ -84,6 +84,7 @@ export declare class Comparer {
     private readonly operations;
     private readonly owners;
     private readonly ownerUses;
+    private readonly adoptionControllers;
     private readonly lifetime;
     private closing;
     private disposal?;
@@ -164,6 +165,8 @@ export declare class Comparer {
      * for any finished candidate, so an unverified one can still be inspected.
      */
     adopt(runId: string, mode?: 'worktree' | 'branch'): Promise<RunRecord>;
+    /** Interrupt only this owner's rehearsal; file handoff must finish once writing begins. */
+    cancelAdoption(runId: string): Promise<RunRecord>;
     private adoptRun;
     /** Build `tree` in a scratch copy and run the full acceptance on it. */
     private rehearse;
@@ -212,6 +215,8 @@ export declare class Comparer {
         allowed: boolean;
         reason?: string;
         retryable?: boolean;
+        canCancelAdoption?: boolean;
+        adoptionCancellationRequested?: boolean;
     }>;
     private mustLoad;
     /** The live record, or a fresh read from disk (another process may have saved). */
