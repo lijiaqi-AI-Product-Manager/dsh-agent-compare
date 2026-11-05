@@ -1,0 +1,568 @@
+{
+  "schema": "agentcompare.first-use/v1",
+  "date": "2026-11-05",
+  "source": "37ea3c0559a974a4776c78cfee833b1d98ec4e7c",
+  "sourceStatus": "unreleased candidate; not the published 1.0.1 artifact",
+  "artifactSha256": "73e3c18b654af08861530aa7b8d60a0f9c695878d5baca1f0d948f1aac9b9d89",
+  "installedRuntimeFiles": 77,
+  "host": "0.2.1-rc.5",
+  "node": "v26.13.0",
+  "platform": "win32",
+  "provider": "deepseek-account",
+  "model": "deepseek-flash",
+  "baselineTree": "b9bd5d25a4b739b01329c8a7476d3169acc76bf1",
+  "acceptanceSha256": "5f8b9bbeb1616ce227d17b70940ee0bd86a9000817df88521152f84746c805f5",
+  "task": "给现有商品列表加上搜索和清空，保持现有商品内容。\n要求：使用 <input type=\"search\"> 按商品名称过滤，不区分大小写；有一个文字为「清空」的按钮，点击后清空搜索并恢复全部 8 个商品。\n每个可见商品卡片带 data-testid=\"product-card\"；搜索框有可访问名称。沿用项目现有依赖，不增加分类筛选或其他功能。",
+  "generationBudgetMs": 300000,
+  "cacheConditions": "Host started before runs; separate new repositories, candidate sessions and mutable dependency/cache directories. OS and provider caches were not reset or controlled. No cold-start or cross-environment performance claim.",
+  "observation": "First interactive result was observed with 2-second polling after common browser acceptance. Both verified uses the last candidate ready timestamp. Total duration includes scripted test selection, adoption and undo. Tokens include provider-reported cache counters and are not monetary cost.",
+  "summary": {
+    "runs": 3,
+    "dualSuccess": 3,
+    "candidateSuccess": 6,
+    "firstInteractiveMs": {
+      "min": 39458,
+      "median": 41420,
+      "max": 59642
+    },
+    "bothVerifiedMs": {
+      "min": 99846,
+      "median": 112459,
+      "max": 202236
+    },
+    "adoptionAndUndoCompleteMs": {
+      "min": 107146,
+      "median": 121190,
+      "max": 209454
+    },
+    "candidateTotalTokens": {
+      "min": 122977,
+      "median": 302912.5,
+      "max": 1234664
+    }
+  },
+  "runs": [
+    {
+      "round": 1,
+      "firstInteractiveMs": 59642,
+      "bothVerifiedMs": 202236,
+      "adoptionAndUndoCompleteMs": 209454,
+      "adoption": "adopted",
+      "undo": "reverted",
+      "candidates": [
+        {
+          "label": "A",
+          "actualRoute": {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          },
+          "generation": {
+            "ended": "completed"
+          },
+          "eligible": true,
+          "usage": {
+            "kind": "reported",
+            "inputTokens": 24654,
+            "outputTokens": 27418,
+            "cacheReadTokens": 1182592,
+            "cacheWriteTokens": 0,
+            "totalTokens": 1234664
+          },
+          "phases": {
+            "preparing": 679,
+            "generating": 187923,
+            "sealing": 1226,
+            "installing": 5996,
+            "verifying": 2115,
+            "previewing": 3099
+          },
+          "observed": {
+            "stepMs": 186881,
+            "otherStepMs": 154861,
+            "toolMs": 32020,
+            "completedSteps": 37,
+            "completedCalls": 42,
+            "incomplete": 0,
+            "tools": [
+              {
+                "name": "pwsh",
+                "calls": 18,
+                "completed": 18,
+                "wallMs": 24125
+              },
+              {
+                "name": "glob",
+                "calls": 2,
+                "completed": 2,
+                "wallMs": 452
+              },
+              {
+                "name": "read",
+                "calls": 9,
+                "completed": 9,
+                "wallMs": 59
+              },
+              {
+                "name": "grep",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 7074
+              },
+              {
+                "name": "write",
+                "calls": 5,
+                "completed": 5,
+                "wallMs": 103
+              },
+              {
+                "name": "edit",
+                "calls": 7,
+                "completed": 7,
+                "wallMs": 207
+              }
+            ]
+          },
+          "checks": [
+            {
+              "name": "typecheck",
+              "outcome": "passed"
+            },
+            {
+              "name": "build",
+              "outcome": "passed"
+            },
+            {
+              "name": "browser",
+              "outcome": "passed"
+            }
+          ]
+        },
+        {
+          "label": "B",
+          "actualRoute": {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          },
+          "generation": {
+            "ended": "completed"
+          },
+          "eligible": true,
+          "usage": {
+            "kind": "reported",
+            "inputTokens": 18437,
+            "outputTokens": 5166,
+            "cacheReadTokens": 196480,
+            "cacheWriteTokens": 0,
+            "totalTokens": 220083
+          },
+          "phases": {
+            "preparing": 679,
+            "generating": 44624,
+            "sealing": 1286,
+            "installing": 5313,
+            "verifying": 2111,
+            "previewing": 3330
+          },
+          "observed": {
+            "stepMs": 43911,
+            "otherStepMs": 33171,
+            "toolMs": 10740,
+            "completedSteps": 13,
+            "completedCalls": 21,
+            "incomplete": 0,
+            "tools": [
+              {
+                "name": "pwsh",
+                "calls": 6,
+                "completed": 6,
+                "wallMs": 10255
+              },
+              {
+                "name": "glob",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 313
+              },
+              {
+                "name": "read",
+                "calls": 10,
+                "completed": 10,
+                "wallMs": 73
+              },
+              {
+                "name": "write",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 32
+              },
+              {
+                "name": "edit",
+                "calls": 3,
+                "completed": 3,
+                "wallMs": 67
+              }
+            ]
+          },
+          "checks": [
+            {
+              "name": "typecheck",
+              "outcome": "passed"
+            },
+            {
+              "name": "build",
+              "outcome": "passed"
+            },
+            {
+              "name": "browser",
+              "outcome": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "firstInteractiveMs": 41420,
+      "bothVerifiedMs": 99846,
+      "adoptionAndUndoCompleteMs": 107146,
+      "adoption": "adopted",
+      "undo": "reverted",
+      "candidates": [
+        {
+          "label": "A",
+          "actualRoute": {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          },
+          "generation": {
+            "ended": "completed"
+          },
+          "eligible": true,
+          "usage": {
+            "kind": "reported",
+            "inputTokens": 6346,
+            "outputTokens": 2327,
+            "cacheReadTokens": 114304,
+            "cacheWriteTokens": 0,
+            "totalTokens": 122977
+          },
+          "phases": {
+            "preparing": 674,
+            "generating": 26185,
+            "sealing": 1184,
+            "installing": 5800,
+            "verifying": 2098,
+            "previewing": 3026
+          },
+          "observed": {
+            "stepMs": 25725,
+            "otherStepMs": 16947,
+            "toolMs": 8778,
+            "completedSteps": 9,
+            "completedCalls": 14,
+            "incomplete": 0,
+            "tools": [
+              {
+                "name": "pwsh",
+                "calls": 5,
+                "completed": 5,
+                "wallMs": 8575
+              },
+              {
+                "name": "glob",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 132
+              },
+              {
+                "name": "read",
+                "calls": 6,
+                "completed": 6,
+                "wallMs": 27
+              },
+              {
+                "name": "write",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 24
+              },
+              {
+                "name": "edit",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 20
+              }
+            ]
+          },
+          "checks": [
+            {
+              "name": "typecheck",
+              "outcome": "passed"
+            },
+            {
+              "name": "build",
+              "outcome": "passed"
+            },
+            {
+              "name": "browser",
+              "outcome": "passed"
+            }
+          ]
+        },
+        {
+          "label": "B",
+          "actualRoute": {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          },
+          "generation": {
+            "ended": "completed"
+          },
+          "eligible": true,
+          "usage": {
+            "kind": "reported",
+            "inputTokens": 9005,
+            "outputTokens": 13089,
+            "cacheReadTokens": 363648,
+            "cacheWriteTokens": 0,
+            "totalTokens": 385742
+          },
+          "phases": {
+            "preparing": 674,
+            "generating": 86487,
+            "sealing": 1182,
+            "installing": 5016,
+            "verifying": 2158,
+            "previewing": 3185
+          },
+          "observed": {
+            "stepMs": 85782,
+            "otherStepMs": 73536,
+            "toolMs": 12246,
+            "completedSteps": 18,
+            "completedCalls": 20,
+            "incomplete": 0,
+            "tools": [
+              {
+                "name": "pwsh",
+                "calls": 9,
+                "completed": 9,
+                "wallMs": 12023
+              },
+              {
+                "name": "write",
+                "calls": 3,
+                "completed": 3,
+                "wallMs": 65
+              },
+              {
+                "name": "read",
+                "calls": 3,
+                "completed": 3,
+                "wallMs": 18
+              },
+              {
+                "name": "edit",
+                "calls": 5,
+                "completed": 5,
+                "wallMs": 140
+              }
+            ]
+          },
+          "checks": [
+            {
+              "name": "typecheck",
+              "outcome": "passed"
+            },
+            {
+              "name": "build",
+              "outcome": "passed"
+            },
+            {
+              "name": "browser",
+              "outcome": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "firstInteractiveMs": 39458,
+      "bothVerifiedMs": 112459,
+      "adoptionAndUndoCompleteMs": 121190,
+      "adoption": "adopted",
+      "undo": "reverted",
+      "candidates": [
+        {
+          "label": "A",
+          "actualRoute": {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          },
+          "generation": {
+            "ended": "completed"
+          },
+          "eligible": true,
+          "usage": {
+            "kind": "reported",
+            "inputTokens": 9937,
+            "outputTokens": 17157,
+            "cacheReadTokens": 364672,
+            "cacheWriteTokens": 0,
+            "totalTokens": 391766
+          },
+          "phases": {
+            "preparing": 735,
+            "generating": 98282,
+            "sealing": 1267,
+            "installing": 5619,
+            "verifying": 2276,
+            "previewing": 3080
+          },
+          "observed": {
+            "stepMs": 97557,
+            "otherStepMs": 87007,
+            "toolMs": 10550,
+            "completedSteps": 15,
+            "completedCalls": 25,
+            "incomplete": 0,
+            "tools": [
+              {
+                "name": "working_directory",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 6
+              },
+              {
+                "name": "glob",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 128
+              },
+              {
+                "name": "read",
+                "calls": 11,
+                "completed": 11,
+                "wallMs": 58
+              },
+              {
+                "name": "write",
+                "calls": 2,
+                "completed": 2,
+                "wallMs": 56
+              },
+              {
+                "name": "pwsh",
+                "calls": 6,
+                "completed": 6,
+                "wallMs": 10238
+              },
+              {
+                "name": "edit",
+                "calls": 4,
+                "completed": 4,
+                "wallMs": 64
+              }
+            ]
+          },
+          "checks": [
+            {
+              "name": "typecheck",
+              "outcome": "passed"
+            },
+            {
+              "name": "build",
+              "outcome": "passed"
+            },
+            {
+              "name": "browser",
+              "outcome": "passed"
+            }
+          ]
+        },
+        {
+          "label": "B",
+          "actualRoute": {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          },
+          "generation": {
+            "ended": "completed"
+          },
+          "eligible": true,
+          "usage": {
+            "kind": "reported",
+            "inputTokens": 5679,
+            "outputTokens": 1907,
+            "cacheReadTokens": 116224,
+            "cacheWriteTokens": 0,
+            "totalTokens": 123810
+          },
+          "phases": {
+            "preparing": 735,
+            "generating": 24438,
+            "sealing": 1378,
+            "installing": 5469,
+            "verifying": 2436,
+            "previewing": 3053
+          },
+          "observed": {
+            "stepMs": 23982,
+            "otherStepMs": 15804,
+            "toolMs": 8178,
+            "completedSteps": 9,
+            "completedCalls": 14,
+            "incomplete": 0,
+            "tools": [
+              {
+                "name": "pwsh",
+                "calls": 5,
+                "completed": 5,
+                "wallMs": 7990
+              },
+              {
+                "name": "glob",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 124
+              },
+              {
+                "name": "read",
+                "calls": 6,
+                "completed": 6,
+                "wallMs": 25
+              },
+              {
+                "name": "write",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 21
+              },
+              {
+                "name": "edit",
+                "calls": 1,
+                "completed": 1,
+                "wallMs": 18
+              }
+            ]
+          },
+          "checks": [
+            {
+              "name": "typecheck",
+              "outcome": "passed"
+            },
+            {
+              "name": "build",
+              "outcome": "passed"
+            },
+            {
+              "name": "browser",
+              "outcome": "passed"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

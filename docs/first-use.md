@@ -17,6 +17,22 @@
 
 分析按 `turn/step` 和 `callId` / `message.toolCallId` 配对，重叠区间取并集，不累加并发耗时。工具调用到返回的区间包含工具调度等开销；其余步骤时间包含模型、队列与宿主工作，不能称为纯模型等待。没有时间戳、未配对或异常顺序的事件保留在 `incomplete` 中；未测量时长不显示为零。
 
+## 2026-11-05：三轮真实模型样本
+
+测量源码为 [`37ea3c0`](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/commit/37ea3c0559a974a4776c78cfee833b1d98ec4e7c) 的未发布候选，不是 npm 上已经发布的 1.0.1 安装包。实际安装的 77 个运行文件与该提交逐字节一致；安装包哈希、完整环境、逐候选用量、阶段与工具区间见[结构化记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/measurements/first-use-2026-11-05.json)。后续教程名称与并发示例目录分配修改不在本次模型样本中。原始指标留在源码仓库，不随运行包分发。
+
+环境：Windows、Node 26.13.0、DSH 0.2.1-rc.5、`deepseek-account/deepseek-flash`，基础任务；每版生成上限 5 分钟。三轮依次执行，各自使用新建仓库、候选会话与独立可变依赖目录。宿主在计时前启动，未重置系统或服务端缓存，不属于冷启动测量。自动选择第一份合格候选仅用于在示例仓库测试采用和撤销，不代表用户偏好。
+
+| 轮次 | 首个通过共同检查的交互预览 | 两版均验收完成 | 包含测试采用与撤销的总时长 | 每版报告 token（含缓存） |
+| --- | --- | --- | --- | --- |
+| 1 | 59.6 秒 | 202.2 秒 | 209.5 秒 | A 1,234,664；B 220,083 |
+| 2 | 41.4 秒 | 99.8 秒 | 107.1 秒 | A 122,977；B 385,742 |
+| 3 | 39.5 秒 | 112.5 秒 | 121.2 秒 | A 391,766；B 123,810 |
+
+首个预览中位数 **41.4 秒**，两版均验收完成中位数 **112.5 秒**。三轮双版通过，共 6/6 候选通过冻结安装、类型检查、构建与五步浏览器验收，三次测试采用和撤销均成功，均在 5 分钟生成上限内正常结束。首个预览按 2 秒轮询观测，存在轮询误差；两版均完成使用最后一份候选的 ready 时间戳。每版报告总 token 范围 **122,977–1,234,664**，包含大量缓存读取，不能直接解释为付费 token 或货币费用。
+
+三轮均保留，没有剔除较慢或较高用量的样本。这些结果只覆盖该任务、版本与环境，不能推出其他模型、冷启动或实际项目的完成率，也没有隔离测量每个改动的因果收益。默认时长仍未加长。
+
 ## English
 
 Choose the smaller search-and-clear case or the original complete filtering/mobile case in the composer or guide. The choice persists per conversation; no flags are required. Both create a separate repository, use the configured real model and consume usage for each candidate. The smaller scope is not a completion-time or price guarantee.
@@ -26,3 +42,5 @@ The five-step case and the original twelve-step case bind different acceptance b
 Historical benchmarks retain their source versions. At least three comparable current samples are required before publishing a median or completion rate; record exact source, host, model, baseline, acceptance, budget, interactive readiness and adoption. Unknown usage stays unknown.
 
 The local timing script accepts a private event-array or JSONL export. It unions overlapping step/tool intervals, reports incomplete observations and emits no prompts, arguments or paths. Other step time includes model, queue and host work; it is not pure model waiting. Keep exports outside the repository.
+
+On 2026-11-05, three sequential real-model runs on the recorded unreleased source used Windows, Node 26.13.0, DSH 0.2.1-rc.5 and deepseek-account/deepseek-flash with a five-minute generation limit per candidate. All six candidates passed, and all three scripted example adoption/undo checks succeeded. Median first verified interactive preview was 41.4 seconds; median completion of both candidates' checks was 112.5 seconds. Per-candidate reported totals ranged from 122,977 to 1,234,664 tokens, including cache counters. The host was already running; caches were not reset. These are three task-specific observations, not a cold-start, currency-cost or cross-model performance claim. The table and linked structured record preserve all three runs, source identity, artifact hash and conditions.

@@ -716,6 +716,9 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
     </section>
   )
 }
+function ExampleTimingEvidence(): React.ReactElement {
+  return <details className="ac-details"><summary>基础示例实测：首个预览中位 41 秒（指定配置 3 轮）</summary><p className="ac-meta">2026-11-05，Windows · DSH 0.2.1-rc.5 · Node 26.13.0 · DeepSeek Flash，基础搜索与清空任务。首个预览 39–60 秒，两版验收中位 112.5 秒；6/6 候选通过，3 次测试采用与撤销成功。每版报告约 12.3–123.5 万 token，含缓存，不能直接换算费用。宿主已启动，缓存未重置；这不是其他配置的耗时承诺。<a href="https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/first-use.md" target="_blank" rel="noreferrer">查看源码、样本和测量条件</a></p></details>
+}
 /** Session-scoped controls above the resident conversation composer. */
 function ComposerSettings({ sessionId, session }: { sessionId: string; session?: unknown }): React.ReactElement | null {
   const mode = useAbMode(sessionId), p = mode.preferences
@@ -782,6 +785,7 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {p.mode === 'cross-model' ? <div className="ac-models">{[0, 1].map(i => <label key={i}>{i === 0 ? '模型一' : '模型二'}<select disabled={loading || busy} value={p.models[i]?.model ? `${p.models[i]?.provider}/${p.models[i]?.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const pair: [Route, Route] = [...p.models]; pair[i] = item ? { provider: item.provider, model: item.id } : {}; saveMode(sessionId, { ...p, models: pair }) }}><option value="">选择已配置的模型</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={p.models[1-i]?.provider === m.provider && p.models[1-i]?.model === m.id}>{m.name} · {m.providerName}</option>)}</select></label>)}{loading ? <span className="ac-meta" role="status">正在读取模型…</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>重试模型列表</button></span> : models.length < 2 ? <span className="ac-meta">当前可读取的模型不足两个，可先使用同一模型的两种策略。</span> : null}</div>
       : <div className="ac-meta">当前模型：{routeText(setup?.current) || (setup ? '请先在输入框右下角选择模型' : '正在读取…')}{setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}> · 项目：{setup.project.path}</span> : ''}</div>}
     <div className="ac-settings-foot">到时验收已写的改动 · 两版分别消耗用量 · 示例也使用真实模型，生成耗时随模型与环境变化 · {mode.saving ? '正在保存设置…' : '设置已保存在此对话'}</div></>}
+    {!mode.collapsed && (p.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}
     {setupError && !mode.collapsed && <div className="ac-feedback" role="alert">无法读取当前模型与项目：{setupError}<button className="ac-text-btn" onClick={() => { setSetupError(undefined); setSetupRetry(value => value + 1) }}>重新读取模型与项目</button></div>}
     {(error || mode.error) && <div className="ac-feedback" role="alert">{error ?? mode.error}<button className="ac-text-btn" onClick={() => { void loadMode(sessionId); setError(undefined) }}>重新读取设置</button></div>}
   </section>
@@ -817,7 +821,7 @@ function ComposerDockState({ sessionId, session }: { sessionId: string; session?
   return <>
     {capabilityError && <div className="ac-root"><Styles /><div className="ac-feedback ac-prerequisite" role="alert"><span>{capabilityError}</span><div className="ac-prerequisite-actions"><button className="ac-text-btn" onClick={() => { void loadMode(sessionId) }}>重新检查接口</button><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>比较记录</button></div></div></div>}
     {runId && <section className="ac-root ac-conversation-run" aria-label="本对话的 A|B 结果"><Styles />
-      {collapsed && <div className="ac-conversation-run-head"><b>本次比较</b><span className="ac-meta">{runId}</span><span className="ac-spacer" /><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>记录与使用指南</button><button className="ac-text-btn" onClick={() => setCollapsed(false)}>展开结果</button></div>}
+      {collapsed && <div className="ac-conversation-run-head"><b>本次比较</b><span className="ac-meta">{runId}</span><span className="ac-spacer" /><button className="ac-text-btn" onClick={() => setOpen(sessionId)}>记录与教程</button><button className="ac-text-btn" onClick={() => setCollapsed(false)}>展开结果</button></div>}
       <div className="ac-conversation-run-scroll" hidden={collapsed}><RunView key={runId} runId={runId} sessionId={sessionId} compact {...(latest?.runId === runId ? { initial: latest } : {})} onExpand={() => setOpen(sessionId, runId)} onCollapse={() => setCollapsed(true)} /></div>
     </section>}
     {error && (blank || mode.preferences.enabled || mode.refreshVersion) ? <div className="ac-root"><div className="ac-feedback" role="alert">读取比较记录失败：{error}</div></div> : null}
@@ -1235,6 +1239,7 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
     </ol>
     <div className="ac-case"><div><b>试跑真实的示例商店</b><span>新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前模型与时长设置，两版分别消耗用量；任务、结果和选择保留在主对话。</span><label className="ac-budget">示例范围 <select aria-label="内置示例范围" disabled={busy || !mode.loaded} value={mode.preferences.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...mode.preferences, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">基础 · 搜索与清空</option><option value="full">完整 · 组合筛选与手机适配</option></select></label></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? '正在创建…' : '试跑内置示例'}</button></div>
     {error && <div className="ac-feedback" role="alert">{error}</div>}
+    {(mode.preferences.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}
     <button className="ac-btn" onClick={() => { mode.collapsed = false; if (enterMode(sessionId)) saveMode(sessionId, { ...modeFor(sessionId).preferences, enabled: true }); returnToComposer(sessionId) }}>回到输入框，开启 A|B</button><div className="ac-note">支持范围：仓库根目录中的本地 Vite 前端。页面检查通过只代表配置的步骤通过，仍需实际体验需求和边界情况。</div>
   </div>
 }
@@ -1316,7 +1321,7 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
       <Styles /><div className="ac-mask" onClick={() => setOpen(undefined)} />
       <div ref={sheet} className="ac-sheet" role="dialog" aria-modal="true" aria-label="AgentCompare" tabIndex={-1}>
         <header className="ac-head"><span className="ac-logo">A|B</span><span className="ac-title">AgentCompare</span><span className="ac-header-caption">跑过再选</span><span className="ac-spacer" />
-          <nav className="ac-tabs" aria-label="比较工作区">{(['history', 'guide'] as const).map((item) => <button key={item} className={`ac-tab${view === item && !selected ? ' on' : ''}`} aria-current={view === item && !selected ? 'page' : undefined} onClick={() => navigate(item)}>{{ history: '历史记录', guide: '使用指南与演示' }[item]}</button>)}</nav>
+          <nav className="ac-tabs" aria-label="比较工作区">{(['history', 'guide'] as const).map((item) => <button key={item} className={`ac-tab${view === item && !selected ? ' on' : ''}`} aria-current={view === item && !selected ? 'page' : undefined} onClick={() => navigate(item)}>{{ history: '历史记录', guide: '使用教程' }[item]}</button>)}</nav>
           <button className="ac-icon-btn" onClick={() => setOpen(undefined)} aria-label="关闭（Esc）" title="关闭（Esc）"><IconClose /></button>
         </header>
         {err && <div className="ac-error" role="alert">{err}<button className="ac-text-btn" onClick={() => { void refreshList() }}>重试</button></div>}
@@ -1333,7 +1338,7 @@ function HeaderButton({ sessionId }: { sessionId: string }): React.ReactElement 
     <div className="ac-root ac-header-tools" role="group" aria-label="AgentCompare 导航">
       <Styles />
       <button className="ac-header-btn" title="AgentCompare：比较记录" aria-label="打开 AgentCompare 比较记录" onClick={() => setOpen(sessionId)}>比较记录</button>
-      <button className="ac-header-btn" title="AgentCompare：使用教程与演示" aria-label="打开 AgentCompare 使用教程" onClick={() => setOpen(sessionId, undefined, 'guide')}>使用教程</button>
+      <button className="ac-header-btn" title="AgentCompare：使用教程" aria-label="打开 AgentCompare 使用教程" onClick={() => setOpen(sessionId, undefined, 'guide')}>使用教程</button>
     </div>
   )
 }

@@ -13,6 +13,8 @@ const result = await build({
   format: 'cjs',
   target: 'es2022',
   external: ['react'],
+  minifyWhitespace: true,
+  minifySyntax: true,
   write: false,
 })
 const src = result.outputFiles[0].text

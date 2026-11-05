@@ -8,9 +8,10 @@ import { tmp } from './fixture.ts'
 describe('built-in example scope', () => {
   it('binds distinct common acceptance before generation and preserves the complete case', async () => {
     const root = await tmp('ac-example-scope')
-    const quick = await createExampleRepo(root, undefined, 'quick')
-    const full = await createExampleRepo(root, undefined, 'full')
-    const original = await createExampleRepo(root)
+    const [quick, full, original] = await Promise.all([
+      createExampleRepo(root, undefined, 'quick'), createExampleRepo(root, undefined, 'full'), createExampleRepo(root),
+    ])
+    expect(new Set([quick, full, original]).size).toBe(3)
     const spec = async (repo: string) => JSON.parse(await readFile(path.join(repo, '.agent-compare.json'), 'utf8'))
     expect((await spec(quick)).browser.steps).toHaveLength(5)
     expect((await spec(full)).browser.steps).toHaveLength(12)

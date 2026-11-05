@@ -4,6 +4,7 @@
 
 - Add a smaller search-and-clear example with five shared browser steps; keep the full combination/mobile case selectable and remember the choice per conversation. Neither option requires typed flags or changes the user's current project.
 - Reduce redundant candidate-side installation and check loops while retaining independent frozen installation and common verification after generation. Duration limits remain unchanged until measured samples justify a change.
+- Record three source-bound real-model examples with verification, adoption, undo, complete usage and interval evidence. Keep detailed measurement records in the repository and compress the client bundle while preserving exported names and packaged translations.
 
 - Honor exact package-manager declarations, distinguish Yarn lock generations and use immutable modern Yarn installs. Detect missing commands and reject incompatible versions before model work.
 - Reuse the host's public bundled-pnpm invocation when absent from PATH without copying its package-operation credentials. Keep mutable caches and Yarn runtime state private to each copy.

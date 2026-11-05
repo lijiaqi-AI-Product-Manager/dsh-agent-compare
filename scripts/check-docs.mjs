@@ -8,9 +8,9 @@ import path from 'node:path'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const canonical = ['README.md', 'README.en.md', 'README.ja.md', 'README.ko.md', 'README.es.md', 'README.pt-BR.md', 'README.fr.md', 'README.de.md']
 const guides = [...canonical, 'README.zh.md']
-const referenceDocs = ['docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md', 'docs/distribution.md', 'docs/distribution.en.md']
+const referenceDocs = ['docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md', 'docs/distribution.md', 'docs/distribution.en.md', 'docs/first-use.md']
 const mediaFiles = ['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json', 'assets/icon.png', 'assets/icon.svg', 'screenshots.json', 'docs/media/screenshots/manifest.json', ...JSON.parse(await readFile(path.join(root, 'screenshots.json'), 'utf8'))]
-const repositoryOnlyMedia = new Set(['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png'])
+const repositoryOnlyMedia = new Set(['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json'])
 const packagedMedia = mediaFiles.filter(file => !repositoryOnlyMedia.has(file))
 const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
 const repository = manifest.repository.url.replace(/^git\+/, '').replace(/\.git$/, '')
@@ -62,12 +62,35 @@ for (const asset of recorded.files) {
   assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256, `${asset.path}: recorded content differs`)
 }
 
+const firstUse = JSON.parse(await readFile(path.join(root, 'docs/measurements/first-use-2026-11-05.json'), 'utf8'))
+assert.equal(firstUse.schema, 'agentcompare.first-use/v1')
+assert.match(firstUse.source, /^[0-9a-f]{40}$/)
+assert.match(firstUse.artifactSha256, /^[0-9a-f]{64}$/)
+assert.equal(firstUse.runs.length, 3)
+const summary = values => { const sorted = [...values].sort((a, b) => a - b), middle = Math.floor(sorted.length / 2); return { min: sorted[0], median: sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2, max: sorted.at(-1) } }
+assert.deepEqual(firstUse.summary.firstInteractiveMs, summary(firstUse.runs.map(run => run.firstInteractiveMs)))
+assert.deepEqual(firstUse.summary.bothVerifiedMs, summary(firstUse.runs.map(run => run.bothVerifiedMs)))
+assert.deepEqual(firstUse.summary.candidateTotalTokens, summary(firstUse.runs.flatMap(run => run.candidates.map(candidate => candidate.usage.totalTokens))))
+for (const run of firstUse.runs) {
+  assert.equal(run.adoption, 'adopted'); assert.equal(run.undo, 'reverted')
+  assert.equal(run.candidates.length, 2)
+  for (const candidate of run.candidates) {
+    assert.equal(candidate.generation.ended, 'completed'); assert.equal(candidate.eligible, true)
+    assert.equal(candidate.observed.incomplete, 0)
+    assert.ok(candidate.checks.every(check => check.outcome === 'passed'))
+    assert.equal(candidate.usage.kind, 'reported')
+    const usage = candidate.usage
+    assert.equal(usage.totalTokens, usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens)
+    assert.ok(candidate.phases.generating <= firstUse.generationBudgetMs)
+  }
+}
+
 assert.ok(process.env.npm_execpath, 'Run this check through npm run check:docs')
 const result = JSON.parse(execFileSync(process.execPath, [process.env.npm_execpath, 'pack', '--dry-run', '--ignore-scripts', '--json'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }))
 const packages = Array.isArray(result) ? result : Object.values(result)
 assert.equal(packages.length, 1, 'Expected one package')
 const files = new Set(packages[0].files.map(file => file.path))
 for (const file of [...guides, ...referenceDocs, ...packagedMedia, 'CONTRIBUTING.md', 'LICENSE']) assert.ok(files.has(file), `Package omits ${file}`)
-for (const file of files) assert.ok(!repositoryOnlyMedia.has(file) && !file.startsWith('assets/readme/'), 'Presentation-only media must stay out of the runtime package')
+for (const file of files) assert.ok(!repositoryOnlyMedia.has(file) && !file.startsWith('assets/readme/') && !file.startsWith('docs/measurements/'), 'Presentation-only media and research evidence must stay out of the runtime package')
 assert.ok(packages[0].size <= 650_000, 'Compressed runtime package exceeds the 650 kB distribution budget')
-console.log(JSON.stringify({ languages: canonical.length, guides: guides.length, referenceDocs: referenceDocs.length, localLinks, version: manifest.version, sourceInstallArchivesCurrent: true, packagedGuides: true, recordedAssetsVerified: recorded.files.length, packageBytes: packages[0].size }))
+console.log(JSON.stringify({ languages: canonical.length, guides: guides.length, referenceDocs: referenceDocs.length, localLinks, version: manifest.version, sourceInstallArchivesCurrent: true, packagedGuides: guides.length, recordedAssetsVerified: recorded.files.length, packageBytes: packages[0].size }))
