@@ -21,6 +21,8 @@
 
 > **1.0.1 · 正式版。** 支持 DSH 桌面端与浏览器界面。首期面向本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
 
+主分支中的两档内置示例、空间清理预览及包管理器扩展尚未发布到 npm；已发布的 1.0.1 不包含这些更新。当前进展见 [Unreleased](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#unreleased)。
+
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一前端需求，生成并实际运行两份实现。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
@@ -79,7 +81,7 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.0.1.tgz
 4. 同一条对话里出现 A|B 卡片，两个小窗口是两版**真实运行的应用**。新会话尚未显示聊天时间线时，同一份记录直接显示在输入框上方。默认适应窗口、直接交互，也可切换统一桌面／手机视口或专注 A/B；「大窗口查看」用于放大检查。
 5. 选择后揭晓模型和策略，展开代码改动，再点「审查并采用」。先显示目标仓库与核验结果，确认后才写入。恢复操作置于结果顶部；采用后点「继续主对话」，退出比较模式并聚焦原输入框，记录仍保留。
 
-设置条中的「试跑内置示例」会直接新建独立的示例仓库并在本对话中启动，不修改已有草稿。示例结果只采用到示例仓库。
+设置条中的「试跑内置示例」可选择基础的搜索与清空，或完整的组合筛选与手机适配；选择会记住。它直接新建独立仓库并在本对话中启动，不修改已有草稿，结果只采用到示例仓库。两版分别使用真实模型并消耗用量，较小范围不保证固定耗时。[示例范围与耗时说明](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/first-use.md)。
 
 右上角的**比较记录**与**使用教程**在新建和已有对话中均可打开。历史保留需求、检查、选择、采用与撤销记录；预览停止后可查看验收截图。
 

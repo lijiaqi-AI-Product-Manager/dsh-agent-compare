@@ -39,7 +39,9 @@
     "!docs/media/*.mp4",
     "!docs/media/*.gif",
     "!docs/media/social-preview.png",
-    "!assets/readme"
+    "!assets/readme",
+    "!docs/measurements",
+    "!docs/media/manifest.json"
   ],
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0",

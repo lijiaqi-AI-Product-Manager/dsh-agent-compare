@@ -8,6 +8,7 @@ export interface AbPreferences {
   readonly enabled: boolean
   readonly mode: 'same-model' | 'cross-model'
   readonly generationMinutes: number
+  readonly exampleKind?: 'quick' | 'full'
   readonly models: readonly [AgentRoute, AgentRoute]
 }
 
@@ -20,6 +21,7 @@ export function parsePreferences(value: unknown): AbPreferences {
   const p = value as Record<string, unknown>
   if (typeof p.enabled !== 'boolean' || !['same-model', 'cross-model'].includes(String(p.mode))) throw new Error('比较方式无效')
   if (typeof p.generationMinutes !== 'number' || !Number.isFinite(p.generationMinutes) || p.generationMinutes < 5 || p.generationMinutes > 120) throw new Error('每版生成上限需要在 5 到 120 分钟之间')
+  if (p.exampleKind !== undefined && p.exampleKind !== 'quick' && p.exampleKind !== 'full') throw new Error('示例类型无效')
   if (!Array.isArray(p.models) || p.models.length !== 2) throw new Error('模型设置需要两个位置')
   const models = p.models.map((value: unknown): AgentRoute => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('模型设置无效')
@@ -28,7 +30,7 @@ export function parsePreferences(value: unknown): AbPreferences {
     if (typeof r.provider !== 'string' || !r.provider.trim() || typeof r.model !== 'string' || !r.model.trim()) throw new Error('请选择包含服务与模型的完整配置')
     return { provider: r.provider, model: r.model }
   }) as [AgentRoute, AgentRoute]
-  return { enabled: p.enabled, mode: p.mode as AbPreferences['mode'], generationMinutes: p.generationMinutes, models }
+  return { enabled: p.enabled, mode: p.mode as AbPreferences['mode'], generationMinutes: p.generationMinutes, models, ...(p.exampleKind === undefined ? {} : { exampleKind: p.exampleKind as 'quick' | 'full' }) }
 }
 
 export class PreferencesStore {
