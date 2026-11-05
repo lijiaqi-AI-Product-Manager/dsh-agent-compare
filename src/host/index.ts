@@ -30,7 +30,7 @@ import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, projectCommandArgv, type ManagedPnpm, type ProjectSandbox } from './project-process.ts'
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 import { readComparisonStatus } from './status.ts'
-import { withCurrentComparison, type StepDecision } from './step-context.ts'
+import { withCurrentComparisonState, type ComparisonAssembly } from './current-state.ts'
 import { authorizeComparisonAction, CONVERSATION_ACTIONS } from './action-access.ts'
 import { startToolComparison, type StartToolArgs } from './start-tool.ts'
 import { hostCapabilities } from './capabilities.ts'
@@ -357,11 +357,10 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     scrubbedParentEnv: await environmentContract,
   })
   const store = new RunStore(config.home ?? defaultHome())
-  ctx.effect(() => ctx.on('agent/pre-step', (payload: { agent: AgentLike; signal: AbortSignal }, next: () => Promise<StepDecision>) => withCurrentComparison(payload, next, {
+  ctx.effect(() => ctx.on('system-prompt/assemble', (_assembly: ComparisonAssembly, context: { agent?: AgentLike; scope?: unknown; signal?: AbortSignal }, next: () => Promise<ComparisonAssembly>) => withCurrentComparisonState(context, next, {
     latest: async sessionId => (await store.list()).filter(record => record.sessionId === sessionId).sort((a, b) => b.updatedAt - a.updatedAt || b.rev - a.rev)[0],
-    createMessage: async () => ((await import('@deepseek-ai/dsh-llm' as string)) as { createUserMessage: (message: unknown) => unknown }).createUserMessage,
     warn: message => ctx.logger.warn(message),
-  })), 'agent-compare: current state before incoming model steps')
+  })), 'agent-compare: current state in scoped prompt assembly')
   const preferences = new PreferencesStore(store, defaultPreferences(config.generationMinutes ?? 30))
   // Each milestone of a run becomes one model-facing note in its conversation,
   // so the conversation remembers what was compared, chosen and adopted.
@@ -541,7 +540,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
         }
       }
-      return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, capabilities: await capabilities(), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
+      return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, features: { currentComparisonContext: 'scoped-assembly-v1' }, capabilities: await capabilities(), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
     },
     async list(b) {
       const page = await historyPage(store, b)

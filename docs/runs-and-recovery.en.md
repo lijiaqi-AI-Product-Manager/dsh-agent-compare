@@ -1,6 +1,6 @@
 # Records and recovery
 
-Before a main conversation admits a new incoming message batch, it receives the most recently updated comparison state for that conversation: run ID, revision, choice, adoption mode and adoption state. This snapshot supersedes older status notes for the same run and distinguishes selection, worktree adoption, branch export and undo. Historical notes remain. Delegated conversations and idle steps receive no snapshot; a read failure explicitly marks the current state unknown.
+Each scoped main-conversation prompt assembly receives the most recently updated comparison state for that conversation: run ID, revision, choice, adoption mode and adoption state. This snapshot supersedes older status notes for the same run and distinguishes selection, worktree adoption, branch export and undo. Historical notes remain. Delegated conversations and diagnostic assemblies receive no snapshot; a read failure explicitly marks the current state unknown.
 
 History remains readable across conversations. Write and resource-control actions resolve the current conversation through the host first. A comparison from another conversation, or an old record without an owner, requires confirmation of the project and run ID for that individual action. Confirmation does not replace host permissions, the run ownership lock or file integrity checks. Escape dismisses confirmation and keeps the history window open.
 
