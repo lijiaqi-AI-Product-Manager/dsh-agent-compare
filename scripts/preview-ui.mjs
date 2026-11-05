@@ -135,7 +135,8 @@ window.fetch = async (url, init) => {
     : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false} : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
-  if (m[1] === 'adopt' && selected >= 0) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'adopted',adoption:{state:'adopted',mode:body.mode,message:'已采用'}}; value=runs[selected]; }
+  if (m[1] === 'adopt' && selected >= 0) { const rehearsal=window.__actionPlans.find(plan=>plan.method==='adopt')?.rehearsal; runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:rehearsal?'adopting':'adopted',control:rehearsal?{allowed:true,canCancelAdoption:true,adoptionCancellationRequested:false}:runs[selected].control,adoption:{state:rehearsal?'rehearsing':'adopted',mode:body.mode,message:rehearsal?'正在预演':'已采用'}}; value=runs[selected]; }
+  if (m[1] === 'cancelAdoption' && selected >= 0) {runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',control:{allowed:true},adoption:{state:'blocked',mode:'worktree',message:'已停止采用预演，候选成果仍保留。尚未写入任何文件。'}};value=runs[selected];}
   if (m[1] === 'retryVerification' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method===m[1])?.error) {
     runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,state:'judging',candidates:runs[selected].candidates.map(c=>c.label===body.label?{...c,...${JSON.stringify({ A, B })}[c.label],usage:c.usage,install:{argv:['npm','ci'],frozen:true,durationMs:1000,outcome:'passed'},error:undefined,canRetryVerification:false,verificationHistory:[...(c.verificationHistory??[]),{recordedAt:Date.now(),durationMs:10000,install:c.install,error:c.error}]}:c)};
     value=runs[selected];
@@ -149,6 +150,7 @@ window.fetch = async (url, init) => {
   const snapshot=JSON.stringify(pending?.error?{ok:false,error:pending.error}:{ok:true,value:plan?.value??value});
   if(plan?.delayMs)await new Promise(resolve=>setTimeout(resolve,plan.delayMs));
   if(pending?.delayMs)await new Promise(resolve=>setTimeout(resolve,pending.delayMs));
+  if(pending?.rehearsal)return new Response(JSON.stringify({ok:true,value:runs.find(r=>r.runId===body.runId)}),{headers:{'content-type':'application/json'}});
   return new Response(snapshot,{status:pending?.error?503:200,headers:{'content-type':'application/json'}});
 };
 window.__ModuleLoader__ = {load:({factory})=>{

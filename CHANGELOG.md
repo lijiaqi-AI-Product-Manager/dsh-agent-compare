@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Let the owning conversation stop adoption rehearsal before file handoff starts. Confirm process-tree exit, retain candidates for retry, and keep writing or recovery operations uninterrupted.
+
 - Refresh development, CI and native package-manager acceptance to npm 12.2.2; retain the recorded tool versions of historical measurements.
 
 - Add a smaller search-and-clear example with five shared browser steps; keep the full combination/mobile case selectable and remember the choice per conversation. Neither option requires typed flags or changes the user's current project.

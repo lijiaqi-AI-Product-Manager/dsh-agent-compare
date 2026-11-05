@@ -132,6 +132,7 @@ export class Comparer {
   private readonly operations = new Set<Promise<unknown>>()
   private readonly owners = new Map<string, Promise<FileLease>>()
   private readonly ownerUses = new Map<string, number>()
+  private readonly adoptionControllers = new Map<string, { controller: AbortController; record: RunRecord }>()
   private readonly lifetime = new AbortController()
   private closing = false
   private disposal?: Promise<void>
@@ -781,10 +782,24 @@ export class Comparer {
    * for any finished candidate, so an unverified one can still be inspected.
    */
   adopt(runId: string, mode: 'worktree' | 'branch' = 'worktree'): Promise<RunRecord> {
-    return this.operation(() => this.adoptRun(runId, mode), runId)
+    const controller = new AbortController()
+    return this.operation(() => this.adoptRun(runId, mode, controller), runId).finally(() => {
+      if (this.adoptionControllers.get(runId)?.controller === controller) this.adoptionControllers.delete(runId)
+    })
   }
 
-  private async adoptRun(runId: string, mode: 'worktree' | 'branch'): Promise<RunRecord> {
+  /** Interrupt only this owner's rehearsal; file handoff must finish once writing begins. */
+  async cancelAdoption(runId: string): Promise<RunRecord> {
+    this.assertOpen()
+    const pending = this.adoptionControllers.get(runId)
+    if (!pending || pending.record.state !== 'adopting' || pending.record.adoption?.state !== 'rehearsing') {
+      throw new AdoptError('state', '当前没有可停止的采用预演；文件交接开始后必须等待核验完成。')
+    }
+    pending.controller.abort(new Error('已停止采用预演'))
+    return pending.record
+  }
+
+  private async adoptRun(runId: string, mode: 'worktree' | 'branch', controller: AbortController): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
     return withRepositoryWrite(first.baseline.repoRoot, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
@@ -814,6 +829,8 @@ export class Comparer {
         throw new AdoptError('ineligible', `这一版没有通过共同验收，不能写入工作区：${(c.verdict?.reasons ?? ['没有验收结论']).join('；')}。可以另存为分支查看。`)
       }
       if (r.adoption?.rehearsal?.stopUnconfirmed) throw new AdoptError('state', '先前预演的进程停止状态未知，副本仍保留；请先检查该任务进程')
+      this.adoptionControllers.set(runId, { controller, record: r })
+      const signal = AbortSignal.any([this.lifetime.signal, controller.signal])
       r.adoption = { label: pick, mode, state: 'rehearsing', startedAt: Date.now() }
       r.state = 'adopting'
       await this.save(r)
@@ -831,14 +848,17 @@ export class Comparer {
       let pf: Awaited<ReturnType<typeof preflight>>
       try { pf = await preflight({ baseline: r.baseline, candidateCommit: c.candidateCommit, nameStatus, scratchDir: scratch }) }
       catch (error) { return blocked(`无法完成采用检查：${(error as Error).message}。`) }
-      if (this.closing) return blocked('宿主正在停止，已取消采用。')
+      if (signal.aborted) return blocked(this.closing ? '宿主正在停止，已取消采用。' : '已停止采用预演，候选成果仍保留。')
       if (!pf.ok) return blocked(`基线之后你改过这些文件，和这一版的改动重叠：${pf.overlapping.slice(0, 10).join('、')}。`, pf.overlapping)
 
       if (pf.expectedTree === c.candidateTree) {
         r.adoption.rehearsal = { reused: true, tree: pf.expectedTree }
       } else {
-        const rehearsal = await this.rehearse(r, pf.expectedTree, pf.target.head)
+        const rehearsal = await this.rehearse(r, pf.expectedTree, pf.target.head, signal)
         r.adoption.rehearsal = rehearsal.record
+        if (signal.aborted) return blocked(rehearsal.record.stopUnconfirmed
+          ? '已收到停止预演请求，但进程退出尚未确认；预演副本继续保留，请检查任务进程。'
+          : this.closing ? '宿主正在停止，已取消采用。' : '已停止采用预演，候选成果仍保留。')
         if (!rehearsal.ok) return blocked(`把这一版接到你当前的项目上预演后，验收没有通过：${rehearsal.reasons.join('；')}。`)
       }
 
@@ -848,7 +868,8 @@ export class Comparer {
       // Journal: everything needed to undo is durable before the first byte changes.
       const preAdopt = await pinPreAdopt(repo, pf.target)
       await pinRef(repo, `refs/agent-compare/${runId}/pre-adopt`, preAdopt)
-      if (this.closing) return blocked('宿主正在停止，已取消采用。')
+      if (signal.aborted) return blocked(this.closing ? '宿主正在停止，已取消采用。' : '已停止采用预演，候选成果仍保留。')
+      this.adoptionControllers.delete(runId)
       Object.assign(r.adoption, { state: 'writing', preAdoptCommit: preAdopt, expectedTree: pf.expectedTree, headBefore: pf.target.head, stagedBefore: pf.target.staged, writtenPaths: [], fileTransfer: newFileTransferRef(), transferDirection: 'apply' })
       await this.save(r)
 
@@ -920,18 +941,22 @@ export class Comparer {
   }
 
   /** Build `tree` in a scratch copy and run the full acceptance on it. */
-  private async rehearse(r: RunRecord, tree: string, head: string | undefined): Promise<{ ok: boolean; reasons: string[]; record: NonNullable<NonNullable<RunRecord['adoption']>['rehearsal']> }> {
+  private async rehearse(r: RunRecord, tree: string, head: string | undefined, signal: AbortSignal): Promise<{ ok: boolean; reasons: string[]; record: NonNullable<NonNullable<RunRecord['adoption']>['rehearsal']> }> {
     const repo = r.baseline.repoRoot
     const dir = path.join(this.store.copies(r.runId), 'R')
     const token = randomBytes(12).toString('hex')
     const record: NonNullable<NonNullable<RunRecord['adoption']>['rehearsal']> = { reused: false, tree, dir, ownerToken: token }
     r.adoption!.rehearsal = record
     await this.save(r)
-    const commit = await commitTree(repo, tree, [head], `agent-compare rehearsal ${r.runId}`)
-    await pinRef(repo, `refs/agent-compare/${r.runId}/rehearsal`, commit)
-    await addOwnedWorktree(repo, dir, commit, { runId: r.runId, label: 'R', token })
+    let pinned = false, created = false
     try {
-      const v = await this.verifyCopy(r.acceptance, dir, { repo, owner: { runId: r.runId, label: 'R', token }, yarnModern: r.acceptance.runtime.yarnModern }, tree, path.join(this.store.artifacts(r.runId), 'R'), this.lifetime.signal)
+      signal.throwIfAborted()
+      const commit = await commitTree(repo, tree, [head], `agent-compare rehearsal ${r.runId}`)
+      await pinRef(repo, `refs/agent-compare/${r.runId}/rehearsal`, commit)
+      pinned = true
+      await addOwnedWorktree(repo, dir, commit, { runId: r.runId, label: 'R', token })
+      created = true
+      const v = await this.verifyCopy(r.acceptance, dir, { repo, owner: { runId: r.runId, label: 'R', token }, yarnModern: r.acceptance.runtime.yarnModern }, tree, path.join(this.store.artifacts(r.runId), 'R'), signal)
       await v.preview?.handle.stop()
       const reasons = [
         ...v.checks.filter((k) => k.outcome === 'failed' || k.outcome === 'timeout').map((k) => `${k.name} 未通过${k.reason ? `（${k.reason.slice(0, 120)}）` : ''}`),
@@ -943,8 +968,8 @@ export class Comparer {
       return { ok: false, reasons: [(error as Error).message.split('\n')[0] ?? '预演失败'], record }
     } finally {
       if (!record.stopUnconfirmed) {
-        await removeOwnedWorktree(repo, dir, { runId: r.runId, label: 'R', token })
-        await dropRefs(repo, `refs/agent-compare/${r.runId}/rehearsal`)
+        if (created) await removeOwnedWorktree(repo, dir, { runId: r.runId, label: 'R', token })
+        if (pinned && (created || !existsSync(dir))) await dropRefs(repo, `refs/agent-compare/${r.runId}/rehearsal`)
       }
     }
   }
@@ -1317,12 +1342,16 @@ export class Comparer {
   }
 
   /** A snapshot for presentation; every action acquires ownership again. */
-  async control(r: RunRecord): Promise<{ allowed: boolean; reason?: string; retryable?: boolean }> {
+  async control(r: RunRecord): Promise<{ allowed: boolean; reason?: string; retryable?: boolean; canCancelAdoption?: boolean; adoptionCancellationRequested?: boolean }> {
     if (this.closing) return { allowed: false, reason: '比较服务正在停止' }
     const reason = uncoordinatedReason(r)
     if (reason) return { allowed: false, reason }
     if (this.owners.has(r.runId)) {
-      try { await this.owners.get(r.runId); return { allowed: !this.closing, ...(this.closing ? { reason: '比较服务正在停止' } : {}) } }
+      try {
+        await this.owners.get(r.runId)
+        const pending = this.adoptionControllers.get(r.runId)
+        return { allowed: !this.closing, ...(this.closing ? { reason: '比较服务正在停止' } : {}), ...(pending?.record.adoption?.state === 'rehearsing' ? { canCancelAdoption: true, adoptionCancellationRequested: pending.controller.signal.aborted } : {}) }
+      }
       catch (error) { return { allowed: false, reason: error instanceof BusyError ? error.message : '无法确认管理归属，当前仅可查看。请检查本地锁文件与访问权限后重试。' } }
     }
     try {
