@@ -93,6 +93,7 @@ interface WebCtx {
     effect(fn: () => () => void | Promise<void>, label?: string): void;
 }
 interface HostCtx {
+    on(name: string, listener: (...args: any[]) => unknown): () => void;
     tools: {
         register(def: unknown): () => void;
     };
