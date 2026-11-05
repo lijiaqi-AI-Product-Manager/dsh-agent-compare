@@ -13,7 +13,9 @@ let browser
 let assertions = 0
 const check = (value, message) => { assert.ok(value, message); assertions++ }
 try {
-  browser = await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
+  const channel = process.env.AGENT_COMPARE_UI_BROWSER_CHANNEL
+  assert.ok(channel === undefined || ['msedge', 'chrome'].includes(channel), 'Unsupported UI browser channel')
+  browser = channel ? await chromium.launch({ channel, headless: true }) : await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -429,8 +431,11 @@ try {
   await chooseElsewhere()
   check((await requests('choose')).length === 1 && !(await requests('choose')).at(-1).body.confirmOtherSession, 'a cross-conversation action must first request explicit confirmation')
   check((await page.getByRole('region', { name: '跨对话操作确认' }).innerText()).includes('运行编号'), 'confirmation must identify the exact comparison and target project')
+  check((await page.getByRole('region', { name: '跨对话操作确认' }).innerText()).includes('选择 A 并揭晓'), 'confirmation must identify the selected candidate')
+  check(await page.getByRole('button', { name: '选 B', exact: true }).isDisabled(), 'another choice must remain disabled while confirmation is pending')
   await page.keyboard.press('Escape')
   check(await page.getByRole('region', { name: '跨对话操作确认' }).count() === 0 && (await requests('choose')).length === 1, 'Escape must dismiss confirmation without performing the action')
+  check(await page.getByRole('button', { name: '选 B', exact: true }).isEnabled(), 'dismissing confirmation must restore the original choice controls')
   await chooseElsewhere()
   await page.getByRole('button', { name: '确认本次操作', exact: true }).click()
   await page.getByRole('button', { name: '审查并采用 A', exact: true }).waitFor()
@@ -733,7 +738,7 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'Escape must close the workspace')
   check(await page.evaluate(() => document.activeElement.classList.contains('ac-header-btn')), 'closing must restore entry-button focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
-  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), react: await page.evaluate(() => React.version), node: process.version }))
+  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), channel: channel ?? 'automatic', react: await page.evaluate(() => React.version), node: process.version }))
 } finally {
   await browser?.close()
   await harness.close()
