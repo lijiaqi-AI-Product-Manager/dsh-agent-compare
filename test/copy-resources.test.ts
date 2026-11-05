@@ -29,6 +29,21 @@ describe('explicit comparison copy release', () => {
       expect(plan.allowed).toBe(true)
       expect(plan.resources).toHaveLength(2)
       expect(plan.bytes).toBeGreaterThan(0)
+      const selected = (await store.load(done.runId))!
+      expect(selected.candidates[1]!.preview).toBeDefined()
+      const withoutDir = structuredClone(selected)
+      delete withoutDir.candidates[1]!.dir
+      const missingDirPlan = await planCopyCleanup(withoutDir)
+      expect(missingDirPlan.allowed).toBe(false)
+      expect(missingDirPlan.reasons.join()).toContain('预览缺少对应副本目录')
+      const wrongPreview = structuredClone(selected)
+      wrongPreview.candidates[1]!.preview = { ...wrongPreview.candidates[1]!.preview!, cwd: a.dir! }
+      expect((await planCopyCleanup(wrongPreview)).reasons.join()).toContain('预览目录与副本不一致')
+      const deletedCopy = structuredClone(selected)
+      deletedCopy.candidates[1]!.dir = path.join(b.dir!, 'absent')
+      deletedCopy.candidates[1]!.preview = { ...deletedCopy.candidates[1]!.preview!, cwd: deletedCopy.candidates[1]!.dir! }
+      expect((await planCopyCleanup(deletedCopy)).reasons.join()).toContain('副本目录不存在')
+      expect(existsSync(b.dir!)).toBe(true)
       await writeFile(path.join(a.dir!, 'index.html'), '<h1>Later edit</h1>')
       await expect(comparer.releaseCopies(done.runId, plan.token)).rejects.toThrow(/后续修改/)
       expect(existsSync(b.dir!)).toBe(true)
