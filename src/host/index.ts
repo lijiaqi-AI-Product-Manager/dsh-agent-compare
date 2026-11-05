@@ -30,6 +30,7 @@ import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, projectCommandArgv, type ManagedPnpm, type ProjectSandbox } from './project-process.ts'
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 import { readComparisonStatus } from './status.ts'
+import { withCurrentComparison, type StepDecision } from './step-context.ts'
 import { authorizeComparisonAction, CONVERSATION_ACTIONS } from './action-access.ts'
 import { startToolComparison, type StartToolArgs } from './start-tool.ts'
 import { hostCapabilities } from './capabilities.ts'
@@ -94,6 +95,7 @@ interface WebCtx {
   effect(fn: () => () => void | Promise<void>, label?: string): void
 }
 interface HostCtx {
+  on(name: string, listener: (...args: any[]) => unknown): () => void
   tools: { register(def: unknown): () => void }
   inject(names: string[], cb: (sub: WebCtx) => void): unknown
   get(name: string): unknown
@@ -355,6 +357,11 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     scrubbedParentEnv: await environmentContract,
   })
   const store = new RunStore(config.home ?? defaultHome())
+  ctx.effect(() => ctx.on('agent/pre-step', (payload: { agent: AgentLike; signal: AbortSignal }, next: () => Promise<StepDecision>) => withCurrentComparison(payload, next, {
+    latest: async sessionId => (await store.list()).filter(record => record.sessionId === sessionId).sort((a, b) => b.updatedAt - a.updatedAt || b.rev - a.rev)[0],
+    createMessage: async () => ((await import('@deepseek-ai/dsh-llm' as string)) as { createUserMessage: (message: unknown) => unknown }).createUserMessage,
+    warn: message => ctx.logger.warn(message),
+  })), 'agent-compare: current state before incoming model steps')
   const preferences = new PreferencesStore(store, defaultPreferences(config.generationMinutes ?? 30))
   // Each milestone of a run becomes one model-facing note in its conversation,
   // so the conversation remembers what was compared, chosen and adopted.

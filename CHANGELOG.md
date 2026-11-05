@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Admit a bounded current-state summary before an incoming main-conversation batch enters a model step, so restored or delayed milestone notes cannot leave selection mistaken for adoption. Preserve historical notes and skip empty, rejected, cancelled and delegated steps.
+
 - Resolve the current conversation through the host before write or resource-control actions. Require explicit confirmation for each action on another conversation's comparison, including records without an owner, while keeping history readable.
 
 - Maintain one complete Chinese guide and generate the existing alternate document as a checked section index. Preserve its URL and section entry points while reducing duplicate packaged content.
