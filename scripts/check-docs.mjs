@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { chineseGuideAlias } from './chinese-guide-alias.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const canonical = ['README.md', 'README.en.md', 'README.ja.md', 'README.ko.md', 'README.es.md', 'README.pt-BR.md', 'README.fr.md', 'README.de.md']
@@ -18,13 +19,13 @@ const repositoryFiles = `${repository}/blob/main/`
 const repositoryMedia = repository.replace('https://github.com/', 'https://raw.githubusercontent.com/') + '/main/'
 const expectedTarball = `${manifest.name}-${manifest.version}.tgz`
 const contents = new Map(await Promise.all([...guides, ...referenceDocs].map(async file => [file, await readFile(path.join(root, file), 'utf8')])))
-assert.equal(contents.get('README.md'), contents.get('README.zh.md'), 'The existing Chinese URL must retain the canonical Chinese guide')
+assert.equal(contents.get('README.zh.md'), chineseGuideAlias(contents.get('README.md')), 'Run node scripts/sync-chinese-guide.mjs to update the Chinese section entry points')
 
 const withoutCode = source => source.replace(/^```[^\n]*\n[\s\S]*?^```[^\n]*$/gm, '')
 const slug = heading => heading.toLowerCase().replace(/<[^>]*>/g, '').replace(/[^\p{L}\p{N}_\-\s]/gu, '').replace(/\s/g, '-')
 let localLinks = 0
 for (const [file, source] of contents) {
-  if (guides.includes(file)) {
+  if (canonical.includes(file)) {
     const current = file === 'README.zh.md' ? 'README.md' : file
     for (const target of canonical) if (target !== current) assert.ok(source.includes(`](${target})`) || source.includes(`](${repositoryFiles}${target})`), `${file}: missing language link ${target}`)
     assert.ok(source.includes(manifest.version), `${file}: missing current version`)

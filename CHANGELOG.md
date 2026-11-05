@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Maintain one complete Chinese guide and generate the existing alternate document as a checked section index. Preserve its URL and section entry points while reducing duplicate packaged content.
+
 - Let the owning conversation stop adoption rehearsal before file handoff starts. Confirm process-tree exit, retain candidates for retry, and keep writing or recovery operations uninterrupted.
 
 - Refresh development, CI and native package-manager acceptance to npm 12.2.2; retain the recorded tool versions of historical measurements.

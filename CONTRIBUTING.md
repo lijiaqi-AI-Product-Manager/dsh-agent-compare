@@ -19,7 +19,7 @@ npm ci
 npm run typecheck && npm test
 ```
 
-Run `npm run check:docs` after documentation or version changes. The Chinese entry and `README.zh.md` remain identical; eight language guides share the current archive version and are included in the package. This check validates local links, heading targets, language navigation and the actual package file list.
+Maintain the complete Chinese guide in `README.md`, then run `node scripts/sync-chinese-guide.mjs` to refresh `README.zh.md`, a smaller section index retaining the existing document URL and fragment entry points. Run `npm run check:docs` after documentation or version changes. Eight complete language guides and the Chinese section index are included in the package. This check validates local links, heading targets, language navigation and the actual package file list.
 
 Commit rebuilt `lib/` files with changes to `src/`: GitHub source installs use those prebuilt entry points. After building, `npm run check:distribution` validates the bundle, icon, screenshots and repository mapping. `npm run check:prebuilt` checks that the committed runtime matches the build; CI runs it on Windows and Linux.
 
