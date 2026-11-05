@@ -1,7 +1,8 @@
 // Real package managers and native project confinement, with controlled edits.
 import assert from 'node:assert/strict'
 import {createRequire} from 'node:module'
-import {mkdir,readFile,writeFile,rm} from 'node:fs/promises'
+import {mkdir,mkdtemp,readFile,writeFile,rm} from 'node:fs/promises'
+import {existsSync} from 'node:fs'
 import {pathToFileURL} from 'node:url'
 import path from 'node:path'
 import {Comparer,RunStore,createExampleRepo} from '../lib/core/index.js'
@@ -20,8 +21,12 @@ const {Context}=await load('@deepseek-ai/cordis')
 const {LocalSandboxProvider}=await load('@deepseek-ai/dsh-sandbox-local')
 const {scrubbedParentEnv}=await load('@deepseek-ai/dsh-subprocess')
 const host=JSON.parse(await readFile(resolveRuntime.resolve('@deepseek-ai/dsh/package.json'),'utf8')).version
-const root=path.resolve(process.env.AGENT_COMPARE_MANAGER_WORK??'.runtime-checks/managers')
-const tools=path.resolve(process.env.AGENT_COMPARE_PM_TOOLS??path.join(root,'tools'))
+const root=process.env.AGENT_COMPARE_MANAGER_WORK?path.resolve(process.env.AGENT_COMPARE_MANAGER_WORK):await mkdtemp(path.join(path.dirname(process.cwd()),'.agent-compare-managers-'))
+for(let ancestor=path.dirname(root);;ancestor=path.dirname(ancestor)){
+ assert.equal(existsSync(path.join(ancestor,'node_modules')),false,'Manager fixtures must not inherit an ancestor node_modules; select a separate AGENT_COMPARE_MANAGER_WORK')
+ if(path.dirname(ancestor)===ancestor)break
+}
+const tools=path.resolve(process.env.AGENT_COMPARE_PM_TOOLS??'.runtime-checks/manager-tools')
 await mkdir(root,{recursive:true});await mkdir(tools,{recursive:true})
 const originalPath=process.env.PATH, npmCommand=process.platform==='win32'?'npm.cmd':'npm'
 let bootstrap=[npmCommand]
@@ -75,6 +80,7 @@ try{
   const before=await readFile(path.join(repo,'src','App.tsx'))
   const loader=item.linker==='pnp'?await readFile(path.join(repo,'.pnp.cjs')):undefined
   const baselineType=item.linker==='pnp'?(await runCommandChecks(repo,{commands:defaultChecks(info).commands.filter(command=>command.name==='typecheck')},undefined,prepare))[0]:undefined
+  if(baselineType)console.log(JSON.stringify({case:item.id,baselineType}))
   const managerScript=`process.stdout.write(JSON.stringify({proxy:process.env.HTTP_PROXY,registry:process.env.npm_config_registry,secret:process.env.AGENT_COMPARE_TEST_TOKEN}))`
   const saved={HTTP_PROXY:process.env.HTTP_PROXY,npm_config_registry:process.env.npm_config_registry,AGENT_COMPARE_TEST_TOKEN:process.env.AGENT_COMPARE_TEST_TOKEN}
   try{

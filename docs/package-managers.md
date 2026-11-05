@@ -50,4 +50,4 @@ npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-f
 npm run test:managers
 ```
 
-脚本在忽略的 `.runtime-checks/` 中准备固定版本管理器和真实项目。它只在测试用 pnpm 工具目录中允许该准确版本的启动安装钩子，不修改全局设置或用户项目的脚本策略。每项输出自己的结果；负面案例明确输出 `supported: false`，不能当作正向功能通过。
+脚本在忽略的 `.runtime-checks/` 中准备固定版本管理器；真实项目在仓库旁边的新建 `.agent-compare-managers-*` 目录中执行，避免借用开发仓库祖先目录的依赖。检测到祖先 `node_modules` 会停止，可用 `AGENT_COMPARE_MANAGER_WORK` 指定独立位置。它只在测试用 pnpm 工具目录中允许该准确版本的启动安装钩子，不修改全局设置或用户项目的脚本策略。每项输出自己的结果；负面案例明确输出 `supported: false`，不能当作正向功能通过。
