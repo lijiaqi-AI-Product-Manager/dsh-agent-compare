@@ -19,9 +19,9 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.0.1 · Stable release.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+> **1.1.0 · Stable release.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
-The main branch's two example scopes, copy-space review and package-manager expansion are unreleased. The published npm 1.0.1 does not include them; see [Unreleased](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#unreleased).
+1.1.0 adds quick/full examples, reviewed copy-space release, rehearsal cancellation, cross-conversation action confirmation and current-state synchronization after restart. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#110) for measured package-manager scope and limits.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
@@ -54,7 +54,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm package into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.0.1
+dsh plugin --profile web add dsh-agent-compare@1.1.0
 ```
 
 For another self-managed profile, replace `web` with its actual name.
@@ -72,7 +72,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.0.1.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.1.0.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:

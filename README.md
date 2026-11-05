@@ -19,9 +19,9 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.0.1 · 正式版。** 支持 DSH 桌面端与浏览器界面。首期面向本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
+> **1.1.0 · 正式版。** 支持 DSH 桌面端与浏览器界面。首期面向本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
 
-主分支中的两档内置示例、空间清理预览及包管理器扩展尚未发布到 npm；已发布的 1.0.1 不包含这些更新。当前进展见 [Unreleased](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#unreleased)。
+1.1.0 增加快速与完整示例、可确认的副本空间清理、采用预演停止、跨对话操作确认及重启后的当前状态同步。包管理器的实测范围与限制见[更新记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#110)。
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一前端需求，生成并实际运行两份实现。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
@@ -52,7 +52,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 安装 npm 包到默认 Web profile（公开发布状态见顶部 npm 徽章）：
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.0.1
+dsh plugin --profile web add dsh-agent-compare@1.1.0
 ```
 
 如使用其他自行运行的 profile，请将 `web` 换成实际名称。
@@ -70,7 +70,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.0.1.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.1.0.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：
