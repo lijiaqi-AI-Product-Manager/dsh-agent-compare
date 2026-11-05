@@ -1,5 +1,7 @@
 # Records and recovery
 
+Rehearsal cancellation, cross-conversation action confirmation and current-state synchronization are main-branch changes that are not included in npm 1.0.1. The [recorded context checks](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/measurements/current-context-2026-11-05.json) distinguish the installed source, admitted context and reply. The two requests use one controlled comparison and do not establish an all-model reliability rate.
+
 Each scoped main-conversation prompt assembly receives the most recently updated comparison state for that conversation: run ID, revision, choice, adoption mode and adoption state. This snapshot supersedes older status notes for the same run and distinguishes selection, worktree adoption, branch export and undo. Historical notes remain. Delegated conversations and diagnostic assemblies receive no snapshot; a read failure explicitly marks the current state unknown.
 
 History remains readable across conversations. Write and resource-control actions resolve the current conversation through the host first. A comparison from another conversation, or an old record without an owner, requires confirmation of the project and run ID for that individual action. Confirmation does not replace host permissions, the run ownership lock or file integrity checks. Escape dismisses confirmation and keeps the history window open.

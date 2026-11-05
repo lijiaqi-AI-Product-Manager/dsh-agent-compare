@@ -1,0 +1,85 @@
+{
+  "schema": "agentcompare.current-context/v1",
+  "date": "2026-11-05",
+  "runtimeSource": "fe41c0651301b4bbb766b188eb5ff42645f699ab",
+  "candidateSource": "1aba3b3e08b0c99920face62466ab4989de1e5d6",
+  "environment": {
+    "os": "Windows",
+    "node": "26.13.0",
+    "dsh": "0.2.1-rc.5",
+    "model": "deepseek-flash",
+    "installation": "isolated local tarball",
+    "localArtifactVersion": "1.0.1-local.110.2",
+    "published": false,
+    "runtimeFilesMatchedSource": 81
+  },
+  "conditions": {
+    "project": "fresh controlled Vite example",
+    "comparison": "one completed comparison with two eligible candidates",
+    "pick": "B",
+    "restartedBeforeEachRequest": true,
+    "expectedRunIdIncludedInQuestion": false,
+    "toolsUsed": 0,
+    "observerReadHistoricalMessages": false,
+    "observerScope": "new reply events and this plugin's scoped context contribution only",
+    "headPreserved": true,
+    "indexPreserved": true
+  },
+  "results": [
+    {
+      "runId": "02ec4932",
+      "recordRevision": 83,
+      "recordedState": "adopted",
+      "assembledState": "adopted",
+      "replyState": "adopted",
+      "nonceMatched": true,
+      "replyMs": 3242,
+      "usage": {
+        "kind": "reported",
+        "inputTokens": 755,
+        "outputTokens": 45,
+        "cacheReadTokens": 12288,
+        "cacheWriteTokens": 0,
+        "totalTokens": 13088
+      }
+    },
+    {
+      "runId": "02ec4932",
+      "recordRevision": 85,
+      "recordedState": "reverted",
+      "assembledState": "reverted",
+      "replyState": "reverted",
+      "nonceMatched": true,
+      "replyMs": 2408,
+      "usage": {
+        "kind": "reported",
+        "inputTokens": 595,
+        "outputTokens": 45,
+        "cacheReadTokens": 13056,
+        "cacheWriteTokens": 0,
+        "totalTokens": 13696
+      }
+    }
+  ],
+  "observedFailuresBeforeAcceptance": [
+    {
+      "installedSource": "1aba3b3e08b0c99920face62466ab4989de1e5d6",
+      "activeBuildVerified": false,
+      "recordedState": "adopted",
+      "replyState": "not_adopted"
+    },
+    {
+      "installedSource": "5564f2a",
+      "activeBuildVerified": false,
+      "recordedState": "adopted",
+      "replyState": "undone"
+    }
+  ],
+  "limits": [
+    "Two follow-up requests on one controlled comparison; this is not a cross-model reliability estimate.",
+    "Candidate generation belongs to the recorded earlier source, while context synchronization belongs to runtimeSource.",
+    "Usage includes cache counters; no monetary cost is inferred.",
+    "The private artifact changes package metadata to distinguish the local test install; its 81 runtime files match the committed implementation.",
+    "This does not verify the final desktop shell appearance, Safari/Firefox, macOS or arbitrary project types."
+  ]
+}

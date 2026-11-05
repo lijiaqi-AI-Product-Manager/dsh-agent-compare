@@ -102,10 +102,12 @@ try {
 
   await open('start', '&error=command')
   await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
-  await mode.click()
+  if (await mode.getAttribute('aria-pressed') !== 'true') await mode.click()
+  await page.waitForFunction(() => window.__input().claim?.name === 'ab')
   await editor.fill('keep this request after a failure')
   await page.getByRole('button', { name: '发送', exact: true }).click()
   await page.locator('#notice').filter({ hasText: '请求失败' }).waitFor()
+  check(await page.evaluate(() => window.__commands.length) === 1, 'the failure scenario must reach exactly one command dispatch after the input claim is ready')
   check(await editor.inputValue() === 'keep this request after a failure', 'failed dispatch must preserve the composer draft')
   check(await mode.getAttribute('aria-pressed') === 'true', 'failed dispatch must retain comparison mode for retry')
 
