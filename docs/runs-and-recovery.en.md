@@ -1,5 +1,7 @@
 # Records and recovery
 
+History remains readable across conversations. Write and resource-control actions resolve the current conversation through the host first. A comparison from another conversation, or an old record without an owner, requires confirmation of the project and run ID for that individual action. Confirmation does not replace host permissions, the run ownership lock or file integrity checks. Escape dismisses confirmation and keeps the history window open.
+
 When adoption needs to combine later project edits, the original conversation can stop the rehearsal before file handoff begins. It waits for the process tree to exit, keeps candidate source, patches and records, and allows another adoption review. An unconfirmed exit keeps the rehearsal copy and blocks another attempt. Once original-file preservation and writing begin, cancellation is unavailable until handoff and verification finish.
 
 [中文](runs-and-recovery.md) · **English** · [Back to usage](../README.en.md#install)

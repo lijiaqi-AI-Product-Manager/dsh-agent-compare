@@ -65,6 +65,11 @@ jobs:
         if: runner.os == 'Windows'
       - run: npm run smoke
       - run: npm run test:ui
+      - name: Verify UI in Microsoft Edge
+        if: runner.os == 'Windows'
+        run: npm run test:ui
+        env:
+          AGENT_COMPARE_UI_BROWSER_CHANNEL: msedge
 
   host-runtime:
     name: current host runtime (${{ matrix.os }})

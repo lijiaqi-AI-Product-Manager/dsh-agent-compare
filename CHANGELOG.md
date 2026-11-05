@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Resolve the current conversation through the host before write or resource-control actions. Require explicit confirmation for each action on another conversation's comparison, including records without an owner, while keeping history readable.
+
 - Maintain one complete Chinese guide and generate the existing alternate document as a checked section index. Preserve its URL and section entry points while reducing duplicate packaged content.
 
 - Let the owning conversation stop adoption rehearsal before file handoff starts. Confirm process-tree exit, retain candidates for retry, and keep writing or recovery operations uninterrupted.
