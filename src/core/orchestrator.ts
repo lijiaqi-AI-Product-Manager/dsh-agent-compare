@@ -661,8 +661,10 @@ export class Comparer {
         mobileScreenshot = b.mobileScreenshot
       }
       signal.throwIfAborted()
-      // A project that does not ignore its build output would otherwise always "drift" by its own build.
-      const drift = (await changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy, sealedTree))).filter((p) => !p.startsWith('dist/'))
+      // Let Git exclude untracked output while retaining tracked source, even
+      // inside ignored folders. The baseline .gitignore is bound acceptance;
+      // folder names alone never justify skipping source changes.
+      const drift = await changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy, sealedTree))
       return { install, execution: { enforcement }, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
     } catch (error) {
       await preview.handle.stop()
@@ -1450,7 +1452,7 @@ export function verdictOf(c: Candidate, acceptance: Acceptance): Verdict {
   }
   if (c.preview?.kind === 'dev') reasons.push('构建未通过，只能以开发模式预览')
   if ((c.acceptanceTouched ?? []).length > 0) reasons.push(`改动了验收相关文件：${c.acceptanceTouched!.slice(0, 5).join('、')}`)
-  if ((c.drift ?? []).length > 0) reasons.push(`验收过程中副本多出了未封存的改动：${c.drift!.slice(0, 5).join('、')}`)
+  if ((c.drift ?? []).length > 0) reasons.push(`验收过程中副本出现未封存的改动：${c.drift!.slice(0, 5).join('、')}。如为生成的构建产物，请先将输出目录加入 .gitignore，再开始新的比较；已跟踪的源码仍会检查。`)
   if (c.checkedTree === undefined || c.checkedTree !== c.candidateTree) reasons.push('验收的内容不是封存的版本')
   if (c.generation?.ended === 'budget') warnings.push('生成被时间预算截断，Agent 没有说完成；以上结论针对截断时已写的文件')
   if (c.generation?.ended === 'agent-stopped') warnings.push(`Agent 没有正常结束（${c.generation.stopReason ?? '未知'}）；以上结论针对它已写的文件`)
