@@ -73,6 +73,11 @@ const runner = {
 
 const home = await mkdtemp(path.join(os.tmpdir(), 'ac smoke home '))
 const repo = await createExampleRepo(path.join(home, 'examples'))
+// Exercise a real, non-default Vite output folder. Both the config and its Git
+// exclusion belong to the bound baseline, rather than an inferred folder name.
+const viteConfig = path.join(repo, 'vite.config.ts')
+await writeFile(viteConfig, (await readFile(viteConfig, 'utf8')).replace('plugins: [react()],', "plugins: [react()],\n  build: { outDir: 'site-build' },"))
+await writeFile(path.join(repo, '.gitignore'), (await readFile(path.join(repo, '.gitignore'), 'utf8')) + '\nsite-build/\n')
 // Include uncommitted notes in the baseline, then edit them again before adoption.
 await writeFile(path.join(repo, 'NOTES.md'), 'my uncommitted notes\n')
 
@@ -101,6 +106,9 @@ if (escapeLabel && !(done.outsideChanges ?? []).includes('ESCAPED.md')) throw ne
 if (JSON.stringify(view).match(/conservative|bold/i)) throw new Error('blind view leaked the strategy')
 const [a, b] = done.candidates
 if (a.verdict?.eligible !== true) throw new Error(`A should pass the acceptance: ${a.verdict?.reasons.join('; ')}`)
+if (a.drift?.length) throw new Error('baseline-excluded custom output must not change the sealed source')
+if (!(await readFile(path.join(a.dir, 'site-build', 'index.html'), 'utf8')).includes('id="root"')) throw new Error('custom build output was not produced')
+if (!Object.hasOwn(done.acceptance.bound, 'vite.config.ts') || !Object.hasOwn(done.acceptance.bound, '.gitignore')) throw new Error('custom output configuration must remain bound to the baseline')
 const browserRan = b.checks?.some((k) => k.name === 'browser' && k.outcome !== 'skipped')
 if (browserRan && b.verdict?.eligible !== false) throw new Error('B forgot the clear button; the acceptance must not pass it')
 
