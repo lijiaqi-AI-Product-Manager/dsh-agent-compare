@@ -24,11 +24,13 @@ const root=path.resolve(process.env.AGENT_COMPARE_MANAGER_WORK??'.runtime-checks
 const tools=path.resolve(process.env.AGENT_COMPARE_PM_TOOLS??path.join(root,'tools'))
 await mkdir(root,{recursive:true});await mkdir(tools,{recursive:true})
 const originalPath=process.env.PATH, npmCommand=process.platform==='win32'?'npm.cmd':'npm'
-for(const [name,dependency,version] of [['pnpm','pnpm','12.16.1'],['yarn1','yarn','1.22.22'],['yarn4','@yarnpkg/cli-dist','4.18.1']]){
+let bootstrap=[npmCommand]
+for(const [name,dependency,version] of [['npm','npm','12.2.1'],['pnpm','pnpm','12.16.1'],['yarn1','yarn','1.22.22'],['yarn4','@yarnpkg/cli-dist','4.18.1']]){
  const directory=path.join(tools,name);await mkdir(directory,{recursive:true})
  if(process.env.AGENT_COMPARE_PM_TOOLS)continue
  await writeFile(path.join(directory,'package.json'),JSON.stringify({private:true,dependencies:{[dependency]:version},...(name==='pnpm'?{allowScripts:{'pnpm@12.16.1':true}}:{})}))
- await runOk([npmCommand,'install','--prefix',directory,'--no-audit','--no-fund',...(name==='pnpm'?[]:['--ignore-scripts'])],{cwd:directory,timeoutMs:300000,maxOutput:100000})
+ await runOk([...bootstrap,'install','--prefix',directory,'--no-audit','--no-fund',...(name==='pnpm'?[]:['--ignore-scripts'])],{cwd:directory,timeoutMs:300000,maxOutput:100000})
+ if(name==='npm')bootstrap=[process.execPath,path.join(directory,'node_modules/npm/bin/npm-cli.js')]
 }
 
 const ctx=new Context(),fiber=ctx.plugin(LocalSandboxProvider,{})
@@ -47,7 +49,8 @@ await writeFile(path.join(root,'results.json'),JSON.stringify({complete:false,ex
 try{
  for(const item of cases){
   console.log(item.id+': preparing native fixture')
-  process.env.PATH=item.tool?path.join(tools,item.tool,'node_modules','.bin')+path.delimiter+originalPath:originalPath
+  const npmPath=path.join(tools,'npm','node_modules','.bin')+path.delimiter+originalPath
+  process.env.PATH=item.tool?path.join(tools,item.tool,'node_modules','.bin')+path.delimiter+npmPath:npmPath
   const directory=path.join(root,item.id);await mkdir(directory,{recursive:true})
   const repo=await createExampleRepo(path.join(directory,'projects'))
   const pkg=JSON.parse(await readFile(path.join(repo,'package.json'),'utf8'))

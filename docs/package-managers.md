@@ -25,6 +25,8 @@ Exact project declarations take precedence. Ambiguous lockfiles, missing command
 
 pnpm 12.16.1 在 Windows 上通过系统 API 将用户存储锁放在 LocalAppData；`storeDir`、`PNPM_HOME` 或临时目录设置不能迁移这组锁。当前 DSH 沙箱没有为该额外目录提供声明接口，因此本插件保守阻止 Windows pnpm 12+ 生成。Linux 执行是独立验证项，不能用 Linux 成功推断 Windows 可用。依据：[pnpm 锁目录实现](https://github.com/pnpm/pnpm/blob/main/pnpm/crates/fs/src/secure_temp_lock.rs)、[存储说明](https://github.com/pnpm/pnpm/blob/main/pnpm/docs/settings/store.md)。
 
+Unix 下将 `XDG_RUNTIME_DIR` 指向副本自己的缓存目录，由已经进入宿主约束的命令入口创建；不继承可能位于写入范围之外的 `/run/user/...`。创建前后检查目录包含关系和已有父路径，不在未约束的宿主中预先创建候选指定路径。运行数据与可变依赖仍按副本分开。
+
 Yarn PnP 的加载器与依赖位置由管理器重建，不作为应用修改采用。候选封存使用可信源树建立私有 Git 索引，防止自行暂存的依赖或加载器绕过排除规则。验收前移除副本内固定的 PnP 运行文件，再按锁文件重建；项目原有加载器保留。现代 Yarn 的预览通过项目命令启动并记录启动方式，重启后的进程归属检查同时核对项目和端口。
 
 这不修补 TypeScript 7 本身的 PnP 解析。当前示例基线的 `tsc --noEmit` 也报告缺少 `vite/client` 类型，因此该组合保留为明确失败案例，不切换旧编译器、不跳过类型检查、不宣称全流程通过。[Yarn PnP 说明](https://yarnpkg.com/features/pnp)、[TypeScript 适配说明](https://yarnpkg.com/getting-started/qa)。
