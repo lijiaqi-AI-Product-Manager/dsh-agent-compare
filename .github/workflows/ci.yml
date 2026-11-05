@@ -26,7 +26,7 @@ jobs:
           check-latest: true
           cache: npm
       - run: git config --global user.email ci@example.invalid && git config --global user.name ci
-      - run: npm install --global npm@12.2.1 --ignore-scripts
+      - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
       - run: npm run typecheck
       - run: npm run check:test-projects
@@ -57,7 +57,7 @@ jobs:
           node-version: 26
           check-latest: true
           cache: npm
-      - run: npm install --global npm@12.2.1 --ignore-scripts
+      - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
       - run: npx playwright-core install --with-deps --only-shell chromium
         if: runner.os == 'Linux'
@@ -80,7 +80,7 @@ jobs:
           node-version: 26
           check-latest: true
           cache: npm
-      - run: npm install --global npm@12.2.1 --ignore-scripts
+      - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
       - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.5
       - run: npm run test:runtime
@@ -100,7 +100,7 @@ jobs:
           node-version: 26
           check-latest: true
           cache: npm
-      - run: npm install --global npm@12.2.1 --ignore-scripts
+      - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
       - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@next
       - run: npm run test:runtime
@@ -123,7 +123,7 @@ jobs:
           check-latest: true
           cache: npm
       - run: git config --global user.email ci@example.invalid && git config --global user.name ci
-      - run: npm install --global npm@12.2.1 --ignore-scripts
+      - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
       - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.5
       - run: npx playwright-core install --with-deps --only-shell chromium
@@ -142,7 +142,7 @@ jobs:
           node-version: 26
           check-latest: true
           cache: npm
-      - run: npm install --global npm@12.2.1 --ignore-scripts
+      - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=moderate
       - run: npm ci --prefix examples/vite-react-demo --ignore-scripts

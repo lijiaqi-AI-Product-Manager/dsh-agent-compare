@@ -288,7 +288,7 @@ npm run test:runtime
 
 ## 开发
 
-使用 Node 26.13.0（`.nvmrc`）与 npm 12.2.1。编译和测试基线为 TypeScript 7、React 19.3、Vitest 5；分发的客户端复用 DSH 提供的 React 运行时。
+使用 Node 26.13.0（`.nvmrc`）与 npm 12.2.2。编译和测试基线为 TypeScript 7、React 19.3、Vitest 5；分发的客户端复用 DSH 提供的 React 运行时。
 
 ```bash
 npm ci && npm run typecheck && npm test

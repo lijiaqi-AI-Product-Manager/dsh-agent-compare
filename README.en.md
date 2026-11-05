@@ -248,7 +248,7 @@ The host dependency directory is ignored and excluded from the plugin package. T
 
 ## Development
 
-Use Node 26.13.0 (`.nvmrc`) and npm 12.2.1. The compiler and test baseline is TypeScript 7, React 19.3, and Vitest 5. The distributed client reuses the React runtime supplied by DSH.
+Use Node 26.13.0 (`.nvmrc`) and npm 12.2.2. The compiler and test baseline is TypeScript 7, React 19.3, and Vitest 5. The distributed client reuses the React runtime supplied by DSH.
 
 ```bash
 npm ci && npm run typecheck && npm test
