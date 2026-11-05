@@ -17,7 +17,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import {
-  Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, EXAMPLE_TASK, DEFAULT_GENERATION_MS,
+  Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, exampleTask, DEFAULT_GENERATION_MS,
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
 } from '../core/index.ts'
 import { commandResultText, parseAbInput } from './conversation.ts'
@@ -459,9 +459,11 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       handler: async ({ commandId, agent, rawInput, signal }: CommandInvocation): Promise<CommandResult> => {
         if (isDelegated(agent)) return { kind: 'error', text: '候选或子 Agent 不能再发起比较' }
         let input: ReturnType<typeof parseAbInput>
+        let exampleKind: 'quick' | 'full' = 'quick'
         try {
           const ui = parseUiSubmission(rawInput)
           const saved = ui?.preferences ?? await preferences.load(agent.session.id)
+          exampleKind = saved.exampleKind ?? 'quick'
           input = ui ? { task: ui.task, example: ui.example } : parseAbInput(rawInput)
           input = { ...input, minutes: input.minutes ?? saved.generationMinutes, ...(input.models === undefined && saved.mode === 'cross-model' ? { models: saved.models } : {}) }
           if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请在输入框上方选择两个完整的模型配置')
@@ -470,8 +472,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         if (!input.example && input.task === '') return { kind: 'error', text: '请在输入框中写下要比较的需求，或点击「试跑示例」。' }
         try {
           const r = await comparer.start({
-            repo: input.example ? await createExampleRepo(store.examplesDir) : await repoFor(agent, signal),
-            task: input.task === '' ? EXAMPLE_TASK : input.task,
+            repo: input.example ? await createExampleRepo(store.examplesDir, undefined, exampleKind) : await repoFor(agent, signal),
+            task: input.task === '' ? exampleTask(exampleKind) : input.task,
             mode: input.models === undefined ? 'same-model' : 'cross-model',
             routes: input.models ?? [currentRoute(agent), currentRoute(agent)],
             hostContext: agent,
@@ -569,10 +571,12 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const follows = typeof b.follows === 'string' && /^[0-9a-f]{8}$/.test(b.follows) ? b.follows : undefined
       if (b.generationMinutes !== undefined && (typeof b.generationMinutes !== 'number' || !Number.isFinite(b.generationMinutes) || b.generationMinutes < 5 || b.generationMinutes > 120)) throw new HttpError(400, '每版生成上限需要在 5 到 120 分钟之间')
       const minutes = b.generationMinutes as number | undefined
-      const repo = b.example === true ? await createExampleRepo(store.examplesDir) : await repoFor(agent, signal)
+      if (b.exampleKind !== undefined && b.exampleKind !== 'quick' && b.exampleKind !== 'full') throw new HttpError(400, '示例类型无效')
+      const exampleKind = b.exampleKind === 'full' ? 'full' : 'quick'
+      const repo = b.example === true ? await createExampleRepo(store.examplesDir, undefined, exampleKind) : await repoFor(agent, signal)
       const r = await comparer.start({
         repo,
-        task: b.example === true && task.trim() === '' ? EXAMPLE_TASK : task,
+        task: b.example === true && task.trim() === '' ? exampleTask(exampleKind) : task,
         mode,
         routes,
         hostContext: agent,

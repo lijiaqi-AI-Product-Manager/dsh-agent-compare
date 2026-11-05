@@ -43,7 +43,8 @@ export function candidatePrompt(task: string, strategy: Strategy, isolation: 'ow
     '- Do not run git commit, git checkout, git reset, git stash or any command that changes git history or branches.',
     '- Do not edit or delete the files that define verification: tsconfig*.json, vite/vitest config, lint config, existing test files, the scripts in package.json, or .agent-compare.json. The shared checks are bound to them; a change there means your result does not count as passing. Adding new tests is fine.',
     '- If you add or change a dependency, update the lockfile in the same change (run the package manager inside your copy). The shared install is frozen to the lockfile.',
-    '- You may run the project\'s typecheck, build and test scripts to check your work. Do not start a long-running dev server; AgentCompare builds, serves and checks the app itself.',
+    '- AgentCompare performs a frozen installation and independent verification after you finish. Focus on the implementation; avoid installing dependencies just for exploration. If an existing dependency is needed to resolve a concrete issue, use one frozen install in your copy. Never add a dependency merely to make a check command available. Report a denied command instead of repeating it.',
+    '- You may run one cycle of the project\'s existing typecheck/build/test scripts. Repeat a failed check only after a relevant code fix; do not rerun a passing check. Do not start a long-running dev server; AgentCompare independently installs, checks, builds and serves the sealed result.',
     '- Do not start another comparison.',
     '- When done, reply with a short summary (under 120 words) of what you changed and why.',
   ].join('\n')

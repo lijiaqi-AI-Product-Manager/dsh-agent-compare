@@ -141,7 +141,7 @@ function returnToComposer(sessionId: string): void {
   if (openSession) { focusComposerOnClose = sessionId; setOpen(undefined) }
   else inputShell(sessionId)?.focus?.()
 }
-interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route] }
+interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route]; exampleKind?: 'quick' | 'full' }
 interface AbMode { preferences: AbPreferences; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
 const registeredShells = new WeakSet<InputShell>()
@@ -674,6 +674,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         {!revealed && <div className="ac-meta">模型、策略、用量、改动规模和详细日志在选择后显示。</div>}
         {c.execution && <div className="ac-meta">项目命令：{c.execution.enforcement === 'full' ? '宿主报告完整文件写入约束' : c.execution.enforcement === 'partial' ? '宿主报告部分文件写入约束' : '约束完整性未知'}。不包含文件读取与网络隔离。</div>}
         {c.install?.runtime && <div className="ac-meta">验收宿主 Node {c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? '版本未记录'}</div>}
+        {revealed && <div className="ac-meta">阶段耗时：{(['preparing', 'generating', 'installing', 'verifying', 'previewing'] as const).map(stage => { const timing = c.timings[stage]; return `${STAGE_TEXT[stage]} ${timing?.endedAt === undefined ? '未完整记录' : fmt(Math.max(0, timing.endedAt - timing.startedAt))}` }).join(' · ')}。各阶段包含相应宿主开销，不等于纯模型等待。</div>}
         {revealed && (c.patchStats || usage) && (
           <div className="ac-meta">
             {c.patchStats ? `${c.patchStats.files} 个文件 · +${c.patchStats.insertions} −${c.patchStats.deletions}${c.patchStats.binary ? ` · ${c.patchStats.binary} 个二进制` : ''}` : ''}
@@ -772,11 +773,12 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {!mode.collapsed && <>
     <div className="ac-settings-row"><div className="ac-seg" role="group" aria-label="比较方式"><button className={p.mode === 'same-model' ? 'on' : ''} aria-pressed={p.mode === 'same-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'same-model' })}>同一模型 · 两种策略</button><button className={p.mode === 'cross-model' ? 'on' : ''} aria-pressed={p.mode === 'cross-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'cross-model' })}>两个模型 · 同一要求</button></div>
       <label className="ac-budget">每版上限 <select aria-label="每版生成上限" value={p.generationMinutes} onChange={e => saveMode(sessionId, { ...p, generationMinutes: Number(e.target.value) })}>{[...new Set([5, 15, 30, 60, 90, 120, p.generationMinutes])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m} 分钟</option>)}</select></label>
+      <label className="ac-budget">示例 <select aria-label="内置示例范围" disabled={busy || !mode.loaded} value={p.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...p, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">基础 · 搜索与清空</option><option value="full">完整 · 组合筛选与手机适配</option></select></label>
       <button className="ac-btn sm" disabled={busy || !mode.loaded || setup?.capabilities?.ok === false || !clientSupport(sessionId).canExecute || (p.mode === 'cross-model' ? !validPair : !setup?.current.model)} onClick={() => { void example() }}>{busy ? '正在创建示例…' : '试跑内置示例'}</button>
     </div>
     {p.mode === 'cross-model' ? <div className="ac-models">{[0, 1].map(i => <label key={i}>{i === 0 ? '模型一' : '模型二'}<select disabled={loading || busy} value={p.models[i]?.model ? `${p.models[i]?.provider}/${p.models[i]?.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const pair: [Route, Route] = [...p.models]; pair[i] = item ? { provider: item.provider, model: item.id } : {}; saveMode(sessionId, { ...p, models: pair }) }}><option value="">选择已配置的模型</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={p.models[1-i]?.provider === m.provider && p.models[1-i]?.model === m.id}>{m.name} · {m.providerName}</option>)}</select></label>)}{loading ? <span className="ac-meta" role="status">正在读取模型…</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>重试模型列表</button></span> : models.length < 2 ? <span className="ac-meta">当前可读取的模型不足两个，可先使用同一模型的两种策略。</span> : null}</div>
       : <div className="ac-meta">当前模型：{routeText(setup?.current) || (setup ? '请先在输入框右下角选择模型' : '正在读取…')}{setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}> · 项目：{setup.project.path}</span> : ''}</div>}
-    <div className="ac-settings-foot">到时验收已写的改动 · 两版分别消耗用量 · {mode.saving ? '正在保存设置…' : '设置已保存在此对话'}</div></>}
+    <div className="ac-settings-foot">到时验收已写的改动 · 两版分别消耗用量 · 示例也使用真实模型，生成耗时随模型与环境变化 · {mode.saving ? '正在保存设置…' : '设置已保存在此对话'}</div></>}
     {setupError && !mode.collapsed && <div className="ac-feedback" role="alert">无法读取当前模型与项目：{setupError}<button className="ac-text-btn" onClick={() => { setSetupError(undefined); setSetupRetry(value => value + 1) }}>重新读取模型与项目</button></div>}
     {(error || mode.error) && <div className="ac-feedback" role="alert">{error ?? mode.error}<button className="ac-text-btn" onClick={() => { void loadMode(sessionId); setError(undefined) }}>重新读取设置</button></div>}
   </section>
@@ -1179,7 +1181,7 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
       <li><b>选择并审查</b><p>选择后揭晓模型和策略。查看代码改动、程序检查与未验证的部分；一次偏好选择不代表模型的整体排名。</p></li>
       <li><b>采用结果</b><p>采用前检查目标是否变化；必要时在临时副本中预演。工作区采用不自动提交；另存分支会明确创建一个提交。</p></li>
     </ol>
-    <div className="ac-case"><div><b>试跑真实的示例商店</b><span>新建独立仓库，实际实现搜索、组合筛选、清空和手机适配。任务、结果和选择都显示在主对话里。</span></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? '正在创建…' : '试跑内置示例'}</button></div>
+    <div className="ac-case"><div><b>试跑真实的示例商店</b><span>新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前模型与时长设置，两版分别消耗用量；任务、结果和选择保留在主对话。</span><label className="ac-budget">示例范围 <select aria-label="内置示例范围" disabled={busy || !mode.loaded} value={mode.preferences.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...mode.preferences, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">基础 · 搜索与清空</option><option value="full">完整 · 组合筛选与手机适配</option></select></label></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? '正在创建…' : '试跑内置示例'}</button></div>
     {error && <div className="ac-feedback" role="alert">{error}</div>}
     <button className="ac-btn" onClick={() => { mode.collapsed = false; if (enterMode(sessionId)) saveMode(sessionId, { ...modeFor(sessionId).preferences, enabled: true }); returnToComposer(sessionId) }}>回到输入框，开启 A|B</button><div className="ac-note">支持范围：仓库根目录中的本地 Vite 前端。页面检查通过只代表配置的步骤通过，仍需实际体验需求和边界情况。</div>
   </div>

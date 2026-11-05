@@ -20,6 +20,15 @@ describe('conversation comparison preferences', () => {
   it('rejects invalid budgets and partial provider/model routes', () => {
     for (const generationMinutes of [NaN, Infinity, 0, 121, '60']) expect(() => parsePreferences({ ...defaultPreferences(), generationMinutes })).toThrow()
     expect(() => parsePreferences({ ...defaultPreferences(), models: [{ model: 'missing-provider' }, {}] })).toThrow(/完整配置/)
+    expect(() => parsePreferences({ ...defaultPreferences(), exampleKind: 'other' })).toThrow(/示例类型/)
+    expect(() => parsePreferences({ ...defaultPreferences(), exampleKind: ['full'] })).toThrow(/示例类型/)
+  })
+
+  it('retains an explicitly selected example scope without requiring older settings to have it', async () => {
+    const store = new PreferencesStore(new RunStore(await tmp('ac-example-preferences')))
+    await store.save('example', { ...defaultPreferences(), exampleKind: 'full' })
+    expect((await store.load('example')).exampleKind).toBe('full')
+    expect(parsePreferences(defaultPreferences()).exampleKind).toBeUndefined()
   })
 
   it('keeps the exact task, including flag-shaped text, in a structured UI submission', () => {
