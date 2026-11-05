@@ -102,7 +102,7 @@ export interface Acceptance {
   /** Baseline path → blob sha of verification-defining files. */
   readonly bound: Readonly<Record<string, string>>
   readonly lockfile?: string
-  readonly runtime: { readonly node: string; readonly packageManager: string; readonly platform: string }
+  readonly runtime: { readonly node: string; readonly packageManager: string; readonly platform: string; readonly yarnModern?: boolean }
   /** Where the checks came from: derived defaults, or the repository's `.agent-compare.json`. */
   readonly source: 'defaults' | 'repository'
   readonly sha256: string
@@ -157,6 +157,8 @@ export interface PreviewInfo {
   readonly kind: 'build' | 'dev'
   /** Directory the server runs in; part of the ownership proof before any later kill. */
   readonly cwd: string
+  /** Modern Yarn starts Vite through its project-aware dependency loader. */
+  readonly launcher?: 'yarn'
 }
 
 /** Why a candidate may or may not be written into the user's checkout. */

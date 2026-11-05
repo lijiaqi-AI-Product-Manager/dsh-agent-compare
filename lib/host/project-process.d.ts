@@ -9,10 +9,21 @@ export interface ProjectSandbox {
         enforcement: 'full' | 'partial';
     }>;
 }
+/** Public profileContext packageManager shape supplied by packaged hosts. */
+export interface ManagedPnpm {
+    readonly command: string;
+    readonly args: readonly string[];
+    readonly env?: Readonly<Record<string, string>>;
+}
+interface CommandResolution {
+    readonly path?: string;
+    readonly pnpm?: ManagedPnpm;
+}
 /** Resolve shell shims before confinement, but interpret them only inside it. */
-export declare function projectCommandArgv(argv: readonly string[], cwd: string, platform?: NodeJS.Platform): string[];
+export declare function projectCommandArgv(argv: readonly string[], cwd: string, platform?: NodeJS.Platform, resolution?: CommandResolution): string[];
 /**
  * The canonical scrub is supplied by the host; no credential-bearing ambient
  * environment is copied back over it. Each copy owns its package caches.
  */
-export declare function createProjectProcess(sandbox: () => ProjectSandbox | undefined, baseEnvironment?: () => Promise<NodeJS.ProcessEnv>, windowsProcessModule?: string): PrepareProjectProcess;
+export declare function createProjectProcess(sandbox: () => ProjectSandbox | undefined, baseEnvironment?: () => Promise<NodeJS.ProcessEnv>, windowsProcessModule?: string, bundledPnpm?: () => ManagedPnpm | undefined): PrepareProjectProcess;
+export {};

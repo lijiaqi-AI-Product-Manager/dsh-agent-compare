@@ -3,9 +3,14 @@ export type PackageManager = 'npm' | 'pnpm' | 'yarn';
 export interface ProjectInfo {
     readonly kind: 'vite' | 'unsupported';
     readonly packageManager: PackageManager;
+    /** Exact manifest declaration, including its optional integrity suffix. */
+    readonly packageManagerSpec?: string;
+    readonly packageManagerVersion?: string;
+    readonly modernYarn?: boolean;
     readonly lockfile?: string;
     readonly scripts: Record<string, string>;
     readonly reason?: string;
+    readonly warning?: string;
 }
 export declare const LOCKFILES: readonly ['pnpm-lock.yaml', 'yarn.lock', 'package-lock.json'];
 export declare function inspectProject(dir: string): Promise<ProjectInfo>;
@@ -19,6 +24,8 @@ export declare function installArgv(info: ProjectInfo): {
     frozen: boolean;
 };
 export declare function scriptArgv(info: ProjectInfo, script: string): string[];
+/** An exact declared manager must be ready before either model receives work. */
+export declare function managerVersionIssue(info: ProjectInfo, observed: string | undefined, platform?: NodeJS.Platform): string | undefined;
 /**
  * The shared checks, derived once from the BASELINE (never from a candidate).
  * The build always runs, last, because the preview serves its output.

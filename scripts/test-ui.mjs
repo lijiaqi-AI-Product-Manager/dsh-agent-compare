@@ -604,6 +604,13 @@ try {
   await page.locator('#notice').filter({ hasText: 'sandbox.confine' }).waitFor()
   check(await editor.inputValue() === 'preserve this task without a host sandbox' && await page.evaluate(() => window.__commands.length === 0), 'a failed host prerequisite must preserve the draft and not dispatch')
 
+  await open('start', '&error=manager-warning')
+  if (await mode.getAttribute('aria-pressed') !== 'true') await mode.click()
+  if (await settingsExpand.isVisible()) await settingsExpand.click()
+  await page.getByRole('status').filter({ hasText: 'Yarn PnP 与 TypeScript 7' }).waitFor()
+  await editor.fill('keep this task while reading manager limits')
+  check(await editor.inputValue() === 'keep this task while reading manager limits', 'a package-manager warning must remain visible without editing the draft')
+
   await open('start', '&error=unsupported')
   if (await mode.getAttribute('aria-pressed') !== 'true') await mode.click()
   if (await settingsExpand.isVisible()) await settingsExpand.click()

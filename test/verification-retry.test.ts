@@ -129,7 +129,7 @@ describe('explicit retries of sealed verification', () => {
       const done = (await f.comparer.wait(f.runId))!, retried = done.candidates[0]!
       expect(done.state).toBe('judging')
       expect(retried).toMatchObject({ stage: 'ready', install: { frozen: true, outcome: 'passed' }, verdict: { eligible: true }, usage: { kind: 'unknown' } })
-      expect(retried.install!.runtime).toMatchObject({ hostNode: process.version, platform: process.platform, packageManager: 'npm' })
+      expect(retried.install!.runtime).toMatchObject({ hostNode: process.version, platform: `${process.platform}-${process.arch}`, packageManager: 'npm' })
       expect(retried.install!.runtime!.packageManagerVersion).toMatch(/^\d+\.\d+\.\d+/)
       expect(retried.candidateCommit).toBe(before.commit)
       expect(retried.candidateTree).toBe(before.tree)

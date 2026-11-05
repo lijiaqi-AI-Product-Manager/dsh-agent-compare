@@ -27,7 +27,7 @@ import { defaultPreferences, parseUiSubmission, PreferencesStore } from './prefe
 import { ConversationMemory } from './memory.ts'
 import { historyPage, HistoryQueryError } from './history.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
-import { createProjectProcess, type ProjectSandbox } from './project-process.ts'
+import { createProjectProcess, projectCommandArgv, type ManagedPnpm, type ProjectSandbox } from './project-process.ts'
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 import { readComparisonStatus } from './status.ts'
 import { startToolComparison, type StartToolArgs } from './start-tool.ts'
@@ -365,11 +365,12 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     warn: message => ctx.logger.warn(message),
   })
   const remember = (record: RunRecord): void => { void memory.remember(record) }
+  const bundledPnpm = (): ManagedPnpm | undefined => (ctx.get('profileContext') as { packageManager?: ManagedPnpm } | undefined)?.packageManager
   const comparer = new Comparer({
     store,
     runner,
     version: VERSION,
-    prepareProjectProcess: createProjectProcess(() => ctx.get('sandbox') as ProjectSandbox | undefined),
+    prepareProjectProcess: createProjectProcess(() => ctx.get('sandbox') as ProjectSandbox | undefined, undefined, undefined, bundledPnpm),
     generationMs: (config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000) * 60_000,
     maxActiveRuns: config.maxActiveRuns ?? 1,
     onUpdate: remember,
@@ -512,13 +513,20 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     },
     async setup(b, signal) {
       const agent = await agentFor(b, signal)
-      let project: { path: string; supported: boolean; reason?: string } = { path: '', supported: false, reason: '当前对话没有项目目录，请打开 Git 项目，或试跑内置示例。' }
+      let project: { path: string; supported: boolean; reason?: string; warning?: string } = { path: '', supported: false, reason: '当前对话没有项目目录，请打开 Git 项目，或试跑内置示例。' }
       const cwd = agent.session.header.cwd
       if (cwd) {
         try {
           const root = await repoRoot(cwd)
           const info = await inspectProject(root)
-          project = { path: root, supported: info.kind === 'vite', ...(info.reason ? { reason: info.reason } : {}) }
+          project = { path: root, supported: info.kind === 'vite', ...(info.reason ? { reason: info.reason } : {}), ...(info.warning ? { warning: info.warning } : {}) }
+          if (project.supported && process.platform === 'win32' && info.packageManager === 'pnpm' && Number(info.packageManagerVersion?.split('.')[0]) >= 12) {
+            project = { path: root, supported: false, reason: '项目声明的 pnpm 12+ 在 Windows 上需要写入系统存储锁目录，当前宿主沙箱尚不支持；不会自动换版本或放宽权限。可试跑内置示例，需求草稿会保留。' }
+          }
+          if (project.supported) {
+            try { projectCommandArgv([info.packageManager, '--version'], root, process.platform, { pnpm: bundledPnpm() }) }
+            catch { project = { path: root, supported: false, reason: `未找到项目需要的 ${info.packageManager}。请在 DSH 所用环境中安装或启用该包管理器；需求草稿会保留。` } }
+          }
         } catch {
           project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
         }

@@ -2,15 +2,15 @@ import { blindEvidence } from './blind-view.ts'
 import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, rmdir } from 'node:fs/promises'
-import { addOwnedWorktree, ALWAYS_EXCLUDED, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
+import { mkdir, rm, rmdir } from 'node:fs/promises'
+import { addOwnedWorktree, ALWAYS_EXCLUDED, YARN_RUNTIME_FILES, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
 import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdopt, preflight, targetChanges, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
 import { fileTransferDirectory, newFileTransferRef } from './file-transfer.ts'
 import { installFailure } from './install-failure.ts'
 import { checksScore, runBrowserCheck, runCommandChecks } from './checks.ts'
-import { acceptanceChanges, buildAcceptance, inspectProject, installArgv } from './project.ts'
-import { startVitePreview, PreviewError, type Preview } from './preview.ts'
-import { commandHasMarkers, diagnosticText, killTree, observeProcess, ProcessStopError, waitGone } from './proc.ts'
+import { acceptanceChanges, buildAcceptance, inspectProject, installArgv, managerVersionIssue } from './project.ts'
+import { isPreviewProcess, startVitePreview, PreviewError, type Preview } from './preview.ts'
+import { diagnosticText, killTree, observeProcess, ProcessStopError, waitGone } from './proc.ts'
 import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
 import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
 import type { FileLease } from './file-lock.ts'
@@ -94,6 +94,7 @@ export interface ComparerOptions {
 }
 
 interface LiveRun {
+  managerFailure?: string
   readonly record: RunRecord
   readonly hostContext: unknown
   readonly controller: AbortController
@@ -326,11 +327,21 @@ export class Comparer {
       // Recorded before the copy exists, so a crash right after creation still leaves a provable owner.
       await this.persist(record)
       await addOwnedWorktree(repo, dir, record.baseline.snapshotCommit, { runId: record.runId, label: c.label, token: c.ownerToken })
+      const project = await inspectProject(dir)
+      if (project.packageManagerVersion || project.packageManager !== 'npm') {
+        try {
+          const version = await runProjectProcess([project.packageManager, '--version'], { cwd: dir, timeoutMs: 30_000, signal, env: { CI: '1' } }, this.opts.prepareProjectProcess)
+          signal.throwIfAborted()
+          const issue = managerVersionIssue(project, version.code === 0 && !version.truncated ? version.stdout.trim() : undefined)
+          if (issue) throw new StageFailure('preparing', issue)
+        } catch (error) { if (!signal.aborted) lr.managerFailure = (error as Error).message; throw error }
+      }
       prepared()
       // Candidate tools may invoke Git too. Finish both copies' shared Git
       // metadata before either candidate can run a command in its copy.
       await allPrepared
       signal.throwIfAborted()
+      if (lr.managerFailure) throw new StageFailure('preparing', lr.managerFailure)
 
       await enter('generating')
       signal.throwIfAborted()
@@ -394,7 +405,7 @@ export class Comparer {
     const dir = c.dir!
     await enter('sealing')
     if (!c.ownerToken) throw new StageFailure('sealing', '候选缺少副本归属凭据，拒绝封存')
-    const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken } }
+    const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken }, yarnModern: record.acceptance.runtime.yarnModern }
     const change = await captureChange(dir, record.baseline.snapshotCommit, `agent-compare candidate ${record.runId}/${c.label}`, copy)
     if (change.touched.length === 0) {
       // The agent's own account is the only clue to why (e.g. sandbox denials); show its start.
@@ -419,7 +430,7 @@ export class Comparer {
   private async verifyCandidate(lr: LiveRun, c: Candidate, signal: AbortSignal, enter: (s: CandidateStage) => Promise<void>): Promise<void> {
     const record = lr.record, repo = record.baseline.repoRoot, dir = c.dir!
     if (!c.ownerToken || !c.candidateTree) throw new StageFailure('installing', '缺少封存内容或副本归属，不能重新验收')
-    const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken } }
+    const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken }, yarnModern: record.acceptance.runtime.yarnModern }
     const artifacts = this.store.artifacts(record.runId)
     const acc = await acceptanceChanges(repo, record.acceptance, record.baseline.snapshotTree, c.candidateTree)
     c.acceptanceTouched = acc.touched
@@ -457,8 +468,8 @@ export class Comparer {
     const reservation = {}
     this.startReservations.add(reservation)
     try {
-      const copy = { repo: current.baseline.repoRoot, owner: { runId, label, token: previous.ownerToken! } }
-      if ((await ownedCopyTree(previous.dir!, copy)) !== previous.candidateTree) throw new Error('候选副本已变化，不能用原封存内容重新验收；已保留现有文件与补丁')
+      const copy = { repo: current.baseline.repoRoot, owner: { runId, label, token: previous.ownerToken! }, yarnModern: current.acceptance.runtime.yarnModern }
+      if ((await ownedCopyTree(previous.dir!, copy, previous.candidateTree)) !== previous.candidateTree) throw new Error('候选副本已变化，不能用原封存内容重新验收；已保留现有文件与补丁')
       if ((await treeOf(current.baseline.repoRoot, previous.candidateCommit!)) !== previous.candidateTree
         || (await readPatchSha(previous.patchFile!)) !== previous.patchSha256) throw new Error('封存提交或补丁与记录不一致，已停止重新验收')
       this.assertOpen()
@@ -585,10 +596,16 @@ export class Comparer {
       return prepared
     }
     await enter?.('installing')
-    const checkedTree = await ownedCopyTree(dir, copy)
+    const checkedTree = await ownedCopyTree(dir, copy, sealedTree)
     if (checkedTree !== sealedTree) throw new StageFailure('installing', '副本内容与封存的版本不一致，拒绝验收')
     const info = await inspectProject(dir)
     if (info.kind === 'unsupported') throw new StageFailure('installing', info.reason ?? '改动后项目不再受支持')
+    if (copy.yarnModern) {
+      // Remove only fixed root-level files in an ownership-checked copy. A
+      // model-written loader must not survive a frozen dependency install.
+      await ownedWorktreeAdmin(copy.repo, dir, copy.owner)
+      for (const file of YARN_RUNTIME_FILES) await rm(path.join(dir, file), { force: true })
+    }
     const inst = installArgv(info)
     const observed = await runProjectProcess([inst.argv[0]!, '--version'], { cwd: dir, timeoutMs: 10_000, signal, env: { CI: '1' } }, prepare).catch(error => {
       if (error instanceof ProcessStopError) throw error
@@ -597,7 +614,11 @@ export class Comparer {
     signal.throwIfAborted()
     const reportedVersion = observed?.stdout.trim()
     const packageManagerVersion = observed?.code === 0 && !observed.truncated && reportedVersion && /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(reportedVersion) ? reportedVersion : undefined
-    const runtime = { hostNode: process.version, platform: process.platform, packageManager: inst.argv[0]!, ...(packageManagerVersion ? { packageManagerVersion } : {}) }
+    if (info.packageManagerVersion || info.packageManager !== 'npm') {
+      const issue = managerVersionIssue(info, packageManagerVersion)
+      if (issue) throw new StageFailure('installing', issue.replace('；未请求模型。', '；未开始本次依赖安装。'))
+    }
+    const runtime = { hostNode: process.version, platform: `${process.platform}-${process.arch}`, packageManager: inst.argv[0]!, ...(packageManagerVersion ? { packageManagerVersion } : {}) }
     const t0 = Date.now()
     const r = await runProjectProcess(inst.argv, { cwd: dir, timeoutMs: 600_000, signal, env: { CI: '1' } }, prepare)
     const failure = r.code !== 0 || r.aborted || r.timedOut ? installFailure(r) : undefined
@@ -620,7 +641,7 @@ export class Comparer {
     try {
       const kind = buildOk ? 'build' : 'dev'
       const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal, prepareProjectProcess: prepare })
-      preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: dir } }
+      preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) } }
     } catch (error) {
       if (error instanceof ProcessStopError) throw error
       if (signal.aborted) throw error
@@ -639,7 +660,7 @@ export class Comparer {
       }
       signal.throwIfAborted()
       // A project that does not ignore its build output would otherwise always "drift" by its own build.
-      const drift = (await changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy))).filter((p) => !p.startsWith('dist/'))
+      const drift = (await changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy, sealedTree))).filter((p) => !p.startsWith('dist/'))
       return { install, execution: { enforcement }, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
     } catch (error) {
       await preview.handle.stop()
@@ -723,7 +744,7 @@ export class Comparer {
       const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(c.dir, 'dist')) ? 'build' : 'dev'
       const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: this.opts.prepareProjectProcess })
       lr.previews.set(label, handle)
-      c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir }
+      c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) }
       await this.save(lr.record)
       return lr.record
     })
@@ -909,7 +930,7 @@ export class Comparer {
     await pinRef(repo, `refs/agent-compare/${r.runId}/rehearsal`, commit)
     await addOwnedWorktree(repo, dir, commit, { runId: r.runId, label: 'R', token })
     try {
-      const v = await this.verifyCopy(r.acceptance, dir, { repo, owner: { runId: r.runId, label: 'R', token } }, tree, path.join(this.store.artifacts(r.runId), 'R'), this.lifetime.signal)
+      const v = await this.verifyCopy(r.acceptance, dir, { repo, owner: { runId: r.runId, label: 'R', token }, yarnModern: r.acceptance.runtime.yarnModern }, tree, path.join(this.store.artifacts(r.runId), 'R'), this.lifetime.signal)
       await v.preview?.handle.stop()
       const reasons = [
         ...v.checks.filter((k) => k.outcome === 'failed' || k.outcome === 'timeout').map((k) => `${k.name} 未通过${k.reason ? `（${k.reason.slice(0, 120)}）` : ''}`),
@@ -1339,10 +1360,9 @@ class StageFailure extends Error {
 
 /** Kill a recorded preview only when its process provably is that preview. */
 async function stopOwnedPreview(p: PreviewInfo): Promise<void> {
-  const bin = path.join(p.cwd, 'node_modules', 'vite', 'bin', 'vite.js')
   const observed = await observeProcess(p.pid)
   if (observed.state === 'unavailable') throw new Error(`无法确认进程 ${p.pid} 的归属：${observed.reason}`)
-  if (observed.state === 'observed' && commandHasMarkers(observed.commandLine, [bin, `--port ${p.port}`])) {
+  if (observed.state === 'observed' && isPreviewProcess(p, observed.commandLine)) {
     await killTree(p.pid)
     if (!await waitGone(p.pid, 5000)) throw new Error(`预览进程 ${p.pid} 未退出`)
   }

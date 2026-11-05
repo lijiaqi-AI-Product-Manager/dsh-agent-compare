@@ -59,7 +59,8 @@
     "check:prebuilt": "node scripts/check-prebuilt.mjs",
     "test:fast": "npm run build && vitest run --project unit",
     "test:integration": "npm run build && vitest run --project integration",
-    "check:test-projects": "node scripts/check-test-projects.mjs"
+    "check:test-projects": "node scripts/check-test-projects.mjs",
+    "test:managers": "npm run build && node scripts/test-managers.mjs"
   },
   "keywords": [
     "dsh",
