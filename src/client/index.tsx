@@ -82,8 +82,8 @@ interface ModelItem { provider: string; providerName: string; id: string; name: 
 async function call<T>(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const url = new URL(`agent-compare/api/${method}`, document.baseURI.replace(/[?#].*$/, '').replace(/[^/]*$/, ''))
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(signal ? { signal } : {}) })
-  const env = (await res.json()) as { ok: boolean; value?: T; error?: string }
-  if (!env.ok) throw new Error(env.error ?? `HTTP ${res.status}`)
+  const env = (await res.json()) as { ok: boolean; value?: T; error?: string; code?: string }
+  if (!env.ok) throw Object.assign(new Error(env.error ?? `HTTP ${res.status}`), { code: env.code })
   return env.value as T
 }
 // ---- tiny shared store: which session's sheet is open, optionally on one run ----
@@ -1008,6 +1008,8 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const [cancelBusy, setCancelBusy] = useState(false)
   const cancellation = useRef({ version: 0, pending: false })
   const [copyRequest, setCopyRequest] = useState<{ runId: string; id: number }>()
+  const [confirmation, setConfirmation] = useState<{ method: string; extra: Record<string, unknown> }>()
+  const confirmationBox = useRef<HTMLDivElement>(null)
   const activeId = useRef(runId)
   activeId.current = runId
   const mounted = useRef(true)
@@ -1038,10 +1040,16 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     finally { if (version === reads.current.version) reads.current.pending = false }
   }, [runId, publish])
   useEffect(() => {
+    if (!confirmation) return
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    confirmationBox.current?.focus()
+    return () => { if (previous?.isConnected) previous.focus() }
+  }, [confirmation])
+  useEffect(() => {
     mounted.current = true
     action.current.version++; action.current.pending = false
     cancellation.current.version++; cancellation.current.pending = false; setCancelBusy(false)
-    setBusy(false); setCopyBusy(false); setCopyRequest(undefined); setPending(undefined); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
+    setBusy(false); setCopyBusy(false); setCopyRequest(undefined); setConfirmation(undefined); setPending(undefined); setErr(undefined); setReadErr(undefined); setPreflight(undefined)
     setRun(previous => previous?.runId === runId ? previous : initial?.runId === runId ? initial : undefined)
     void refresh(true)
     return () => { mounted.current = false; reads.current.version++; reads.current.controller?.abort(); action.current.version++ }
@@ -1054,13 +1062,17 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     return () => clearInterval(t)
   }, [live, refresh])
   useTick(run?.state === 'running')
+  const failure = (error: Error, method: string, extra: Record<string, unknown>): void => {
+    if ((error as Error & { code?: string }).code === 'other-session-confirmation') { setConfirmation({ method, extra }); setErr(undefined) }
+    else setErr(error.message)
+  }
   const act: Act = (method, extra = {}) => {
     if (method === 'cancelAdoption') {
       if (!run || run.runId !== runId || !run.control?.canCancelAdoption || run.control.allowed === false || cancellation.current.pending) return
       const version = ++cancellation.current.version, targetId = runId
       cancellation.current.pending = true; setCancelBusy(true); setErr(undefined)
       const current = (): boolean => mounted.current && activeId.current === targetId && cancellation.current.version === version
-      call<Run>('cancelAdoption', { runId, sessionId }).then(next => { if (current()) publish(next, targetId) }, error => { if (current()) setErr((error as Error).message) })
+      call<Run>('cancelAdoption', { runId, sessionId, ...extra }).then(next => { if (current()) publish(next, targetId) }, error => { if (current()) failure(error as Error, method, extra) })
         .finally(() => { if (current()) { cancellation.current.pending = false; setCancelBusy(false); void refresh(true) } })
       return
     }
@@ -1075,17 +1087,17 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     action.current.pending = true
     reads.current.version++; reads.current.controller?.abort()
     const current = (): boolean => mounted.current && activeId.current === targetId && action.current.version === version
-    const failed = (error: Error): void => { if (current()) setErr(error.message) }
+    const failed = (error: Error): void => { if (current()) failure(error, method, extra) }
     const finished = (): void => { if (current()) { action.current.pending = false; setBusy(false); setPending(undefined); void refresh(true) } }
     setBusy(true)
     setPending(method)
     setErr(undefined)
     if (method === 'reviewAdoption') {
-      call<NonNullable<typeof preflight>>('preflight', { runId }).then(value => { if (current()) setPreflight(value.protectedWorktreeApply === true ? value : { ...value, ok: false, reasons: ['插件服务尚未启用文件交接保护。请重启 DSH 后重新审查；也可以先另存为分支。'] }) }, failed).finally(finished)
+      call<NonNullable<typeof preflight>>('preflight', { runId, sessionId, ...extra }).then(value => { if (current()) setPreflight(value.protectedWorktreeApply === true ? value : { ...value, ok: false, reasons: ['插件服务尚未启用文件交接保护。请重启 DSH 后重新审查；也可以先另存为分支。'] }) }, failed).finally(finished)
       return
     }
     setPreflight(undefined)
-    call<Run | null>(method, { runId, ...extra })
+    call<Run | null>(method, { runId, sessionId, ...extra })
       .then((r) => { if (current() && r && typeof r === 'object' && 'runId' in r) publish(r, targetId) }, failed)
       .finally(finished)
   }
@@ -1104,6 +1116,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const body = (
     <>
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
+      {confirmation && <div ref={confirmationBox} tabIndex={-1} className="ac-review" role="region" aria-label="跨对话操作确认" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConfirmation(undefined) } }}><div><b>这次比较来自另一个对话</b><p>请确认要操作的项目：{run.baseline.repoRoot ?? '记录中未提供项目路径'}</p><p>运行编号：<code>{runId}</code> · 将执行：{({ choose: '选择并揭晓', reviewAdoption: '审查采用', adopt: '采用候选', revert: '撤销采用', recover: '恢复文件', cancel: '停止比较', cancelAdoption: '停止采用预演', salvage: '验收已有改动', retryVerification: '重新验收', reopen: '重新打开预览' } as Record<string, string>)[confirmation.method] ?? '更新这次比较'}</p><p>确认仅适用于这一次操作，仍会重新核验项目、候选与归属。</p></div><div className="ac-row"><button className="ac-btn" onClick={() => setConfirmation(undefined)}>取消操作</button><button className="ac-btn primary" disabled={cancelBusy || (confirmation.method === 'cancelAdoption' ? run.control?.allowed === false : blocked)} onClick={() => { const next = confirmation; setConfirmation(undefined); act(next.method, { ...next.extra, confirmOtherSession: true }) }}>确认本次操作</button></div></div>}
       <div className="ac-action-dock"><ActionBar run={run} busy={busy || copyBusy} pending={cancelBusy ? 'cancelAdoption' : pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label="资源清理状态"><div><b>{run.state === 'adopted' ? '采用已完成，仍有资源等待清理' : '仍有资源等待清理'}</b><p>可以重试清理。清理只处理本次比较拥有的资源。</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>重试清理</button></div></section>}
       {preflight && <section className="ac-review" aria-label="采用前审查" role="region"><div><b>{preflight.ok ? '目标核验通过，请确认采用' : '当前无法采用'}</b><p className="ac-project-path">目标：{run.baseline.repoRoot ?? '本次比较的项目'}</p><p>{preflight.ok ? preflight.rehearsal ? '项目有新改动，将先合并到临时副本中重新验收。' : '将写入选中版本；不自动提交，保留暂存状态。' : preflight.reasons.join('；')}</p>{preflight.ok && <p>先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>返回审查</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>确认采用 {run.choice?.pick}</button></div></section>}

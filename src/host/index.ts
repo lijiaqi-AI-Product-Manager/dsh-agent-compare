@@ -30,6 +30,7 @@ import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, projectCommandArgv, type ManagedPnpm, type ProjectSandbox } from './project-process.ts'
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 import { readComparisonStatus } from './status.ts'
+import { authorizeComparisonAction, CONVERSATION_ACTIONS } from './action-access.ts'
 import { startToolComparison, type StartToolArgs } from './start-tool.ts'
 import { hostCapabilities } from './capabilities.ts'
 import { HttpError, readBody } from './request.ts'
@@ -610,10 +611,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     async preflight(b) { return { ...await comparer.adoptPreflight(runIdOf(b)), protectedWorktreeApply: true } },
     async adopt(b) { return present(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : 'worktree')) },
     async cancelAdoption(b, signal) {
-      const agent = await agentFor(b, signal)
       const runId = runIdOf(b), record = await comparer.get(runId)
       if (!record) throw new HttpError(404, '没有这次比较')
-      if (record.sessionId && record.sessionId !== agent.session.id) throw new HttpError(409, '请回到这次比较所属的对话，停止采用预演。')
       return present(await comparer.cancelAdoption(runId))
     },
     async revert(b) { return present(await comparer.revert(runIdOf(b))) },
@@ -624,7 +623,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const agent = await agentFor(b, signal)
       const runId = runIdOf(b), record = await comparer.get(runId)
       if (!record) throw new HttpError(404, '没有这次比较')
-      return { ...await comparer.copyCleanupPlan(runId, signal), otherSession: !!record.sessionId && record.sessionId !== agent.session.id }
+      return { ...await comparer.copyCleanupPlan(runId, signal), otherSession: !record.sessionId || record.sessionId !== agent.session.id }
     },
     async releaseCopies(b, signal) {
       const agent = await agentFor(b, signal)
@@ -664,10 +663,11 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       res.once('close', () => { if (!res.writableEnded) ctl.abort() })
       try {
         const body = await readBody(req)
+        if (CONVERSATION_ACTIONS.has(method)) await authorizeComparisonAction(comparer, await agentFor(body, ctl.signal), runIdOf(body), body.confirmOtherSession, ctl.signal)
         json(res, 200, { ok: true, value: await handler(body, ctl.signal) })
       } catch (error) {
         const status = error instanceof HttpError || error instanceof SessionAccessError ? error.status : error instanceof HistoryQueryError ? 400 : error instanceof RecordUnavailableError || (error as Error).name === 'BusyError' ? 409 : 500
-        json(res, status, { ok: false, error: (error as Error).message })
+        json(res, status, { ok: false, error: (error as Error).message, ...(error instanceof HttpError && error.code ? { code: error.code } : {}) })
       }
     },
   }), 'agent-compare: /agent-compare/api routes'))
