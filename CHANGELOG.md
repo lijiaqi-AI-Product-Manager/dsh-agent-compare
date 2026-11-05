@@ -7,6 +7,8 @@
 - Seal source through a trusted private Git index, regenerate modern Yarn loaders, and retain project/port ownership when previews launch through Yarn.
 - Exercise native npm, pnpm and both Yarn generations, project registries and local proxies on Windows/Linux CI. Explicitly retain the Windows pnpm lock and TypeScript 7/PnP limitations instead of bypassing checks.
 - Record verification platform and architecture consistently with the baseline.
+- Add an explicit copy-space inspection and confirmation flow after reveal. Refresh ownership, sealed content, record revisions and directory fingerprints before releasing settled copies under the existing locks.
+- Keep records, source patches, screenshots, candidate sessions, source repositories, Git refs and undo originals. Block active work, unresolved recovery, uncertain process exits and changed plans; show partial cleanup truthfully.
 
 ## 1.0.1
 

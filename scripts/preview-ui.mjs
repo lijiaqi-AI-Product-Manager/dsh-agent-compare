@@ -131,6 +131,7 @@ window.fetch = async (url, init) => {
     : m[1] === 'setup' ? {current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)},warning:${JSON.stringify(error === 'manager-warning' ? 'Yarn PnP 与 TypeScript 7 组合仍有限制，失败检查不会被跳过。' : undefined)}},dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true,...(${JSON.stringify(error)}==='old-apply-host'?{}:{protectedWorktreeApply:true})}
+    : m[1] === 'copyCleanupPlan' ? {version:1,runId:body.runId,rev:runs.find(r=>r.runId===body.runId)?.rev??0,state:'revealed',allowed:true,reasons:[],bytes:15728640,token:'a'.repeat(64),otherSession:${JSON.stringify(error==='other-session-cleanup')},resources:[{label:'A',path:'D:/Comparisons/0a1b2c3d/A',bytes:7340032,files:100,links:0,stopsPreview:true},{label:'B',path:'D:/Comparisons/0a1b2c3d/B',bytes:8388608,files:120,links:2,stopsPreview:true}]}
     : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false} : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
@@ -140,6 +141,7 @@ window.fetch = async (url, init) => {
     value=runs[selected];
   }
   if (m[1] === 'cleanup' && selected >= 0) { runs[selected] = {...runs[selected],leftovers:undefined}; value=runs[selected]; }
+  if (m[1] === 'releaseCopies' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method===m[1])?.error) {runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,copiesReleasedAt:Date.now(),leftovers:undefined,candidates:runs[selected].candidates.map(c=>({...c,previewUrl:undefined,hasScreenshot:true,canReopenPreview:false}))};value=runs[selected]}
   // Delayed snapshots intentionally ignore abort, exercising the client's own guards.
   const plan=m[1]==='get'?window.__getPlans.shift():undefined;
   const actionPlan=window.__actionPlans.findIndex(plan=>plan.method===m[1]);
