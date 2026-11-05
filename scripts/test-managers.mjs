@@ -56,7 +56,7 @@ try{
   const pkg=JSON.parse(await readFile(path.join(repo,'package.json'),'utf8'))
   pkg.packageManager=item.manager+'@'+item.version
   pkg.allowScripts={esbuild:true}
-  await writeFile(path.join(repo,'package.json'),JSON.stringify(pkg,null,2))
+  await writeFile(path.join(repo,'package.json'),JSON.stringify(pkg,null,2)+'\n')
   await writeFile(path.join(repo,'.gitignore'),'node_modules/\ndist/\n.vite/\n')
   await writeFile(path.join(repo,'.npmrc'),'registry=https://registry.npmjs.org/\n')
   if(item.manager!=='npm')await rm(path.join(repo,'package-lock.json'))
@@ -119,7 +119,7 @@ try{
     const result={case:item.id,host,version:item.version,platform:process.platform,supported:false,frozen:true,buildAndBrowser:true,baselineTypecheck:'TS2688',adoptionRejected:true,loaderPreserved:true,environmentContract:true,transport}
     results.push(result);console.log(JSON.stringify(result));await comparer.cleanup(record.runId);continue
    }
-   assert.ok(record.candidates.every(candidate=>candidate.verdict?.eligible),JSON.stringify(record.candidates.map(candidate=>({label:candidate.label,stage:candidate.stage,error:candidate.error,verdict:candidate.verdict}))))
+   assert.ok(record.candidates.every(candidate=>candidate.verdict?.eligible),JSON.stringify({case:item.id,baselineType,candidates:record.candidates.map(candidate=>({label:candidate.label,stage:candidate.stage,error:candidate.error,verdict:candidate.verdict,checks:candidate.checks}))}))
    for(const candidate of record.candidates){assert.equal(candidate.install.frozen,true);assert.equal(candidate.install.runtime.packageManagerVersion,item.version);assert.equal(candidate.checks.find(check=>check.name==='browser').outcome,'passed')}
    assert.equal(new Set(record.candidates.map(candidate=>new URL(candidate.preview.url).origin)).size,2)
    await comparer.choose(record.runId,'B')
