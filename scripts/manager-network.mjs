@@ -8,10 +8,12 @@ import {runProjectProcess} from '../lib/core/project-process.js'
 /** Local-only transport fixtures; never change user or global configuration. */
 export async function managerNetworkCheck(item,repo,prepare){
  const name='agent-compare-network-fixture',version='1.0.0'
- const manifest={name,version,'dist-tags':{latest:version},versions:{[version]:{name,version}},time:{modified:'2026-11-05T00:00:00.000Z'}}
+ const entry={name,version,dist:{tarball:'http://registry.agent-compare.invalid/fixture.tgz',shasum:'0'.repeat(40)}}
+ const manifest={name,version,'dist-tags':{latest:version},versions:{[version]:entry},time:{created:'2025-01-01T00:00:00.000Z',modified:'2025-01-01T00:00:00.000Z',[version]:'2025-01-01T00:00:00.000Z'}}
  let direct=0,proxied=0
  const sockets=new Set()
- const registry=createServer((req,res)=>{direct++;res.setHeader('content-type','application/json');res.end(JSON.stringify(manifest))})
+ const paths=[]
+ const registry=createServer((req,res)=>{direct++;if(paths.length<32)paths.push(req.url);res.setHeader('content-type','application/json');res.end(JSON.stringify(/\/(latest|1\.0\.0)$/.test(req.url)?entry:manifest))})
  const proxy=createServer((req,res)=>{
   let target;try{target=new URL(req.url)}catch{res.writeHead(400);res.end();return}
   if(target.hostname!=='registry.agent-compare.invalid'){res.writeHead(403);res.end();return}
@@ -38,7 +40,7 @@ export async function managerNetworkCheck(item,repo,prepare){
  const argv=item.manager==='yarn'?(item.linker?['yarn','npm','info',name,'--fields','version','--json']:['yarn','info',name,'version','--json']):[item.manager,'view',name,'version','--json']
  const query=async env=>{
   const result=await runProjectProcess(argv,{cwd:repo,timeoutMs:25000,env:{...base,...env}},prepare)
-  assert.equal(result.code,0,item.id+' registry fixture: '+result.stderr+'\n'+result.stdout)
+  assert.equal(result.code,0,item.id+' registry fixture '+JSON.stringify(paths)+': '+result.stderr+'\n'+result.stdout)
   assert.ok(result.stdout.includes(version))
  }
  try{
