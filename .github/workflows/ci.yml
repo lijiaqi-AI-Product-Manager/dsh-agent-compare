@@ -14,6 +14,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  safari:
+    name: native Safari (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-26-intel]
+    timeout-minutes: 30
+    env:
+      AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/safari-evidence
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          check-latest: true
+          cache: npm
+      - run: npm install --global npm@12.2.2 --ignore-scripts
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/prepare-current-safari.mjs
+        timeout-minutes: 15
+      - run: sudo /usr/bin/safaridriver --enable
+      - name: Check native browser startup before product setup
+        run: node scripts/probe-safari-startup.mjs
+      - run: node scripts/with-preview-network.mjs safari
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: native-safari-${{ matrix.os }}
+          path: .runtime-checks/safari-evidence
+          include-hidden-files: true
+          retention-days: 7
+
   test:
     name: test (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
@@ -122,38 +156,6 @@ jobs:
         with:
           name: browser-${{ matrix.os }}-${{ matrix.engine }}
           path: .runtime-checks/browser-evidence
-          include-hidden-files: true
-          retention-days: 7
-
-  safari:
-    name: native Safari (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, macos-26-intel]
-    timeout-minutes: 30
-    env:
-      AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/safari-evidence
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          check-latest: true
-          cache: npm
-      - run: npm install --global npm@12.2.2 --ignore-scripts
-      - run: npm ci
-      - run: npm run build
-      - run: node scripts/prepare-current-safari.mjs
-        timeout-minutes: 15
-      - run: sudo /usr/bin/safaridriver --enable
-      - run: node scripts/with-preview-network.mjs safari
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: native-safari-${{ matrix.os }}
-          path: .runtime-checks/safari-evidence
           include-hidden-files: true
           retention-days: 7
 
