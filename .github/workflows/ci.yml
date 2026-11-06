@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: test (${{ matrix.os }}, node ${{ matrix.node }})
@@ -18,6 +22,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: [22, 24, 26]
+        include:
+          - os: macos-latest
+            node: 26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -49,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -59,11 +66,17 @@ jobs:
           cache: npm
       - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
+      - name: Configure bounded Ubuntu browser downloads
+        if: runner.os == 'Linux'
+        run: sudo -n env GITHUB_ACTIONS=true "$(command -v node)" scripts/prepare-linux-browser-deps.mjs
       - run: npx playwright-core install --with-deps --only-shell chromium
         if: runner.os == 'Linux'
       - run: npx playwright-core install --only-shell chromium
-        if: runner.os == 'Windows'
+        if: runner.os != 'Linux'
       - run: npm run smoke
+      - name: Check record compatibility with the published release
+        if: runner.os == 'Linux'
+        run: node scripts/check-record-compatibility.mjs
       - run: npm run test:ui
       - name: Verify UI in Microsoft Edge
         if: runner.os == 'Windows'
@@ -72,12 +85,13 @@ jobs:
           AGENT_COMPARE_UI_BROWSER_CHANNEL: msedge
 
   host-runtime:
-    name: current host runtime (${{ matrix.os }})
+    name: host runtime (${{ matrix.os }}, DSH ${{ matrix.dsh }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dsh: [0.2.1-rc.5, 0.2.2-rc.1]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -87,7 +101,7 @@ jobs:
           cache: npm
       - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
-      - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.5
+      - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@${{ matrix.dsh }}
       - run: npm run test:runtime
 
   host-next:
@@ -97,7 +111,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -117,7 +131,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     env:
       YARN_ENABLE_TELEMETRY: '0'
     steps:
@@ -130,11 +144,14 @@ jobs:
       - run: git config --global user.email ci@example.invalid && git config --global user.name ci
       - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
-      - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.5
+      - run: npm install --prefix .runtime-checks/host-sdk --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.2-rc.1
+      - name: Configure bounded Ubuntu browser downloads
+        if: runner.os == 'Linux'
+        run: sudo -n env GITHUB_ACTIONS=true "$(command -v node)" scripts/prepare-linux-browser-deps.mjs
       - run: npx playwright-core install --with-deps --only-shell chromium
         if: runner.os == 'Linux'
       - run: npx playwright-core install --only-shell chromium
-        if: runner.os == 'Windows'
+        if: runner.os != 'Linux'
       - run: npm run test:managers
 
   dependency-audit:

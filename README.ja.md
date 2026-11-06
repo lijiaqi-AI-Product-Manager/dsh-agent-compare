@@ -121,7 +121,7 @@ worktree は完全な安全サンドボックスではありません。DSH の�
 
 二つの実装にはそれぞれ生成コストがかかり、並列化が必ず安く、速くなるとは限りません。一方または両方を停止できます。上限時には、すでに書いた変更を検証します。使用量が返らない場合は「不明」であり、ゼロとは表示しません。
 
-[CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)には Windows/Linux、Node のテストとブラウザー検証があります。最新 DSH での実セッション・ツール・アプリ実行の一部は、固定応答のローカルアダプターを使用しており、外部モデルの生成品質を測るものではありません。実モデルによる履歴ケースは DSH 0.2.1-rc.3 のものです。最新宿主と外部モデルを使った完了までの性能、二モデルの Provider 組み合わせ、macOS、pnpm/yarn の全工程は未確認です。詳細は[英語版の検証範囲](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility)を参照してください。
+Windows・Linux・macOS のネイティブ検証を実行します。npm・pnpm・Yarn の検証済み構成と Windows／PnP の制約は[互換性一覧](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility)に分けて記載しています。ネイティブ Safari は別の検証対象です。固定応答によるテストは外部モデルの生成品質や所要時間の測定ではありません。
 
 ## フィードバックと開発
 

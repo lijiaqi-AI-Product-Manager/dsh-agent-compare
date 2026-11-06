@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refresh the acceptance baseline to Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0, regenerate manager fixture locks with their exact tools, and add native macOS regression/runtime jobs with pinned minimum and current DSH versions. Keep native Safari and known Windows/PnP limits separately identified.
+
 - Add an advanced Windows auto/off control bound to each comparison. Preserve confinement and frozen checks when disabled; record observed compatibility hooks separately from the configured mode and withhold hook fingerprints until reveal.
 
 - Apply conversation ownership and per-request confirmation to the actual preview restart endpoint. Validate control-route names against registered handlers and retain read-only history access.

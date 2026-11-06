@@ -14,7 +14,7 @@ AgentCompare 的仓库名和 npm 包名均为 `dsh-agent-compare`。插件以标
 
 `engines.dsh` 为 `>=0.2.1-rc.3 <0.3.0-0`。DSH 的 `@deepseek-ai/dsh-app-boot` 使用 `includePrerelease: true` 校验；因此 0.2.2 的 alpha／rc 参与匹配，不能用 npm semver 的默认选项推断安装失败。上界的 `-0` 明确排除 0.3.0 的预发布版本。
 
-版本范围表示宿主是否允许加载，不等同于已完成产品验收。必需的 Windows／Linux 原生运行检查固定使用 DSH 0.2.1-rc.5；另有独立、允许失败的 `next host canary` 跟踪 next 通道。每次输出实际解析的宿主版本，并直接调用该宿主的兼容性判断函数测试边界。Canary 失败必须单独调查，不能当作通过；它不代表外部模型或最终桌面壳已验收。最新状态见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)。
+版本范围表示宿主是否允许加载，不等同于已完成产品验收。必需的 Windows／Linux／macOS 原生运行检查分别固定使用 DSH 0.2.1-rc.5 与 0.2.2-rc.1；另有独立、允许失败的 `next host canary` 跟踪 next 通道。每次输出实际解析的宿主版本，并直接调用该宿主的兼容性判断函数测试边界。Canary 失败必须单独调查，不能当作通过；它不代表外部模型或最终桌面壳已验收。最新状态见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)。
 
 ## 目录来源
 

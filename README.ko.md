@@ -119,7 +119,7 @@ Git 커밋이 적어도 하나 필요합니다. 무시된 파일을 제외한 �
 
 worktree는 완전한 보안 샌드박스가 아닙니다. DSH의 파일 쓰기 경계를 사용하며 Windows에서는 **partial**로 보고합니다. 파일 읽기와 네트워크는 격리하지 않습니다. 포함된 페이지의 Cookie는 브라우저 정책을 따르고 외부 탭에서는 저장소 맥락이 달라질 수 있습니다. 로그인, 외부 백엔드, 공유 데이터베이스는 현재 범위 밖입니다.
 
-npm 설치와 검증은 실행했습니다. pnpm/yarn의 전체 경로와 macOS는 아직 확인하지 않았습니다. 최신 호스트에서 외부 모델로 적용 후 대화를 이어가는 전체 흐름, 모델 제공자 조합, 실제 시간과 비용은 추가 검증이 필요합니다. [영문 호환 범위](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility)에 구체적인 환경을 구분해 둡니다.
+Windows, Linux, macOS에서 네이티브 검증을 실행합니다. npm, pnpm, Yarn의 검증된 구성과 Windows/PnP 제한은 [호환성 표](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility)에 구분합니다. 네이티브 Safari는 별도로 검증하며, 고정 응답 테스트는 외부 모델의 품질이나 처리 시간 측정이 아닙니다.
 
 ## 비용과 확인된 근거
 

@@ -30,10 +30,10 @@ const tools=path.resolve(process.env.AGENT_COMPARE_PM_TOOLS??'.runtime-checks/ma
 await mkdir(root,{recursive:true});await mkdir(tools,{recursive:true})
 const originalPath=process.env.PATH, npmCommand=process.platform==='win32'?'npm.cmd':'npm'
 let bootstrap=[npmCommand]
-for(const [name,dependency,version] of [['npm','npm','12.2.2'],['pnpm','pnpm','12.16.1'],['yarn1','yarn','1.22.22'],['yarn4','@yarnpkg/cli-dist','4.18.1']]){
+for(const [name,dependency,version] of [['npm','npm','12.2.2'],['pnpm','pnpm','12.18.0'],['yarn1','yarn','1.22.22'],['yarn4','@yarnpkg/cli-dist','4.18.1']]){
  const directory=path.join(tools,name);await mkdir(directory,{recursive:true})
  if(process.env.AGENT_COMPARE_PM_TOOLS)continue
- await writeFile(path.join(directory,'package.json'),JSON.stringify({private:true,dependencies:{[dependency]:version},...(name==='pnpm'?{allowScripts:{'pnpm@12.16.1':true}}:{})}))
+ await writeFile(path.join(directory,'package.json'),JSON.stringify({private:true,dependencies:{[dependency]:version},...(name==='pnpm'?{allowScripts:{'pnpm@12.18.0':true}}:{})}))
  await runOk([...bootstrap,'install','--prefix',directory,'--no-audit','--no-fund',...(name==='pnpm'?[]:['--ignore-scripts'])],{cwd:directory,timeoutMs:300000,maxOutput:100000})
  if(name==='npm')bootstrap=[process.execPath,path.join(directory,'node_modules/npm/bin/npm-cli.js')]
 }
@@ -43,7 +43,7 @@ await fiber
 const prepare=createProjectProcess(()=>ctx.get('sandbox'),async()=>scrubbedParentEnv(),process.platform==='win32'?resolveRuntime.resolve('@deepseek-ai/dsh-win32-process'):undefined)
 const cases=[
  {id:'npm',manager:'npm',version:'12.2.2'},
- {id:'pnpm',manager:'pnpm',version:'12.16.1',tool:'pnpm'},
+ {id:'pnpm',manager:'pnpm',version:'12.18.0',tool:'pnpm'},
  {id:'yarn-classic',manager:'yarn',version:'1.22.22',tool:'yarn1'},
  {id:'yarn-node-modules',manager:'yarn',version:'4.18.1',tool:'yarn4',linker:'node-modules'},
  {id:'yarn-pnp',manager:'yarn',version:'4.18.1',tool:'yarn4',linker:'pnp'},

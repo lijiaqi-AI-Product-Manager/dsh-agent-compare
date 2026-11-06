@@ -119,7 +119,7 @@ Registros antigos ou danificados permanecem somente para leitura, com explicaç�
 
 Um worktree não é uma barreira completa de segurança. O plugin usa a política de escrita do DSH; no Windows, a proteção é informada como **partial**. Leituras de arquivos e rede não são isoladas. Cookies em páginas incorporadas seguem a política do navegador, e uma aba externa pode ter outro contexto de armazenamento. Login, backends externos e bancos de dados compartilhados ficam fora do escopo atual.
 
-A instalação e a verificação com npm foram executadas. macOS e o fluxo completo com pnpm/yarn ainda não foram verificados. Combinações de provedores com dois modelos e medições atuais de desempenho com um modelo externo também precisam de validação. Veja a [matriz detalhada](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
+Os testes nativos cobrem Windows, Linux e macOS. A [matriz detalhada](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility) distingue as combinações verificadas de npm, pnpm e Yarn e as limitações de Windows/PnP. O Safari nativo é validado separadamente; respostas controladas dos testes não medem a qualidade nem o desempenho de modelos externos.
 
 ## Tempo, custo e evidências
 
