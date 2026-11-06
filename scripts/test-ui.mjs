@@ -348,9 +348,13 @@ try {
   check(await page.getByRole('link',{name:'在浏览器中打开 A',exact:true}).getAttribute('href')===await page.locator('iframe').first().getAttribute('src'), 'the compact header must preserve the actual preview address')
   await page.getByRole('button', { name: '桌面 1280', exact: true }).click()
   await page.waitForFunction(()=>[...document.querySelectorAll('iframe')].every(frame=>frame.style.width==='1280px'))
+  // Firefox may commit the parent style before its remote frame has resized.
+  // Observe each application viewport rather than assuming a synchronous layout.
+  await Promise.all(frames.map(f => f.waitForFunction(() => innerWidth === 1280)))
   for (const f of frames) check(await f.evaluate(() => innerWidth) === 1280, 'desktop viewports must match')
   await page.getByRole('button', { name: '手机 390', exact: true }).click()
   await page.waitForFunction(() => [...document.querySelectorAll('iframe')].every(f => f.style.width === '390px'))
+  await Promise.all(frames.map(f => f.waitForFunction(() => innerWidth === 390)))
   for (const f of frames) check(await f.evaluate(() => innerWidth) === 390, 'phone viewports must match')
   await frames[0].getByPlaceholder('搜索商品').fill('preserved interaction')
   await page.getByRole('button', { name: '专注 A', exact: true }).click()
