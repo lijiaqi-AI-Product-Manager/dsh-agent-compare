@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {execFileSync} from 'node:child_process'
 import {mkdir,writeFile} from 'node:fs/promises'
 import path from 'node:path'
+import {launchHostedSafari} from './native-safari-launch.mjs'
 
 assert.equal(process.platform,'darwin');assert.equal(process.env.GITHUB_ACTIONS,'true')
 assert.equal(process.env.RUNNER_ENVIRONMENT,'github-hosted')
@@ -25,21 +26,7 @@ try {
     // The updated application migrates its WebDriver preferences on first
     // launch. Complete that launch before the next step's official --enable.
     // AppKit observes readiness without requesting Apple Events control.
-    execFileSync('/usr/bin/open',['-a','/Applications/Safari.app','about:blank'],{timeout:10000})
-    execFileSync('/usr/bin/swift',['-e',`
-import AppKit
-import Foundation
-let deadline = Date().addingTimeInterval(45)
-while Date() < deadline {
-    if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Safari" && $0.isFinishedLaunching && !$0.isTerminated }) {
-        print("Updated Safari finished launching before WebDriver authorization")
-        exit(0)
-    }
-    Thread.sleep(forTimeInterval: 0.2)
-}
-fputs("Updated Safari did not finish its initial launch\\n", stderr)
-exit(1)
-`],{stdio:'inherit',timeout:120000})
+    launchHostedSafari()
     initializedBeforeAuthorization=true
   }
   assert.ok(current(after),'Safari is still older than the current stable acceptance baseline')

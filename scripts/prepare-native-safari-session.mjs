@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict'
 import {execFileSync} from 'node:child_process'
 import {realpath} from 'node:fs/promises'
+import {launchHostedSafari} from './native-safari-launch.mjs'
 
 export async function prepareNativeSafariSession(){
   if(process.env.GITHUB_ACTIONS!=='true')return {disposableCi:false,existingBrowsersPreserved:true,closed:[]}
@@ -30,5 +31,8 @@ export async function prepareNativeSafariSession(){
     assert.notEqual(identity(pid),observed,'The existing CI browser did not exit; do not force it')
     closed.push({pid,verifiedCurrentUser:true,verifiedApplication:true,birthIdentityChecked:true})
   }
-  return {disposableCi:true,closed,otherApplicationsTouched:false,permanentSettingsChanged:false}
+  // Keep a normally initialized, authorized browser alive while WebDriver
+  // creates its separate automation window; do not race a second cold launch.
+  launchHostedSafari()
+  return {disposableCi:true,closed,normalLaunchBeforeSession:true,otherApplicationsTouched:false,permanentSettingsChanged:false}
 }
