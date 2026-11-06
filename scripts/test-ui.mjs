@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { chromium } from 'playwright-core'
+import { launchUiBrowser } from './ui-browser.mjs'
 import { createUiHarness } from './preview-ui.mjs'
 
 // Real client components and browser interaction, using labelled sample runs.
@@ -13,9 +13,9 @@ let browser
 let assertions = 0
 const check = (value, message) => { assert.ok(value, message); assertions++ }
 try {
-  const channel = process.env.AGENT_COMPARE_UI_BROWSER_CHANNEL
-  assert.ok(channel === undefined || ['msedge', 'chrome'].includes(channel), 'Unsupported UI browser channel')
-  browser = channel ? await chromium.launch({ channel, headless: true }) : await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
+  const launched = await launchUiBrowser()
+  const { engine, channel } = launched
+  browser = launched.browser
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', locale: 'zh-CN' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -740,7 +740,7 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'Escape must close the workspace')
   check(await page.evaluate(() => document.activeElement.classList.contains('ac-header-btn')), 'closing must restore entry-button focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
-  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), channel: channel ?? 'automatic', react: await page.evaluate(() => React.version), node: process.version }))
+  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, react: await page.evaluate(() => React.version), node: process.version }))
 } finally {
   await browser?.close()
   await harness.close()

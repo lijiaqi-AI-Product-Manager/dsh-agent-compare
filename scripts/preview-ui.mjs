@@ -234,14 +234,19 @@ const server = createServer(async (req, res) => {
       const value = input.value === undefined ? await preferences.load(input.sessionId) : await preferences.save(input.sessionId, input.value)
       res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true, value }))
     }
-    if (u.pathname === '/') return res.end(page(u.searchParams.get('state') ?? 'judging', u.searchParams.get('theme') ?? 'light', u.searchParams.get('error') ?? ''))
-    if (u.pathname === '/vendor/react-runtime.js') { res.setHeader('content-type', 'application/javascript'); return res.end(reactRuntime) }
-    if (u.pathname === '/lib/client.js') return res.end(await readFile(path.join(root, 'lib/client.js')))
+    if (u.pathname === '/') { res.setHeader('content-type', 'text/html; charset=utf-8'); return res.end(page(u.searchParams.get('state') ?? 'judging', u.searchParams.get('theme') ?? 'light', u.searchParams.get('error') ?? '')) }
+    if (u.pathname === '/vendor/react-runtime.js') { res.setHeader('content-type', 'application/javascript; charset=utf-8'); return res.end(reactRuntime) }
+    if (u.pathname === '/lib/client.js') { res.setHeader('content-type', 'application/javascript; charset=utf-8'); return res.end(await readFile(path.join(root, 'lib/client.js'))) }
     res.statusCode = 404
     res.end()
   } catch (e) { res.statusCode = 500; res.end(String(e)) }
 })
-const demoServer = createServer((req, res) => { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A')) })
+const previewRequests = []
+const demoServer = createServer((req, res) => {
+  // Retain names only, never cookie values. Browser tests use their own canary.
+  previewRequests.push({ host: req.headers.host, path: req.url, cookieNames: (req.headers.cookie ?? '').split(';').map(item => item.trim().split('=')[0]).filter(Boolean) })
+  res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A'))
+})
 const listen = (s, p) => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, '127.0.0.1', resolve) })
 await listen(demoServer, demoPort)
 try { await listen(server, port) } catch (error) { await new Promise(r => demoServer.close(r)); throw error }
@@ -249,7 +254,7 @@ const demoHosts = { A: `ac-${randomBytes(16).toString('hex')}.localhost`, B: `ac
 for (const list of Object.values(states)) for (const run of list) for (const candidate of run.candidates) {
   if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServer.address().port}/${candidate.label.toLowerCase()}`
 }
-return { url: `http://127.0.0.1:${server.address().port}`, close: async () => { await Promise.all([server, demoServer].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
+return { url: `http://127.0.0.1:${server.address().port}`, previewRequests, close: async () => { await Promise.all([server, demoServer].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const harness = await createUiHarness()

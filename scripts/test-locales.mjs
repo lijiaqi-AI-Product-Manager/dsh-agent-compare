@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { chromium } from 'playwright-core'
+import { launchUiBrowser } from './ui-browser.mjs'
 import { createUiHarness } from './preview-ui.mjs'
 
 const harness = await createUiHarness({ port: 0, demoPort: 0 })
@@ -11,9 +11,9 @@ await mkdir(output, { recursive: true })
 const check = (condition, message) => { assert.ok(condition, message); assertions++ }
 let assertions = 0, browser
 try {
-  const channel = process.env.AGENT_COMPARE_UI_BROWSER_CHANNEL
-  assert.ok(channel === undefined || ['msedge', 'chrome'].includes(channel))
-  browser = channel ? await chromium.launch({ channel, headless: true }) : await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
+  const launched = await launchUiBrowser()
+  const { engine, channel } = launched
+  browser = launched.browser
   const page = await browser.newPage({ locale: 'en-GB', viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -121,5 +121,5 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'English Escape behavior must close the dialog')
   check(await page.evaluate(() => document.activeElement.matches('[data-ac-history]')), 'English close must restore the translated history entry focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
-  console.log(JSON.stringify({ localeAssertions: assertions, screenshots: output, browser: browser.version(), channel: channel ?? 'automatic', locale: 'en-GB', languages: ['zh-CN', 'en'] }))
+  console.log(JSON.stringify({ localeAssertions: assertions, screenshots: output, browser: browser.version(), engine, channel, locale: 'en-GB', languages: ['zh-CN', 'en'] }))
 } finally { await browser?.close(); await harness.close() }

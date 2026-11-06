@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add native macOS project and host-runtime jobs, dedicated Firefox/WebKit interface jobs and a separate native Safari driver check. Record live preview origins, independent input/storage and parent-cookie boundaries independently of browser-engine labels.
 - Add a Simplified Chinese/English interface with a persistent visible language selector and device-language default. Preserve drafts, references, model choices, live previews and comparison identity during switching; retain original application and diagnostic content.
 - Keep long English controls inside 320px layouts and use labeled history/tutorial icons in narrow headers. Extract shared interface copy and scoped styles, verify both languages and retain the existing package-size budget with repository-linked measurement/distribution notes.
 
