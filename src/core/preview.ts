@@ -5,17 +5,18 @@ import path from 'node:path'
 import type { ChildProcess } from 'node:child_process'
 import { commandHasMarkers, DiagnosticLog, killTree, startLongRunning, Tail } from './proc.ts'
 import { prepareProjectProcess, type PrepareProjectProcess } from './project-process.ts'
-import { fetchPreview } from './preview-url.ts'
+import { fetchPreview, isNumericPreviewHost } from './preview-url.ts'
 import { inspectProject } from './project.ts'
 import type { PreviewInfo } from './types.ts'
 
 /** Ask the OS for a free loopback port. The caller still uses --strictPort, so a race fails loudly. */
-export function freePort(): Promise<number> {
+export function freePort(host = '127.0.0.1'): Promise<number> {
+  if (host !== '127.0.0.1' && !isNumericPreviewHost(host)) return Promise.reject(new Error('Invalid preview binding'))
   return new Promise((resolve, reject) => {
     const srv = createServer()
     srv.unref()
     srv.on('error', reject)
-    srv.listen(0, '127.0.0.1', () => {
+    srv.listen(0, host, () => {
       const addr = srv.address()
       srv.close(() => (addr && typeof addr === 'object' ? resolve(addr.port) : reject(new Error('no port'))))
     })
@@ -64,21 +65,24 @@ async function httpReady(url: string, signal: AbortSignal): Promise<boolean> {
  * runs on the host Node directly, except modern Yarn's project-aware loader;
  * its wrapper and the complete child tree share this preview's lifecycle.
  */
-export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'dev'; timeoutMs?: number; signal?: AbortSignal; prepareProjectProcess?: PrepareProjectProcess } = {}): Promise<Preview> {
+export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'dev'; timeoutMs?: number; signal?: AbortSignal; prepareProjectProcess?: PrepareProjectProcess; loopbackHost?: string } = {}): Promise<Preview> {
+  opts.signal?.throwIfAborted()
+  if (opts.loopbackHost !== undefined && !isNumericPreviewHost(opts.loopbackHost)) throw new PreviewError('预览地址不是可用的专用本机地址', '')
   const viteBin = path.join(dir, 'node_modules', 'vite', 'bin', 'vite.js')
   const project = await inspectProject(dir)
   const modernYarn = project.packageManager === 'yarn' && project.modernYarn === true
   if (!modernYarn && !existsSync(viteBin)) throw new PreviewError('副本里没有安装 vite', '')
   const kind = opts.kind ?? 'build'
   const timeoutMs = opts.timeoutMs ?? 60_000
-  const host = `ac-${randomBytes(16).toString('hex')}.localhost`
+  const bindHost = opts.loopbackHost ?? '127.0.0.1'
+  const host = opts.loopbackHost ?? `ac-${randomBytes(16).toString('hex')}.localhost`
   let lastError: PreviewError | undefined
   for (let attempt = 0; attempt < 3; attempt++) {
-    const port = await freePort()
+    const port = await freePort(bindHost)
     const root = `http://${host}:${port}/`
     const args = kind === 'build' ? ['preview'] : []
     const command = modernYarn ? ['yarn', '--cwd', dir, 'exec', 'vite'] : ['node', viteBin]
-    const prepared = await prepareProjectProcess({ argv: [...command, ...args, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], cwd: dir,
+    const prepared = await prepareProjectProcess({ argv: [...command, ...args, '--host', bindHost, '--port', String(port), '--strictPort'], cwd: dir,
       env: { BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }, signal: opts.signal }, opts.prepareProjectProcess)
     const child = startLongRunning(prepared.argv, {
       cwd: dir,
@@ -90,7 +94,9 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
     child.stdout?.setEncoding('utf8').on('data', (d: string) => log.push(d))
     child.stderr?.setEncoding('utf8').on('data', (d: string) => log.push(d))
     const entry = (): string => {
-      const printed = new RegExp(`http://127\\.0\\.0\\.1:${port}/[^\\s\\u001b]*`).exec(log.toString())?.[0]
+      const printed = log.toString().match(/http:\/\/127\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+\/[^\s\u001b]*/g)?.find(value => {
+        try { const url = new URL(value); return url.hostname === bindHost && url.port === String(port) } catch { return false }
+      })
       const url = new URL(printed ?? root)
       url.hostname = host
       return url.href

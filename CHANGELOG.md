@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add native macOS project and host-runtime jobs, dedicated Firefox/WebKit interface jobs and a separate native Safari driver check. Record live preview origins, independent input/storage and parent-cookie boundaries independently of browser-engine labels.
+- Prepare dedicated numeric preview transport with exact-address binding and probing. Provisioning and ownership remain the host's responsibility; this transport does not configure system addresses or enable Safari setup by itself.
 - Synchronize composer and overlay state across separate host roots without losing settings updates. Disable mode entry until saved settings load, retain drafts on retry and restore history/tutorial focus to the actual trigger.
 - Measure restored preview width before paint and preserve usable desktop/phone layouts. Serialize settings reads with admitted writes for the same conversation without blocking unrelated conversations.
 

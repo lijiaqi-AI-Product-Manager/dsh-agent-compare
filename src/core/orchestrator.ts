@@ -92,6 +92,8 @@ export interface ComparerOptions {
   readonly generationMs?: number
   /** Required for executable project commands; the host supplies its write boundary. */
   readonly prepareProjectProcess?: PrepareProjectProcess
+  /** Optional host-owned numeric origin allocation; never configures the OS. */
+  readonly preparePreviewHost?: (owner: { runId: string; label: string }, signal: AbortSignal) => Promise<string | undefined>
 }
 
 interface LiveRun {
@@ -642,7 +644,8 @@ export class Comparer {
     let preview: { info: PreviewInfo; handle: Preview } | undefined
     try {
       const kind = buildOk ? 'build' : 'dev'
-      const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal, prepareProjectProcess: prepare })
+      const loopbackHost = await this.opts.preparePreviewHost?.({ runId: copy.owner.runId, label: copy.owner.label }, signal)
+      const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal, prepareProjectProcess: prepare, ...(loopbackHost ? { loopbackHost } : {}) })
       preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) } }
     } catch (error) {
       if (error instanceof ProcessStopError) throw error
@@ -746,7 +749,8 @@ export class Comparer {
       if (!c.ownerToken) throw new Error('候选缺少副本归属凭据，拒绝重新打开预览')
       await ownedWorktreeAdmin(r.baseline.repoRoot, c.dir, { runId: r.runId, label: c.label, token: c.ownerToken })
       const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(c.dir, 'dist')) ? 'build' : 'dev'
-      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: this.opts.prepareProjectProcess })
+      const loopbackHost = await this.opts.preparePreviewHost?.({ runId: r.runId, label: c.label }, this.lifetime.signal)
+      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: this.opts.prepareProjectProcess, ...(loopbackHost ? { loopbackHost } : {}) })
       lr.previews.set(label, handle)
       c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) }
       await this.save(lr.record)

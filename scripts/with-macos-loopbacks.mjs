@@ -13,6 +13,7 @@ const run = script => new Promise((resolve,reject)=>{
 })
 try {
  for(const host of hosts){execFileSync('/usr/bin/sudo',['-n','/sbin/ifconfig','lo0','alias',host,'255.255.255.255']);added.push(host)}
+ await run('scripts/test-numeric-preview.mjs')
  for(const script of mode==='ui'?['scripts/test-ui.mjs','scripts/test-locales.mjs','scripts/test-preview-origins.mjs']:['scripts/test-safari.mjs'])await run(script)
 } finally {
  for(const host of added.reverse())execFileSync('/usr/bin/sudo',['-n','/sbin/ifconfig','lo0','-alias',host])

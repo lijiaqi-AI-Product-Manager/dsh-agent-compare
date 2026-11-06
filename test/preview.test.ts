@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { isPreviewProcess, startVitePreview } from '../src/core/preview.ts'
-import { fetchPreview, parsePreviewUrl, previewRequest, PREVIEW_HOST } from '../src/core/preview-url.ts'
+import { fetchPreview, isNumericPreviewHost, parsePreviewUrl, previewRequest, PREVIEW_HOST } from '../src/core/preview-url.ts'
 import { prepareFixtureProcess, tmp } from './fixture.ts'
 
 async function project(status = 200) {
@@ -73,6 +73,15 @@ describe('local preview browser hosts', () => {
     const logical = `http://ac-${'c'.repeat(32)}.localhost:4321/base/?v=1`
     expect(previewRequest(logical)).toEqual({ url: 'http://127.0.0.1:4321/base/?v=1', headers: { Host: `ac-${'c'.repeat(32)}.localhost:4321` } })
     expect(() => parsePreviewUrl(logical, 4322)).toThrow()
+    const numeric = 'http://127.87.44.19:4321/base/?v=1'
+    expect(previewRequest(numeric)).toEqual({ url: numeric, headers: { Host: '127.87.44.19:4321' } })
+    expect(isNumericPreviewHost('127.87.44.19')).toBe(true)
+  })
+
+  it.each(['127.0.0.1', '127.63.1.1', '127.128.1.1', '127.87.44.256', '127.087.44.19', '::1', '0.0.0.0', '192.168.1.1'])('refuses an invalid dedicated binding %s before preparing a process', async host => {
+    let prepared = false
+    await expect(startVitePreview('not-needed', { loopbackHost: host, prepareProjectProcess: async request => { prepared = true; return { argv: request.argv, env: {} } } })).rejects.toThrow(/专用本机地址/)
+    expect(prepared).toBe(false)
   })
 
   it.each(['https://example.com/', 'http://example.com:4321/', 'http://localhost:4321/', 'http://ac-bad.localhost:4321/', `http://ac-${'a'.repeat(32)}.localhost.example.com:4321/`, 'http://user:password@127.0.0.1:1234/', 'file:///etc/hosts'])('refuses an untrusted probe destination %s', url => {

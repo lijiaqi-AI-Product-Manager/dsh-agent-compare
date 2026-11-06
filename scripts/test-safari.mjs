@@ -106,9 +106,27 @@ try {
   await command('POST', '/window', { handle: tab.handle })
   await command('POST', '/url', { url: urls[0] })
   await until(() => execute('return document.querySelector("h2")?.textContent === "Demo Shop · A"'), 'Safari direct-tab preview')
+  const directKey='ac-direct-'+Date.now()
+  const directA=await execute('document.cookie=arguments[0]+"=A; Path=/; SameSite=Lax";document.cookie=arguments[0]+"-parent=shared; Domain=localhost; Path=/";localStorage.setItem(arguments[0],"A");sessionStorage.setItem(arguments[0],"A");return {cookie:document.cookie.includes(arguments[0]+"=A"),parent:document.cookie.includes(arguments[0]+"-parent="),secure:isSecureContext,uuid:typeof crypto.randomUUID}',directKey)
+  assert.equal(directA.cookie,true,'First-party Safari cookies must work')
+  assert.equal(directA.parent,false,'Safari accepted a shared localhost cookie at a numeric origin')
+  assert.equal(directA.secure,true,'Numeric loopback must remain a secure browser context')
+  assert.equal(directA.uuid,'function')
+  await command('POST','/url',{url:urls[1]})
+  await until(()=>execute('return document.querySelector("h2")?.textContent === "Demo Shop · B"'),'Safari direct B')
+  const directB=await execute('return {cookie:document.cookie.includes(arguments[0]+"=A"),parent:document.cookie.includes(arguments[0]+"-parent="),local:localStorage.getItem(arguments[0]),session:sessionStorage.getItem(arguments[0])}',directKey)
+  assert.deepEqual(directB,{cookie:false,parent:false,local:null,session:null},'First-party candidate state leaked to B')
+  await execute('document.cookie=arguments[0]+"=B; Path=/; SameSite=Lax";localStorage.setItem(arguments[0],"B")',directKey)
+  await command('POST','/url',{url:urls[0]})
+  await until(()=>execute('return document.querySelector("h2")?.textContent === "Demo Shop · A"'),'Safari return to direct A')
+  const retainedA=await execute('return {cookie:document.cookie.includes(arguments[0]+"=A"),local:localStorage.getItem(arguments[0]),session:sessionStorage.getItem(arguments[0])}',directKey)
+  assert.deepEqual(retainedA,{cookie:true,local:'A',session:'A'})
   await screenshot('safari-direct-preview')
   await command('DELETE', '/window'); await command('POST', '/window', { handle: originalWindow })
   result = { browser: capabilities.browserName, browserVersion: capabilities.browserVersion, macOS: execFileSync('/usr/bin/sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim(), kernel: os.release(), architecture: process.arch, node: process.version, scenario: 'native Safari driver; host-independent UI and live HTTP preview fixtures', independentHosts: true, independentInput: true, cookieIsolation: first.cookie ? 'verified' : 'blocked-by-browser', storageIsolation: first.storage ? 'verified' : 'blocked-by-browser', parentHttpOnlyCookieForwarded: false, directTabReachable: true, bothInterfaceLanguages: true, iframeIdentityPreserved: true }
+  result.firstPartyCookieIsolation=true
+  result.firstPartyStorageIsolation=true
+  result.numericSecureContext=true
   result.imageEvidence = imageEvidence
   await writeFile(path.join(output, 'native-safari.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))

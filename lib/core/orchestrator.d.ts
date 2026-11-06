@@ -73,6 +73,11 @@ export interface ComparerOptions {
     readonly generationMs?: number;
     /** Required for executable project commands; the host supplies its write boundary. */
     readonly prepareProjectProcess?: PrepareProjectProcess;
+    /** Optional host-owned numeric origin allocation; never configures the OS. */
+    readonly preparePreviewHost?: (owner: {
+        runId: string;
+        label: string;
+    }, signal: AbortSignal) => Promise<string | undefined>;
 }
 export declare const DEFAULT_GENERATION_MS: number;
 export declare class Comparer {

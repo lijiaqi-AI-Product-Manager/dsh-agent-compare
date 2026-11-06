@@ -2,7 +2,7 @@ import { Tail } from './proc.ts';
 import { type PrepareProjectProcess } from './project-process.ts';
 import type { PreviewInfo } from './types.ts';
 /** Ask the OS for a free loopback port. The caller still uses --strictPort, so a race fails loudly. */
-export declare function freePort(): Promise<number>;
+export declare function freePort(host?: string): Promise<number>;
 export interface Preview {
     readonly url: string;
     readonly port: number;
@@ -30,4 +30,5 @@ export declare function startVitePreview(dir: string, opts?: {
     timeoutMs?: number;
     signal?: AbortSignal;
     prepareProjectProcess?: PrepareProjectProcess;
+    loopbackHost?: string;
 }): Promise<Preview>;

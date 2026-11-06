@@ -4,9 +4,17 @@ import { request } from 'node:http'
  * names when probing a recorded preview from the host process. */
 export const PREVIEW_HOST = /^ac-[0-9a-f]{32}\.localhost$/
 
+/** Dedicated numeric origins never include the conventional parent-host address.
+ * Provisioning and assignment must be proved by the caller before binding. */
+export function isNumericPreviewHost(host: string): boolean {
+  const parts = host.split('.')
+  return parts.length === 4 && parts[0] === '127' && parts.every(part => /^(?:0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255)
+    && Number(parts[1]) >= 64 && Number(parts[1]) <= 127
+}
+
 export function parsePreviewUrl(value: string, port?: number): URL {
   const url = new URL(value)
-  if (url.protocol !== 'http:' || (!PREVIEW_HOST.test(url.hostname) && url.hostname !== '127.0.0.1')
+  if (url.protocol !== 'http:' || (!PREVIEW_HOST.test(url.hostname) && !isNumericPreviewHost(url.hostname) && url.hostname !== '127.0.0.1')
     || url.username || url.password || (port !== undefined && Number(url.port || 80) !== port)) throw new Error('Invalid local preview URL')
   return url
 }
@@ -15,7 +23,7 @@ export function parsePreviewUrl(value: string, port?: number): URL {
  * and system resolvers need not implement the browser's .localhost rule. */
 export function previewRequest(value: string): { url: string; headers: { Host: string } } {
   const logical = parsePreviewUrl(value), target = new URL(logical)
-  target.hostname = '127.0.0.1'
+  if (PREVIEW_HOST.test(logical.hostname)) target.hostname = '127.0.0.1'
   return { url: target.href, headers: { Host: logical.host } }
 }
 
