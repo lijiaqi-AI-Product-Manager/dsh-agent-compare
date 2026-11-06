@@ -82,9 +82,26 @@ try {
   check(await page.evaluate(() => window.__commands.length) === before.commands + 1, 'switching a running record must not create a second comparison')
   await page.getByRole('combobox', { name: '界面语言', exact: true }).first().selectOption('en')
 
+  for (const [state, expected] of [
+    ['judging', 'Interact with real pages in this conversation'],
+    ['mixed-preview', "Live previews and saved screenshots · see each candidate's status"],
+    ['interrupted-peer', "Some candidates are interactive · see each candidate's status"],
+    ['retained', 'Saved acceptance screenshots · static, not interactive'],
+    ['running', "Previews are not available yet · see each candidate's status"],
+  ]) {
+    await open(state)
+    check(await page.locator('.ac-compare-tools').innerText().then(text => text.includes(expected)), `${state}: the English preview description must match current availability`)
+    if (state === 'retained') {
+      check(await page.locator('.ac-shotbar').allTextContents().then(texts => texts.every(text => text.includes('preview is currently unavailable') && !text.includes('copy was released'))), 'English history must not infer deletion from an unavailable preview')
+      check(await page.locator('.ac-bar-text').innerText().then(text => text.includes('Adoption was recorded. Target:')), 'English adoption confirmation must retain the word boundary before its target')
+      check(await page.locator('.ac-shottools').first().innerText().then(text => text.includes('Desktop acceptance screenshot · static record')), 'the desktop screenshot caption must be a complete translated phrase')
+      await page.getByRole('button', { name: 'Phone 390', exact: true }).click()
+      check(await page.locator('.ac-shottools').first().innerText().then(text => text.includes('Phone acceptance screenshot · static record')), 'the phone screenshot caption must be a complete translated phrase')
+    }
+  }
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 })
-    for (const state of ['compose', 'judging', 'history', 'recovery']) {
+    for (const state of ['compose', 'judging', 'history', 'recovery', 'retained', 'mixed-preview']) {
       await open(state)
       if (state === 'compose') {
         await page.locator('.ac-composer-settings details > summary').filter({ hasText: 'Advanced Windows settings' }).click()
@@ -105,7 +122,7 @@ try {
     }
   }
 
-  for (const theme of ['light', 'dark']) for (const state of ['compose', 'running', 'judging', 'install-failure', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'retained']) {
+  for (const theme of ['light', 'dark']) for (const state of ['compose', 'running', 'judging', 'install-failure', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'retained', 'mixed-preview']) {
     await page.emulateMedia({ colorScheme: theme })
     await open(state, `&theme=${theme}`)
     await page.addScriptTag({ path: 'node_modules/axe-core/axe.min.js' })
