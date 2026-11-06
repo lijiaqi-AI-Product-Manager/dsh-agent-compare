@@ -1,21 +1,21 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { chromium } from 'playwright-core'
+import { launchUiBrowser } from './ui-browser.mjs'
 import { createUiHarness } from './preview-ui.mjs'
 
 const harness = await createUiHarness({ port: 0, demoPort: 0 })
 const output = process.env.AGENT_COMPARE_UI_ARTIFACTS ?? await mkdtemp(path.join(os.tmpdir(), 'agent-compare-locales-'))
 await mkdir(output, { recursive: true })
 const check = (condition, message) => { assert.ok(condition, message); assertions++ }
-let assertions = 0, browser
+let assertions = 0, browser, page
+const errors = []
 try {
-  const channel = process.env.AGENT_COMPARE_UI_BROWSER_CHANNEL
-  assert.ok(channel === undefined || ['msedge', 'chrome'].includes(channel))
-  browser = channel ? await chromium.launch({ channel, headless: true }) : await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
-  const page = await browser.newPage({ locale: 'en-GB', viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
-  const errors = []
+  const launched = await launchUiBrowser()
+  const { engine, channel } = launched
+  browser = launched.browser
+  page = await browser.newPage({ locale: 'en-GB', viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
   page.on('pageerror', error => errors.push(error.message))
   const language = () => page.getByRole('combobox', { name: 'Interface language', exact: true }).first()
   const open = async (state, extra = '') => {
@@ -23,6 +23,7 @@ try {
     await page.getByRole('combobox', { name: 'Interface language', exact: true }).first().waitFor()
     if (state === 'compose') {
       const toggle = page.getByRole('button', { name: 'A|B comparison mode', exact: true })
+      await toggle.waitFor()
       await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
       if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click()
       await page.getByRole('region', { name: 'A|B comparison settings', exact: true }).waitFor()
@@ -121,5 +122,9 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'English Escape behavior must close the dialog')
   check(await page.evaluate(() => document.activeElement.matches('[data-ac-history]')), 'English close must restore the translated history entry focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
-  console.log(JSON.stringify({ localeAssertions: assertions, screenshots: output, browser: browser.version(), channel: channel ?? 'automatic', locale: 'en-GB', languages: ['zh-CN', 'en'] }))
+  console.log(JSON.stringify({ localeAssertions: assertions, screenshots: output, browser: browser.version(), engine, channel, locale: 'en-GB', languages: ['zh-CN', 'en'] }))
+} catch (error) {
+  await page?.screenshot({ path: path.join(output, 'language-failure.png') }).catch(() => {})
+  await writeFile(path.join(output, 'language-failure.json'), JSON.stringify({ localeAssertions: assertions, message: error.message, browser: browser?.version(), pageErrors: errors }, null, 2))
+  throw error
 } finally { await browser?.close(); await harness.close() }
