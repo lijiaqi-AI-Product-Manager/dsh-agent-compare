@@ -16,7 +16,7 @@ try {
   const channel = process.env.AGENT_COMPARE_UI_BROWSER_CHANNEL
   assert.ok(channel === undefined || ['msedge', 'chrome'].includes(channel), 'Unsupported UI browser channel')
   browser = channel ? await chromium.launch({ channel, headless: true }) : await chromium.launch({ headless: true }).catch(() => chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true }))
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', locale: 'zh-CN' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   const open = async (state, extra = '') => {

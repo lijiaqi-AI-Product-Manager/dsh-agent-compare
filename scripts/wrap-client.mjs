@@ -12,9 +12,11 @@ const result = await build({
   platform: 'browser',
   format: 'cjs',
   target: 'es2022',
+  charset: 'utf8',
   external: ['react'],
   minifyWhitespace: true,
   minifySyntax: true,
+  minifyIdentifiers: true,
   write: false,
 })
 const src = result.outputFiles[0].text
