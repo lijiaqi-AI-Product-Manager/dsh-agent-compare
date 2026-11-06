@@ -40,7 +40,7 @@ describe('conversation intent for comparison actions', () => {
     expect(beforeRead).not.toHaveBeenCalled()
   })
   it('covers write and resource-control routes while retaining read-only history and patch access', () => {
-    for (const method of ['choose', 'adopt', 'revert', 'recover', 'cancel', 'cancelAdoption', 'cleanup', 'releaseCopies', 'salvage', 'retryVerification', 'reopen']) expect(CONVERSATION_ACTIONS.has(method)).toBe(true)
+    for (const method of ['choose', 'adopt', 'revert', 'recover', 'cancel', 'cancelAdoption', 'cleanup', 'releaseCopies', 'salvage', 'retryVerification', 'reopenPreview']) expect(CONVERSATION_ACTIONS.has(method)).toBe(true)
     for (const method of ['list', 'get', 'patch', 'shot', 'copyCleanupPlan']) expect(CONVERSATION_ACTIONS.has(method)).toBe(false)
   })
 })
