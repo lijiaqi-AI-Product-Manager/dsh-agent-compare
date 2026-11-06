@@ -51,10 +51,25 @@ try {
   await tab.getByRole('heading', { name: 'Demo Shop · A' }).waitFor()
   assert.equal(new URL(tab.url()).hostname, new URL(urls[0]).hostname)
   assert.equal(await tab.evaluate(() => window.opener === null), true, 'The direct-tab fallback must not expose an opener')
+  const directKey=candidateKey+'-direct'
+  const direct=await tab.evaluate(key=>{
+    document.cookie=key+'=A; Path=/; SameSite=Lax'
+    document.cookie=key+'-parent=shared; Domain=localhost; Path=/'
+    localStorage.setItem(key,'A');sessionStorage.setItem(key,'A')
+    return {cookie:document.cookie.includes(key+'=A'),parent:document.cookie.includes(key+'-parent='),secure:isSecureContext,uuid:typeof crypto.randomUUID}
+  },directKey)
+  assert.deepEqual(direct,{cookie:true,parent:false,secure:true,uuid:'function'},'First-party storage and localhost parent-cookie rejection must both work')
+  await tab.goto(urls[1]);await tab.getByRole('heading',{name:'Demo Shop · B'}).waitFor()
+  assert.deepEqual(await tab.evaluate(key=>({cookie:document.cookie.includes(key+'=A'),parent:document.cookie.includes(key+'-parent='),local:localStorage.getItem(key),session:sessionStorage.getItem(key)}),directKey),{cookie:false,parent:false,local:null,session:null},'First-party candidate state crossed origins')
+  await tab.goto(urls[0]);await tab.getByRole('heading',{name:'Demo Shop · A'}).waitFor()
+  assert.deepEqual(await tab.evaluate(key=>({cookie:document.cookie.includes(key+'=A'),local:localStorage.getItem(key),session:sessionStorage.getItem(key)}),directKey),{cookie:true,local:'A',session:'A'},'Returning to the original candidate lost its first-party state')
   await tab.screenshot({ path: path.join(output, engine + '-direct-preview.png') }); await tab.close()
   assert.equal(await a.getByRole('searchbox').inputValue(), 'isolated input')
   assert.deepEqual(errors, [])
   result = { engine, channel, browser: browser.version(), platform: process.platform, node: process.version, scenario: 'host-independent interface with two live HTTP preview fixtures', independentHosts: true, independentInput: true, cookieIsolation: first.cookie ? 'verified' : 'blocked-by-browser', storageIsolation: first.storage ? 'verified' : 'blocked-by-browser', parentHttpOnlyCookieForwarded: false, directTabReachable: true, openerRetained: false, pageErrors: errors.length }
+  result.firstPartyCookieAndStorageIsolation=true
+  result.localhostParentCookieRejected=true
+  result.secureContextPreserved=true
   await page.screenshot({ path: path.join(output, engine + '-preview-pair.png') })
   await writeFile(path.join(output, engine + '-preview-origins.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))

@@ -93,6 +93,23 @@ describe('explicit Safari preview network setup',()=>{
     expect(await readFile(file,'utf8')).toBe('{invalid')
     expect(f.system.provision).not.toHaveBeenCalled()
   })
+  it('rejects incomplete assignment ownership instead of treating a previously used address as unused',async()=>{
+    const f=await fixture();await f.network.enable(true)
+    const address=await f.network.allocate({runId:'1234abcd',label:'A'},f.signal),file=path.join(f.store.home,'preview-network.json')
+    const original=JSON.parse(await readFile(file,'utf8'))
+    for(const change of ['missing-owner','missing-time','unconfirmed-assignment']){
+      const ledger=structuredClone(original),entry=ledger.entries.find((item:{address:string})=>item.address===address)
+      if(change==='missing-owner')delete entry.usedBy
+      else if(change==='missing-time')delete entry.usedAt
+      else entry.state='unconfirmed'
+      const bytes=JSON.stringify(ledger);await writeFile(file,bytes)
+      const restored=new PreviewNetwork(new RunStore(f.store.home),f.system,'darwin')
+      expect((await restored.status()).state).toBe('unavailable')
+      await expect(restored.allocate({runId:'aabbccdd',label:'B'},f.signal)).rejects.toThrow(/无效条目/)
+      expect(await readFile(file,'utf8')).toBe(bytes)
+    }
+    expect(f.system.provision).toHaveBeenCalledTimes(1)
+  })
   it('rejects redirected journals without modifying the target',async context=>{
     const second=await fixture(), target=path.join(second.store.home,'other.json'), link=path.join(second.store.home,'preview-network.json')
     await writeFile(target,'unchanged')

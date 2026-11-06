@@ -17,6 +17,7 @@ export const messages: Readonly<Record<string, string>> = {
   "本机预览地址记录已达到容量限制；原记录已保留": "The preview address record has reached its capacity limit. Original records are retained.",
   "本机预览地址缺少有效的运行归属": "A valid comparison owner is required for a dedicated preview address.",
   "Safari 实时比较设置": "Safari live comparison setup",
+  "当前服务端缺少 Safari 实时比较接口。请重启 DSH 加载新版插件；需求和记录保留。": "The running service lacks Safari live-comparison support. Restart DSH to load the updated plugin. Your task and records are retained.",
   "Safari 可能限制嵌入页面的 Cookie。需要第一方存储时，点候选右上角的打开按钮，在真实标签页继续体验；两版地址保持独立。": "Safari may restrict cookies in embedded pages. Use the open button at the top right of a candidate to continue in an actual tab when first-party storage is needed. Both addresses remain independent.",
   "Safari 实时比较已就绪": "Safari live comparison is ready",
   "启用 Safari 实时比较": "Enable Safari live comparison",

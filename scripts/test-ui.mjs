@@ -136,7 +136,7 @@ try {
   await page.getByRole('alert').filter({hasText:'无法读取当前模型与项目'}).waitFor()
   check(await page.getByRole('button',{name:'试跑内置示例',exact:true}).isDisabled(), 'unavailable setup must not leave the current-model example enabled')
   await editor.fill('keep this task while retrying setup')
-  await page.evaluate(()=>window.__sessionPlans.push({method:'setup',sessionId:'s1',value:{current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:true},generationMinutes:30}}))
+  await page.evaluate(()=>window.__sessionPlans.push({method:'setup',sessionId:'s1',value:{current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:true},previewNetwork:window.__previewNetwork,generationMinutes:30}}))
   await page.getByRole('button',{name:'重新读取模型与项目',exact:true}).click()
   await page.waitForFunction(()=>!document.querySelector('.ac-composer-settings .ac-settings-row>.ac-btn').disabled)
   check(await editor.inputValue()==='keep this task while retrying setup', 'retrying setup must retain the task draft')
