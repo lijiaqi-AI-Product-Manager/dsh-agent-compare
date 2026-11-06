@@ -92,7 +92,7 @@ try {
     await open(state)
     check(await page.locator('.ac-compare-tools').innerText().then(text => text.includes(expected)), `${state}: the English preview description must match current availability`)
     if (state === 'retained') {
-      check(await page.locator('.ac-shotbar').allTextContents().then(texts => texts.every(text => text.includes('preview is currently unavailable') && !text.includes('copy was released'))), 'English history must not infer deletion from an unavailable preview')
+      check(await page.locator('.ac-shotbar').allTextContents().then(texts => texts.length === 2 && texts.every(text => text.includes('static record') && !text.includes('copy was released'))), 'both concise English captions must identify static records without inferring deletion')
       check(await page.locator('.ac-bar-text').innerText().then(text => text.includes('Adoption was recorded. Target:')), 'English adoption confirmation must retain the word boundary before its target')
       check(await page.locator('.ac-shottools').first().innerText().then(text => text.includes('Desktop acceptance screenshot · static record')), 'the desktop screenshot caption must be a complete translated phrase')
       await page.getByRole('button', { name: 'Phone 390', exact: true }).click()
@@ -122,7 +122,21 @@ try {
     }
   }
 
-  for (const theme of ['light', 'dark']) for (const state of ['compose', 'running', 'judging', 'install-failure', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'retained', 'mixed-preview']) {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open('reverted-history')
+  const restored = page.getByRole('img', { name: 'Candidate A · Desktop acceptance screenshot', exact: true })
+  await restored.waitFor()
+  await page.waitForFunction(() => [...document.images].some(img => img.alt === 'Candidate A · Desktop acceptance screenshot' && img.complete && img.naturalWidth === 1280))
+  check(await restored.evaluate(img => img.getBoundingClientRect().top + 120 < innerHeight), 'English restored history must expose application pixels in the initial phone viewport')
+  const adoptionRecord = page.locator('.ac-adoption-record')
+  check(await adoptionRecord.locator('summary').first().innerText().then(text => text.includes('Undone') && text.includes('Adoption and recovery record')), 'English compact history must expose its actual undo state')
+  await adoptionRecord.locator('summary').first().click()
+  await adoptionRecord.getByText('View retained-content locations', { exact: true }).click()
+  check((await adoptionRecord.innerText()).includes('.agent-compare-transfer-'), 'compacting successful history must retain access to recovery originals')
+  await page.screenshot({ path: path.join(output, 'results-first-reverted-en-phone.png') })
+  await page.setViewportSize({ width: 1440, height: 1000 })
+
+  for (const theme of ['light', 'dark']) for (const state of ['compose', 'running', 'judging', 'install-failure', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'retained', 'mixed-preview', 'reverted-history']) {
     await page.emulateMedia({ colorScheme: theme })
     await open(state, `&theme=${theme}`)
     await page.addScriptTag({ path: 'node_modules/axe-core/axe.min.js' })
