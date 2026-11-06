@@ -208,6 +208,7 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 .ac-card{min-width:0;min-height:360px}.ac-card[hidden]{display:none}.ac-card-head{gap:6px;padding:12px}.ac-card .ac-empty,.ac-card .ac-fail{min-height:240px}.ac-card-head .ac-preview-open{margin-left:auto;flex:none}
 .ac-evidence>summary,.ac-patch>summary{font-size:12px;color:var(--ac-fg2)}.ac-evidence[open]{display:flex;flex-direction:column;gap:8px}.ac-evidence .ac-verdict{margin-top:8px}
 .ac-card-evidence{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-top:1px solid var(--ac-border)}.ac-adoption-record{margin-top:8px;padding:8px 12px}.ac-adoption-record>summary{cursor:pointer}
+@media(max-width:600px){.ac-card-head .ac-label+.ac-pill{flex:1 1 120px;min-width:0;height:auto;min-height:22px;white-space:normal;line-height:1.4;padding:3px 9px}.ac-card-head .ac-label+.ac-pill>:is(.ac-dot,.ac-spin){flex:none}}
 .ac-patch pre{max-height:340px;max-width:100%;overflow:auto;white-space:pre;font:11px/1.6 ui-monospace,monospace;background:var(--ac-l1);border:1px solid var(--ac-border);border-radius:8px;padding:12px}
 .ac-patch .ac-meta{overflow-wrap:anywhere;margin-top:8px}.ac-checks{min-height:22px}.ac-strategy{margin-left:0;flex-basis:100%;overflow-wrap:anywhere;font-weight:500;color:var(--ac-fg2)}
 .ac-preview-stage{padding:12px;background:var(--ac-l1);overflow:hidden;min-height:100px;display:flex;justify-content:center}

@@ -84,6 +84,42 @@ jobs:
         env:
           AGENT_COMPARE_UI_BROWSER_CHANNEL: msedge
 
+  browser-ui:
+    name: browser UI (${{ matrix.os }}, ${{ matrix.engine }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        engine: [webkit]
+    env:
+      AGENT_COMPARE_UI_BROWSER_ENGINE: ${{ matrix.engine }}
+      AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/browser-evidence
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          check-latest: true
+          cache: npm
+      - run: npm install --global npm@12.2.2 --ignore-scripts
+      - run: npm ci
+      - name: Configure bounded Ubuntu browser downloads
+        run: sudo -n env GITHUB_ACTIONS=true "$(command -v node)" scripts/prepare-linux-browser-deps.mjs
+      - run: npx playwright-core install --with-deps ${{ matrix.engine }}
+        timeout-minutes: 8
+      - name: Exercise current WebKit interaction and language layouts
+        timeout-minutes: 8
+        run: npm run test:ui
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: browser-${{ matrix.os }}-${{ matrix.engine }}
+          path: .runtime-checks/browser-evidence
+          include-hidden-files: true
+          retention-days: 7
+
   host-runtime:
     name: host runtime (${{ matrix.os }}, DSH ${{ matrix.dsh }})
     runs-on: ${{ matrix.os }}
