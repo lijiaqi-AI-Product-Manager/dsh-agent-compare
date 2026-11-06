@@ -218,11 +218,7 @@ function Screenshots({ runId, c, busy, act, device }: { runId: string; c: Cand; 
     : null
   return (
     <div className="ac-shotwrap">
-      <div className="ac-shotbar">
-        <span>{c.canReopenPreview ? t("预览已停止（DSH 重启或已结束），可以重新打开。下面是验收时的截图：") : t("预览当前不可用，下面是验收时的静态截图：")}</span>
-        {reopen}
-      </div>
-      <div className="ac-shottools"><span>{mobile ? t("手机验收截图 · 静态记录") : t("桌面验收截图 · 静态记录")}</span>{current.url && <button className="ac-text-btn" aria-pressed={natural} onClick={() => setOriginal({ key, value: !natural })}>{natural ? t("适应宽度") : t("原始尺寸")}</button>}</div>
+      <div className="ac-shotbar ac-shottools"><span>{mobile ? t("手机验收截图 · 静态记录") : t("桌面验收截图 · 静态记录")}</span>{reopen}{current.url && <button className="ac-text-btn" aria-pressed={natural} onClick={() => setOriginal({ key, value: !natural })}>{natural ? t("适应宽度") : t("原始尺寸")}</button>}</div>
       {current.loading ? <div className="ac-empty" role="status">{t("正在读取")}{description}…</div>
         : current.error ? <div className="ac-empty" role="alert">{t("截图读取失败：")}{current.error}<button className="ac-btn sm" onClick={() => setRetry(n => n + 1)}>{t("重试读取截图")}</button></div>
         : current.url ? <div className={`ac-shot${natural ? ' natural' : ''}`} tabIndex={0} role="region" aria-label={description}>
@@ -288,21 +284,6 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         {step > 0 && <div className="ac-meta">{t("第 ")}{step}/{PIPELINE.length}{t(" 步 · ")}{t(STAGE_TEXT[c.stage])}</div>}
         {c.stage === 'generating' && c.progress && <Activity p={revealed ? c.progress : { steps: c.progress.steps, lastActivityAt: c.progress.lastActivityAt, ...(c.progress.lastAction ? { lastAction: t("正在处理项目") } : {}) }} />}
         <Checks checks={c.checks} />
-        <details className="ac-details ac-evidence"><summary>{revealed ? t("检查依据与用量") : t("检查依据 · 盲选中")}{c.verdict ? c.verdict.eligible ? t(" · 已通过配置检查") : t(" · 存在采用阻碍") : ''}</summary><Verdict c={c} />
-        {!revealed && <div className="ac-meta">{t("模型、策略、用量、改动规模和详细日志在选择后显示。")}</div>}
-        {c.execution && <div className="ac-meta">{t("项目命令：")}{c.execution.enforcement === 'full' ? t("宿主报告完整文件写入约束") : c.execution.enforcement === 'partial' ? t("宿主报告部分文件写入约束") : t("约束完整性未知")}{t("。不包含文件读取与网络隔离。")}</div>}
-        {c.install?.runtime && <div className="ac-meta">{t("验收宿主 Node ")}{c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? t("版本未记录")}</div>}
-        {revealed && <WindowsProcessEvidence value={c.install?.runtime?.windowsProcessCompat} failed={c.stage === 'failed'} />}
-        {revealed && <div className="ac-meta">{t("阶段耗时：")}{(['preparing', 'generating', 'installing', 'verifying', 'previewing'] as const).map(stage => { const timing = c.timings[stage]; return `${t(STAGE_TEXT[stage])} ${timing?.endedAt === undefined ? t("未完整记录") : fmt(Math.max(0, timing.endedAt - timing.startedAt))}` }).join(' · ')}{t("。各阶段包含相应宿主开销，不等于纯模型等待。")}</div>}
-        {revealed && (c.patchStats || usage) && (
-          <div className="ac-meta">
-            {c.patchStats ? t("{0} 个文件 · +{1} −{2}{3}", { 0: c.patchStats.files, 1: c.patchStats.insertions, 2: c.patchStats.deletions, 3: c.patchStats.binary ? t(" · {0} 个二进制", { 0: c.patchStats.binary }) : '' }) : ''}
-            {c.patchStats && usage ? ' · ' : ''}{usage}
-          </div>
-        )}
-        {revealed && c.summary && <div className="ac-summary"><small>{t("候选说明（原文）")}</small>{c.summary}</div>}</details>
-        {!!c.verificationHistory?.length && <details className="ac-details"><summary>{t("先前验收记录 · ")}{c.verificationHistory.length}{t(" 次")}</summary><ol>{c.verificationHistory.map((attempt, index) => <li key={index}><b>{attempt.install?.failure?.summary ?? attempt.error?.message.split('\n')[0] ?? t("先前验收未完成")}</b><div className="ac-meta">{t("重试前归档于 ")}{when(attempt.recordedAt)} · {attempt.durationMs === undefined ? t("耗时未知") : fmt(attempt.durationMs)}{attempt.install?.failure?.code ? ` · ${attempt.install.failure.code}` : ''}</div><Checks checks={attempt.checks} /></li>)}</ol></details>}
-        {revealed && c.patchStats && <PatchReview runId={run.runId} label={c.label} />}
       </div>
       {live ? (
         <div className="ac-browser">
@@ -329,6 +310,23 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
           <div>{c.stage === 'cancelled' ? t("已停止") : c.stage === 'stopping' ? t("正在停止并回收资源…") : t("{0}…构建产物启动后，这里会显示真实页面", { 0: t(STAGE_TEXT[c.stage]) })}</div>
         </div>
       )}
+      <div className="ac-card-evidence">
+        <details className="ac-details ac-evidence"><summary>{revealed ? t("检查依据与用量") : t("检查依据 · 盲选中")}{c.verdict ? c.verdict.eligible ? t(" · 已通过配置检查") : t(" · 存在采用阻碍") : ''}</summary><Verdict c={c} />
+        {!revealed && <div className="ac-meta">{t("模型、策略、用量、改动规模和详细日志在选择后显示。")}</div>}
+        {c.execution && <div className="ac-meta">{t("项目命令：")}{c.execution.enforcement === 'full' ? t("宿主报告完整文件写入约束") : c.execution.enforcement === 'partial' ? t("宿主报告部分文件写入约束") : t("约束完整性未知")}{t("。不包含文件读取与网络隔离。")}</div>}
+        {c.install?.runtime && <div className="ac-meta">{t("验收宿主 Node ")}{c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? t("版本未记录")}</div>}
+        {revealed && <WindowsProcessEvidence value={c.install?.runtime?.windowsProcessCompat} failed={c.stage === 'failed'} />}
+        {revealed && <div className="ac-meta">{t("阶段耗时：")}{(['preparing', 'generating', 'installing', 'verifying', 'previewing'] as const).map(stage => { const timing = c.timings[stage]; return `${t(STAGE_TEXT[stage])} ${timing?.endedAt === undefined ? t("未完整记录") : fmt(Math.max(0, timing.endedAt - timing.startedAt))}` }).join(' · ')}{t("。各阶段包含相应宿主开销，不等于纯模型等待。")}</div>}
+        {revealed && (c.patchStats || usage) && (
+          <div className="ac-meta">
+            {c.patchStats ? t("{0} 个文件 · +{1} −{2}{3}", { 0: c.patchStats.files, 1: c.patchStats.insertions, 2: c.patchStats.deletions, 3: c.patchStats.binary ? t(" · {0} 个二进制", { 0: c.patchStats.binary }) : '' }) : ''}
+            {c.patchStats && usage ? ' · ' : ''}{usage}
+          </div>
+        )}
+        {revealed && c.summary && <div className="ac-summary"><small>{t("候选说明（原文）")}</small>{c.summary}</div>}</details>
+        {!!c.verificationHistory?.length && <details className="ac-details"><summary>{t("先前验收记录 · ")}{c.verificationHistory.length}{t(" 次")}</summary><ol>{c.verificationHistory.map((attempt, index) => <li key={index}><b>{attempt.install?.failure?.summary ?? attempt.error?.message.split('\n')[0] ?? t("先前验收未完成")}</b><div className="ac-meta">{t("重试前归档于 ")}{when(attempt.recordedAt)} · {attempt.durationMs === undefined ? t("耗时未知") : fmt(attempt.durationMs)}{attempt.install?.failure?.code ? ` · ${attempt.install.failure.code}` : ''}</div><Checks checks={attempt.checks} /></li>)}</ol></details>}
+        {revealed && c.patchStats && <PatchReview runId={run.runId} label={c.label} />}
+      </div>
     </section>
   )
 }
@@ -533,6 +531,7 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
 }
 function copySize(bytes: number): string { return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB` }
 function CopySpace({ run, sessionId, blocked, publish, requestKey = 0, onReleaseBusy }: { run: Run; sessionId?: string; blocked: boolean; publish(next: Run): void; requestKey?: number; onReleaseBusy(value: boolean): void }): React.ReactElement {
+  const section = useRef<HTMLElement>(null)
   const [plan, setPlan] = useState<CopyPlan>()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState<'read' | 'release'>()
@@ -548,7 +547,12 @@ function CopySpace({ run, sessionId, blocked, publish, requestKey = 0, onRelease
     catch (err) { if (!controller.signal.aborted && id === request.current) setError((err as Error).message) }
     finally { if (id === request.current) setBusy(undefined) }
   }
-  useEffect(() => { if (requestKey > 0) void inspect() }, [requestKey])
+  useEffect(() => {
+    if (requestKey <= 0) return
+    void inspect()
+    section.current?.scrollIntoView({ block: 'center' })
+    section.current?.focus({ preventScroll: true })
+  }, [requestKey])
   const release = async (): Promise<void> => {
     if (!plan?.allowed || (plan.otherSession && !otherConfirmed) || busy || blocked) return
     const id = ++request.current
@@ -558,7 +562,7 @@ function CopySpace({ run, sessionId, blocked, publish, requestKey = 0, onRelease
     finally { if (id === request.current) { setBusy(undefined); onReleaseBusy(false) } }
   }
   const stale = !!plan && run.rev !== undefined && plan.rev !== run.rev
-  return <section className="ac-copy-space" aria-label={t("副本空间")}>
+  return <section ref={section} tabIndex={-1} className="ac-copy-space" aria-label={t("副本空间")}>
     <div className="ac-row" style={{ flexWrap: 'wrap', justifyContent: 'space-between' }}><div><b>{t("副本空间")}</b><div className="ac-note">{run.copiesReleasedAt ? t("副本已释放；运行记录、源码补丁、截图与撤销原件继续保留。") : t("查看空间与清单后再决定是否释放；没有自动过期删除。")}</div></div><button className="ac-btn" disabled={blocked || !!busy || !sessionId} onClick={() => { void inspect() }}>{busy === 'read' ? t("正在核对空间…") : t("查看副本空间")}</button></div>
     {error && <p className="ac-feedback" role="alert"><Diagnostic text={error} /></p>}
     {plan && <div className="ac-copy-plan">
@@ -573,7 +577,7 @@ function CopySpace({ run, sessionId, blocked, publish, requestKey = 0, onRelease
     </div>}
   </section>
 }
-function Banners({ run }: { run: Run }): React.ReactElement {
+function Banners({ run, recordOnly = false }: { run: Run; recordOnly?: boolean }): React.ReactElement | null {
   const pick = run.choice?.pick
   const fav = run.checksFavoured
   const revealed = REVEALED.has(run.state) || run.choice !== undefined
@@ -585,6 +589,14 @@ function Banners({ run }: { run: Run }): React.ReactElement {
       {pick !== 'none' && fav !== undefined && fav !== 'tie' && fav !== 'none' && fav !== pick ? t("。你的选择和验收结论不同。") : '。'}</div>
     <div className="disclaimer">{t("单次任务的结果不代表模型或策略的整体优劣。")}</div>
   </> : null
+  if (recordOnly) return comparison ? <details className="ac-banner"><summary>{t("已选 ")}{pick === 'none' ? t("都不满意") : pick}{t(" · 查看比较与选择记录")}</summary>{comparison}</details> : null
+  const adoptionTitle = a ? { rehearsing: t("预演中"), blocked: t("未写入"), writing: t("写入中"), reverting: t("恢复中"), adopted: a.mode === 'branch' ? t("已建分支") : t("已采用"), 'needs-attention': t("已采用 · 请查看"), 'rolled-back': t("已恢复"), 'needs-recovery': t("需要处理"), reverted: t("已撤销") }[a.state] ?? a.state : ''
+  const adoptionDetails = a ? <>
+    <div style={{ color: 'var(--ac-fg2)' }}><Diagnostic text={a.message} /></div>
+    {a.rehearsalChecks && <Checks checks={a.rehearsalChecks} />}
+    {a.attention && a.attention.length > 0 && <code>{a.attention.slice(0, 12).join('、')}</code>}
+    {(a.retainedDirectory || a.retainedDirectories?.length) ? <details><summary>{t("查看保留内容的位置")}</summary><p>{t("原始文件与交接记录保存在下面的目录中，不随预览清理。发生冲突时，请先核对当前文件和保留内容，再决定如何合并。")}</p>{[a.retainedDirectory, ...a.retainedDirectories ?? []].filter(Boolean).map(directory => <div className="ac-project-path" key={directory}><code>{directory}</code></div>)}</details> : null}
+  </> : null
   return (
     <>
       {run.outsideChanges && run.outsideChanges.length > 0 && (
@@ -593,20 +605,12 @@ function Banners({ run }: { run: Run }): React.ReactElement {
           <div className="disclaimer">{t("这些变化的来源尚未核实。采用前会检查是否与候选改动重叠；请先查看这些文件。")}</div>
         </div>
       )}
-      {comparison && (run.state === 'adopted' ? <details className="ac-banner"><summary>{t("已选 ")}{pick}{t(" · 查看比较与选择记录")}</summary>{comparison}</details> : <div className="ac-banner">{comparison}</div>)}
-      {a && (
+      {a && (a.state === 'adopted' || a.state === 'reverted' ? <details className="ac-banner ac-adoption-record"><summary><span className={`ac-pill ${a.state === 'adopted' ? 'ok' : ''}`}>{adoptionTitle}</span>{' '}{t("采用与恢复记录")}</summary>{adoptionDetails}</details> : (
         <div className={`ac-banner${bad ? ' err' : a.state === 'needs-attention' ? ' warn' : ''}`}>
-          <div>
-            <span className={`ac-pill ${a.state === 'adopted' ? 'ok' : bad ? 'err' : a.state === 'needs-attention' ? 'warn' : ''}`}>
-              {{ rehearsing: t("预演中"), blocked: t("未写入"), writing: t("写入中"), reverting: t("恢复中"), adopted: a.mode === 'branch' ? t("已建分支") : t("已采用"), 'needs-attention': t("已采用 · 请查看"), 'rolled-back': t("已恢复"), 'needs-recovery': t("需要处理"), reverted: t("已撤销") }[a.state] ?? a.state}
-            </span>{' '}
-            <span style={{ color: 'var(--ac-fg2)' }}><Diagnostic text={a.message} /></span>
-          </div>
-          {a.rehearsalChecks && <Checks checks={a.rehearsalChecks} />}
-          {a.attention && a.attention.length > 0 && <code>{a.attention.slice(0, 12).join('、')}</code>}
-          {(a.retainedDirectory || a.retainedDirectories?.length) ? <details><summary>{t("查看保留内容的位置")}</summary><p>{t("原始文件与交接记录保存在下面的目录中，不随预览清理。发生冲突时，请先核对当前文件和保留内容，再决定如何合并。")}</p>{[a.retainedDirectory, ...a.retainedDirectories ?? []].filter(Boolean).map(directory => <div className="ac-project-path" key={directory}><code>{directory}</code></div>)}</details> : null}
+          <div><span className={`ac-pill ${bad ? 'err' : a.state === 'needs-attention' ? 'warn' : ''}`}>{adoptionTitle}</span></div>
+          {adoptionDetails}
         </div>
-      )}
+      ))}
     </>
   )
 }
@@ -753,13 +757,14 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label={t("资源清理状态")}><div><b>{run.state === 'adopted' ? t("采用已完成，仍有资源等待清理") : t("仍有资源等待清理")}</b><p>{t("可以重试清理。清理只处理本次比较拥有的资源。")}</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>{t("重试清理")}</button></div></section>}
       {preflight && <section className="ac-review" aria-label={t("采用前审查")} role="region"><div><b>{preflight.ok ? t("目标核验通过，请确认采用") : t("当前无法采用")}</b><p className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的项目")}</p><p>{preflight.ok ? preflight.rehearsal ? t("项目有新改动，将先合并到临时副本中重新验收。") : t("将写入选中版本；不自动提交，保留暂存状态。") : preflight.reasons.join('；')}</p>{preflight.ok && <p>{t("先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。")}</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>{t("返回审查")}</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>{t("确认采用 ")}{run.choice?.pick}</button></div></section>}
       <Banners run={run} />
-      {revealed && <CopySpace key={runId} run={run} sessionId={sessionId} blocked={busy || !!confirmation || run.control?.allowed === false} requestKey={copyRequest?.runId === runId ? copyRequest.id : 0} publish={next => publish(next, runId)} onReleaseBusy={value => { if (activeId.current === runId) setCopyBusy(value) }} />}
       <div className="ac-compare-tools"><div className="ac-seg" aria-label={t("比较布局")}>{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: t("并排比较"), A: t("专注 A"), B: t("专注 B") }[v]}</button>)}</div><div className="ac-seg" aria-label={t("预览尺寸")}><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>{t("适应窗口")}</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t("桌面 1280")}</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>{t("手机 390")}</button></div><span className="ac-meta">{previewHint}</span></div>
       {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>{t("预览环境与限制")}</summary><p>{independentHosts ? t("候选使用独立本地地址，避免同名 Cookie 相互影响。") : macWebKit() ? t("Safari 预览需要独立本机地址；启用后可重新打开原候选，无需重新生成。") : t("这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。")}{t("嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。")}</p></details>}
       {macWebKit() && independentHosts && <p className="ac-meta">{t("Safari 可能限制嵌入页面的 Cookie。需要第一方存储时，点候选右上角的打开按钮，在真实标签页继续体验；两版地址保持独立。")}</p>}
       <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
         {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} compact={compact === true} safariReady={(network.status?.available ?? 0)>0 && network.status?.state !== "configuring" && network.status?.state !== "unavailable"} hidden={layout !== 'side' && layout !== c.label} />)}
       </div>
+      <Banners run={run} recordOnly />
+      {revealed && <CopySpace key={runId} run={run} sessionId={sessionId} blocked={busy || !!confirmation || run.control?.allowed === false} requestKey={copyRequest?.runId === runId ? copyRequest.id : 0} publish={next => publish(next, runId)} onReleaseBusy={value => { if (activeId.current === runId) setCopyBusy(value) }} />}
     </>
   )
   if (!compact) return body
