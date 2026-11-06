@@ -566,7 +566,8 @@ try {
   await storageA.locator('input').waitFor(); await storageB.locator('input').waitFor()
   const originA = new URL(await page.locator('.ac-card iframe').nth(0).getAttribute('src')).hostname
   const originB = new URL(await page.locator('.ac-card iframe').nth(1).getAttribute('src')).hostname
-  check(originA !== originB && [originA,originB].every(host => /^ac-[0-9a-f]{32}\.localhost$/.test(host)), 'candidate browser hosts must be separate local names')
+  const configuredHosts = process.env.AGENT_COMPARE_UI_PREVIEW_HOSTS?.split(',')
+  check(originA !== originB && [originA,originB].every(host => configuredHosts ? configuredHosts.includes(host) : /^ac-[0-9a-f]{32}\.localhost$/.test(host)), 'candidate browser hosts must be separate approved local addresses')
   await storageA.locator('body').evaluate(() => { document.cookie='ac_storage=only_a; Path=/; SameSite=None; Secure';document.cookie='ac_parent=shared; Domain=localhost; Path=/; SameSite=None; Secure';localStorage.setItem('ac_storage','only_a');sessionStorage.setItem('ac_storage','only_a') })
   const embeddedCookie = await storageA.locator('body').evaluate(() => ({ available: document.cookie.includes('ac_storage=only_a'), parent: document.cookie.includes('ac_parent=') }))
   embeddedCookies = embeddedCookie.available ? 'available' : 'blocked-by-browser'

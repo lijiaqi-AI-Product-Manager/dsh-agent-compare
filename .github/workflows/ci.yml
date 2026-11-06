@@ -104,7 +104,12 @@ jobs:
       - run: npx playwright-core install ${{ matrix.engine }}
         if: runner.os != 'Linux'
       - run: npm run test:ui
+        if: runner.os != 'macOS' || matrix.engine != 'webkit'
       - run: node scripts/test-preview-origins.mjs
+        if: runner.os != 'macOS' || matrix.engine != 'webkit'
+      - name: Exercise independent numeric origins on macOS WebKit
+        if: runner.os == 'macOS' && matrix.engine == 'webkit'
+        run: npm run build && node scripts/with-macos-loopbacks.mjs ui
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -132,7 +137,7 @@ jobs:
       - run: sudo /usr/bin/safaridriver --enable
       - run: node scripts/probe-macos-loopback.mjs
       - run: node scripts/probe-macos-loopback.mjs --owned-alias
-      - run: node scripts/test-safari.mjs
+      - run: node scripts/with-macos-loopbacks.mjs safari
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

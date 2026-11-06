@@ -3,6 +3,8 @@
 // It loads the real lib/client.js through a stand-in __ModuleLoader__ and
 // answers agent-compare/api/* with fixed sample runs. Sample data only.
 import { createServer } from 'node:http'
+import assert from 'node:assert/strict'
+import { isIP } from 'node:net'
 import { randomBytes } from 'node:crypto'
 import { readFile, mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
@@ -236,7 +238,8 @@ const reactRuntime = (await build({
   bundle: true, platform: 'browser', format: 'iife', write: false,
   define: { 'process.env.NODE_ENV': '"development"' },
 })).outputFiles[0].text
-export async function createUiHarness({ port = 4317, demoPort = 4318 } = {}) {
+export async function createUiHarness({ port = 4317, demoPort = 4318, previewHosts = process.env.AGENT_COMPARE_UI_PREVIEW_HOSTS?.split(',') } = {}) {
+if (previewHosts) assert.ok(previewHosts.length === 2 && new Set(previewHosts).size === 2 && previewHosts.every(host => isIP(host) === 4 && host.startsWith('127.') && host !== '127.0.0.1'), 'Use two distinct preconfigured loopback addresses')
 const preferencesHome = await mkdtemp(path.join(os.tmpdir(), 'agent-compare-ui-preferences-'))
 const preferences = new PreferencesStore(new RunStore(preferencesHome))
 const server = createServer(async (req, res) => {
@@ -256,19 +259,19 @@ const server = createServer(async (req, res) => {
   } catch (e) { res.statusCode = 500; res.end(String(e)) }
 })
 const previewRequests = []
-const demoServer = createServer((req, res) => {
+const demoServers = (previewHosts ?? ['127.0.0.1']).map(() => createServer((req, res) => {
   // Retain names only, never cookie values. Browser tests use their own canary.
   previewRequests.push({ host: req.headers.host, path: req.url, cookieNames: (req.headers.cookie ?? '').split(';').map(item => item.trim().split('=')[0]).filter(Boolean) })
   res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A'))
-})
-const listen = (s, p) => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, '127.0.0.1', resolve) })
-await listen(demoServer, demoPort)
-try { await listen(server, port) } catch (error) { await new Promise(r => demoServer.close(r)); throw error }
-const demoHosts = { A: `ac-${randomBytes(16).toString('hex')}.localhost`, B: `ac-${randomBytes(16).toString('hex')}.localhost` }
+}))
+const listen = (s, p, host = '127.0.0.1') => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, host, resolve) })
+try { for (let i = 0; i < demoServers.length; i++) await listen(demoServers[i], demoPort, previewHosts?.[i]); await listen(server, port) }
+catch (error) { await Promise.all(demoServers.map(s => new Promise(resolve => s.close(() => resolve())))); throw error }
+const demoHosts = { A: previewHosts?.[0] ?? `ac-${randomBytes(16).toString('hex')}.localhost`, B: previewHosts?.[1] ?? `ac-${randomBytes(16).toString('hex')}.localhost` }
 for (const list of Object.values(states)) for (const run of list) for (const candidate of run.candidates) {
-  if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServer.address().port}/${candidate.label.toLowerCase()}`
+  if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServers[previewHosts && candidate.label === 'B' ? 1 : 0].address().port}/${candidate.label.toLowerCase()}`
 }
-return { url: `http://127.0.0.1:${server.address().port}`, previewRequests, close: async () => { await Promise.all([server, demoServer].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
+return { url: `http://127.0.0.1:${server.address().port}`, previewRequests, close: async () => { await Promise.all([server, ...demoServers].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const harness = await createUiHarness()

@@ -44,12 +44,16 @@ const top = () => command('POST', '/frame', { id: null })
 const frame = element => command('POST', '/frame', { id: element })
 const imageEvidence = []
 const screenshot = async (name, verify = true) => {
-  if (verify) await command('POST', '/execute/async', { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(document.visibilityState)))', args: [] })
-  const bytes = Buffer.from(await command('GET', '/screenshot'), 'base64')
+  let bytes, pixels, attempts=0
+  const end=Date.now()+10000
+  do {
+    if (verify) await command('POST', '/execute/async', { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(document.visibilityState)))', args: [] })
+    bytes=Buffer.from(await command('GET','/screenshot'),'base64');pixels=inspectPngEvidence(bytes);attempts++
+    if(!verify || pixels.colors>=128 && pixels.distinctPixels>=1500)break
+  } while(Date.now()<end)
   await writeFile(path.join(output, name + '.png'), bytes)
-  const pixels = inspectPngEvidence(bytes)
   if (verify) assert.ok(pixels.colors >= 128 && pixels.distinctPixels >= 1500, 'Safari returned blank or incomplete screenshot evidence: ' + JSON.stringify(pixels))
-  imageEvidence.push({ name, ...pixels })
+  imageEvidence.push({ name, attempts, ...pixels })
 }
 try {
   await until(async () => (await request('GET', '/status'))?.ready === true, 'Safari driver readiness')
