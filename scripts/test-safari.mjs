@@ -76,7 +76,7 @@ try {
   },'Disposable display wake assertion',10000)
   driverVersion=execFileSync('/usr/bin/safaridriver',['--version'],{encoding:'utf8',timeout:10000}).trim()
   await until(async () => (await request('GET', '/status'))?.ready === true, 'Safari driver readiness')
-  const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari', 'safari:automaticInspection': false, 'safari:automaticProfiling': false } } })
+  const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari' } } })
   session = created.sessionId; capabilities = created.capabilities
   assert.ok(session); assert.equal(capabilities.browserName.toLowerCase(), 'safari')
   nativeScreen=await execute('return {width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,availLeft:screen.availLeft,availTop:screen.availTop,scale:devicePixelRatio}')
@@ -185,13 +185,18 @@ try {
         const file = path.join(folder, name), info = await stat(file)
         if (!info.isFile() || info.size > 2 * 1024 * 1024 || info.mtimeMs < driverStartedAt - 1000) continue
         const text = await readFile(file, 'utf8')
-        diagnostics.driver.push({ name, bytes: info.size, messages: text.split('\n').filter(line => /RWI|Safari|RemoteInspector|WebDriver/.test(line) && /error|fail|launch|compatible|version/i.test(line)).slice(-80) })
+        diagnostics.driver.push({ name, bytes: info.size, messages: text.split('\n').slice(-80) })
       }
     } catch (cause) { diagnostics.collectionError = cause.code ?? cause.name }
     try {
       diagnostics.systemMessages = execFileSync('/usr/bin/log', ['show', '--last', '2m', '--style', 'compact', '--predicate', 'process == "safaridriver" OR process == "Safari" OR process == "webinspectord"'], { encoding: 'utf8', timeout: 15000, maxBuffer: 3 * 1024 * 1024 })
-        .split('\n').filter(line => /fail|error|denied|RWI|compatib|automation|remote.?inspect|dyld|XPC/i.test(line)).slice(-96)
+        .split('\n').filter(line => /RWI|automation|remote.?inspect|webinspectord|WebDriver|dyld/i.test(line) || /safaridriver/.test(line) && /fail|error|denied|compatib/i.test(line)).slice(-96)
     } catch (cause) { diagnostics.systemCollectionError = cause.code ?? cause.name }
+    diagnostics.remotePreferences = {}
+    for (const key of ['AllowRemoteAutomation', 'IncludeDevelopMenu', 'RemoteAutomationEnabled']) {
+      try { diagnostics.remotePreferences[key] = execFileSync('/usr/bin/defaults', ['read', 'com.apple.Safari', key], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).trim() }
+      catch { diagnostics.remotePreferences[key] = 'not explicitly configured' }
+    }
     await writeFile(path.join(output, 'native-startup-diagnostics.json'), JSON.stringify(diagnostics, null, 2))
   }
   await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence, wakeAssertionObserved, driverVersion }, null, 2))
