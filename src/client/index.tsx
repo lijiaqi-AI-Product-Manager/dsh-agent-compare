@@ -9,7 +9,7 @@
  * Colours, radii and shadows come from DSH's own `--dsw-*` tokens (with
  * fallbacks for other hosts), so the sheet follows the active theme.
  */
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { CSS } from './styles.js'
 import { t, currentLocale, localeSnapshot, subscribeLocale } from './i18n.js'
 import { LanguageControl, Diagnostic } from './language.js'
@@ -91,21 +91,15 @@ async function call<T>(method: string, body: Record<string, unknown>, signal?: A
 }
 // ---- tiny shared store: which session's sheet is open, optionally on one run ----
 type Tab = 'history' | 'guide'
-let openSession: { sessionId: string; runId?: string; tab?: Tab } | undefined
+let openSession: { sessionId: string; runId?: string; tab?: Tab; trigger?: HTMLElement } | undefined
 let focusComposerOnClose: string | undefined
 const listeners = new Set<() => void>()
-function setOpen(sessionId: string | undefined, runId?: string, tab?: Tab): void {
-  openSession = sessionId === undefined ? undefined : { sessionId, ...(runId ? { runId } : {}), ...(tab ? { tab } : {}) }
+function setOpen(sessionId: string | undefined, runId?: string, tab?: Tab, trigger?: HTMLElement): void {
+  openSession = sessionId === undefined ? undefined : { sessionId, ...(runId ? { runId } : {}), ...(tab ? { tab } : {}), ...(trigger ? { trigger } : {}) }
   for (const l of listeners) l()
 }
 function useOpen(): typeof openSession {
-  const [, force] = useState(0)
-  useEffect(() => {
-    const l = (): void => force((n) => n + 1)
-    listeners.add(l)
-    return () => { listeners.delete(l) }
-  }, [])
-  return openSession
+  return useSyncExternalStore(useCallback(listener => { listeners.add(listener); return () => { listeners.delete(listener) } }, []), () => openSession, () => undefined)
 }
 // ---- the session's composer, reached through DSH's conversation service ----
 interface InputShell {
@@ -147,15 +141,15 @@ function returnToComposer(sessionId: string): void {
   else inputShell(sessionId)?.focus?.()
 }
 interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route]; exampleKind?: 'quick' | 'full' }
-interface AbMode { preferences: AbPreferences; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
+interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
 const registeredShells = new WeakSet<InputShell>()
 function modeFor(sessionId: string): AbMode {
   let mode = modes.get(sessionId)
-  if (!mode) { mode = { preferences: { enabled: false, mode: 'same-model', generationMinutes: 30, models: [{}, {}] }, loaded: false, loading: false, collapsed: false, saving: 0, pending: Promise.resolve(), listeners: new Set() }; modes.set(sessionId, mode) }
+  if (!mode) { mode = { preferences: { enabled: false, mode: 'same-model', generationMinutes: 30, models: [{}, {}] }, version: 0, loaded: false, loading: false, collapsed: false, saving: 0, pending: Promise.resolve(), listeners: new Set() }; modes.set(sessionId, mode) }
   return mode
 }
-function publishMode(mode: AbMode): void { for (const update of mode.listeners) update() }
+function publishMode(mode: AbMode): void { mode.version++; for (const update of mode.listeners) update() }
 async function loadMode(sessionId: string): Promise<void> {
   const mode = modeFor(sessionId)
   if (mode.loading) return
@@ -171,16 +165,21 @@ function saveMode(sessionId: string, next: AbPreferences): void {
   void mode.pending.catch(() => {})
 }
 function useAbMode(sessionId: string): AbMode {
-  const [, force] = useState(0)
   const mode = modeFor(sessionId)
-  useEffect(() => {
-    const update = (): void => force((n) => n + 1)
+  const subscribe = useCallback((update: () => void) => {
     mode.listeners.add(update)
     const state = inputShell(sessionId)?.state
     const unsubscribe = typeof state?.subscribe === 'function' ? state.subscribe(update) : undefined
-    if (!mode.loaded && !mode.loading) void loadMode(sessionId)
     return () => { mode.listeners.delete(update); unsubscribe?.() }
   }, [mode, sessionId])
+  const snapshot = useCallback(() => {
+    const state = inputSnapshot(sessionId)
+    return JSON.stringify([mode.version, state?.draftRev, state?.phase, state?.claim?.name])
+  }, [mode, sessionId])
+  // Separate host slots use separate React roots. Recheck after subscribing so
+  // a settings read between render and subscription cannot leave one root stale.
+  useSyncExternalStore(subscribe, snapshot, snapshot)
+  useEffect(() => { if (!mode.loaded && !mode.loading) void loadMode(sessionId) }, [mode, sessionId])
   return mode
 }
 async function executeComparison(sessionId: string, task: string, example = false): Promise<{ kind: 'success' | 'error'; text?: string }> {
@@ -402,14 +401,16 @@ function LivePreview({ c, device, compact }: { c: Cand; device: PreviewDevice; c
   const holder = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: compact ? 320 : 480 } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = holder.current
     if (!el) return
-    const observer = new ResizeObserver(() => { if (el.clientWidth > 0) setWidth(el.clientWidth) })
+    const measure = (): void => { if (el.clientWidth > 0) setWidth(el.clientWidth) }
+    measure()
+    const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
-  const scale = Math.min(1, Math.max(1, width - 24) / size.width)
+  const scale = width === 0 ? 1 : Math.min(1, Math.max(1, width - 24) / size.width)
   return <div ref={holder} className="ac-preview-stage"><div className="ac-preview-surface" style={{ width: size.width * scale, height: size.height * scale }}>
     <iframe className="ac-frame" title={t("候选 {0} 的运行页面", { 0: c.label })} src={c.previewUrl} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
   </div></div>
@@ -980,7 +981,7 @@ function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement 
     mode.collapsed = false
     saveMode(sessionId, { ...mode.preferences, enabled: !enabled }); inputShell(sessionId)?.focus?.()
   }
-  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? t("A|B 对比模式已开启，点此退出") : t("开启 A|B 对比模式，在主对话里运行两版"))} aria-label={t("A|B 对比模式")}>A|B</button></>
+  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={!mode.loaded || mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? t("A|B 对比模式已开启，点此退出") : t("开启 A|B 对比模式，在主对话里运行两版"))} aria-label={t("A|B 对比模式")}>A|B</button></>
 }
 function History({ data, open, busy, failed, scope, query, onScope, onSearch, onPage, onlyUnavailable, problemSupported, onUnavailable }: {
   data?: ListResult; open: (r: Run) => void; busy: boolean; failed?: string
@@ -1049,7 +1050,7 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
   </div>
 }
 /** History, guidance, and expanded inspection share the same persisted records. */
-function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; tab?: Tab }): React.ReactElement {
+function Sheet({ sessionId, runId, tab, trigger }: { sessionId: string; runId?: string; tab?: Tab; trigger?: HTMLElement }): React.ReactElement {
   const [view, setView] = useState<Tab>(runId ? 'history' : tab ?? 'history')
   const [selected, setSelected] = useState<string | undefined>(runId)
   const [list, setList] = useState<ListResult>()
@@ -1080,7 +1081,8 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
   useEffect(() => () => { historyAbort.current?.abort() }, [])
   useEffect(() => { setSelected(runId); setView(runId ? 'history' : tab ?? 'history') }, [runId, tab])
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
+    // Safari does not necessarily focus a button when it is clicked.
+    const previous = trigger ?? document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const element = sheet.current
@@ -1115,7 +1117,7 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
       const composer = focusComposerOnClose
       focusComposerOnClose = undefined
       if (composer) inputShell(composer)?.focus?.()
-      else if (previous?.isConnected) previous.focus()
+      else if (previous?.isConnected && previous !== document.body && previous !== document.documentElement) previous.focus()
       else (document.querySelector<HTMLElement>('[data-ac-history]') ?? document.querySelector<HTMLElement>('.ac-mode-btn:not(:disabled)'))?.focus()
     }
   }, [])
@@ -1143,8 +1145,8 @@ function HeaderButton({ sessionId }: { sessionId: string }): React.ReactElement 
     <div lang={currentLocale()} className="ac-root ac-header-tools" role="group" aria-label={t("AgentCompare 导航")}>
       <Styles />
       <LanguageControl compact />
-      <button data-ac-history="true" className="ac-header-btn" title={t("AgentCompare：比较记录")} aria-label={t("打开 AgentCompare 比较记录")} onClick={() => setOpen(sessionId)}><span className="ac-header-label">{t("比较记录")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3v4h4M2.2 6A6 6 0 1 1 2 10M8 4v4l2.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-      <button className="ac-header-btn" title={t("AgentCompare：使用教程")} aria-label={t("打开 AgentCompare 使用教程")} onClick={() => setOpen(sessionId, undefined, 'guide')}><span className="ac-header-label">{t("使用教程")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" /><path d="M6.5 6a1.5 1.5 0 1 1 2 1.4c-.5.2-.5.6-.5 1.1M8 11h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg></button>
+      <button data-ac-history="true" className="ac-header-btn" title={t("AgentCompare：比较记录")} aria-label={t("打开 AgentCompare 比较记录")} onClick={event => setOpen(sessionId, undefined, undefined, event.currentTarget)}><span className="ac-header-label">{t("比较记录")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3v4h4M2.2 6A6 6 0 1 1 2 10M8 4v4l2.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+      <button className="ac-header-btn" title={t("AgentCompare：使用教程")} aria-label={t("打开 AgentCompare 使用教程")} onClick={event => setOpen(sessionId, undefined, 'guide', event.currentTarget)}><span className="ac-header-label">{t("使用教程")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" /><path d="M6.5 6a1.5 1.5 0 1 1 2 1.4c-.5.2-.5.6-.5 1.1M8 11h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg></button>
     </div>
   )
 }
@@ -1175,7 +1177,7 @@ function HeroHeader({ sessionId }: { sessionId: string }): React.ReactElement {
 }
 function Overlay(): React.ReactElement | null {
   const open = useOpen()
-  return open === undefined ? null : <Sheet key={open.sessionId} sessionId={open.sessionId} {...(open.runId ? { runId: open.runId } : {})} {...(open.tab ? { tab: open.tab } : {})} />
+  return open === undefined ? null : <Sheet key={open.sessionId} sessionId={open.sessionId} {...(open.runId ? { runId: open.runId } : {})} {...(open.tab ? { tab: open.tab } : {})} {...(open.trigger ? { trigger: open.trigger } : {})} />
 }
 /**
  * DSH 0.2.1 treats any client entry that fails to activate as a fatal web

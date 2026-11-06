@@ -16,6 +16,7 @@ export declare class PreferencesStore {
     private key;
     private file;
     load(sessionId: string): Promise<AbPreferences>;
+    private read;
     save(sessionId: string, value: unknown): Promise<AbPreferences>;
 }
 /** UI submissions carry frozen settings without asking users to write flags. */
