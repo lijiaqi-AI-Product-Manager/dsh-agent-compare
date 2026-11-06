@@ -5,11 +5,12 @@ import {mkdir,writeFile} from 'node:fs/promises'
 import path from 'node:path'
 
 assert.equal(process.platform,'darwin');assert.equal(process.env.GITHUB_ACTIONS,'true')
+assert.equal(process.env.RUNNER_ENVIRONMENT,'github-hosted')
 const readVersion=()=>execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleShortVersionString','/Applications/Safari.app/Contents/Info.plist'],{encoding:'utf8',timeout:10000}).trim()
 const current=version=>{const match=/^(\d+)\.(\d+)(?:\.\d+)?$/.exec(version);return Boolean(match&&(Number(match[1])>27||(Number(match[1])===27&&Number(match[2])>=2)))}
 const before=readVersion(),output=path.resolve(process.env.AGENT_COMPARE_UI_ARTIFACTS??'.runtime-checks/safari-evidence')
 await mkdir(output,{recursive:true})
-let listing='',selected,after=before
+let listing='',selected,after=before,initializedBeforeAuthorization=false
 try {
   if(!current(before)){
     listing=execFileSync('/usr/sbin/softwareupdate',['--list'],{encoding:'utf8',timeout:240000,maxBuffer:2*1024*1024})
@@ -21,9 +22,28 @@ try {
     // Refresh only the updated application's Launch Services registration.
     // Do not reset the user's application database or permission settings.
     execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister',['-f','/Applications/Safari.app'],{stdio:'inherit',timeout:30000})
+    // The updated application migrates its WebDriver preferences on first
+    // launch. Complete that launch before the next step's official --enable.
+    // AppKit observes readiness without requesting Apple Events control.
+    execFileSync('/usr/bin/open',['-a','/Applications/Safari.app','about:blank'],{timeout:10000})
+    execFileSync('/usr/bin/swift',['-e',`
+import AppKit
+import Foundation
+let deadline = Date().addingTimeInterval(45)
+while Date() < deadline {
+    if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Safari" && $0.isFinishedLaunching && !$0.isTerminated }) {
+        print("Updated Safari finished launching before WebDriver authorization")
+        exit(0)
+    }
+    Thread.sleep(forTimeInterval: 0.2)
+}
+fputs("Updated Safari did not finish its initial launch\\n", stderr)
+exit(1)
+`],{stdio:'inherit',timeout:120000})
+    initializedBeforeAuthorization=true
   }
   assert.ok(current(after),'Safari is still older than the current stable acceptance baseline')
-  console.log(JSON.stringify({safariBefore:before,safariAfter:after,updated:Boolean(selected),source:'Apple system software update',systemRebootRequested:false}))
+  console.log(JSON.stringify({safariBefore:before,safariAfter:after,updated:Boolean(selected),initializedBeforeAuthorization,source:'Apple system software update',systemRebootRequested:false}))
 } finally {
-  await writeFile(path.join(output,'safari-version-setup.json'),JSON.stringify({before,after,selected,offeredLabels:[...listing.matchAll(/Label:\s*([\w.-]+)/g)].map(match=>match[1]),baseline:'27.2',systemRebootRequested:false},null,2))
+  await writeFile(path.join(output,'safari-version-setup.json'),JSON.stringify({before,after,selected,offeredLabels:[...listing.matchAll(/Label:\s*([\w.-]+)/g)].map(match=>match[1]),baseline:'27.2',initializedBeforeAuthorization,systemRebootRequested:false},null,2))
 }
