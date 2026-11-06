@@ -21,7 +21,7 @@ const driver = spawn('/usr/bin/safaridriver', ['--port', String(port)], { stdio:
 const awake=process.env.GITHUB_ACTIONS==='true'?spawn('/usr/bin/caffeinate',['-d','-i','-u','-t','600'],{stdio:'ignore'}):undefined
 let awakeError,wakeAssertionObserved=false
 awake?.once('error',error=>{awakeError=error})
-let driverLog = '', session, capabilities, result, nativeScreen, nativeWindow
+let driverLog = '', session, capabilities, result, nativeScreen, nativeWindow, driverVersion
 for (const stream of [driver.stdout, driver.stderr]) stream.setEncoding('utf8').on('data', chunk => { driverLog = (driverLog + chunk).slice(-12000) })
 const endpoint = `http://127.0.0.1:${port}`
 async function request(method, route, body) {
@@ -48,24 +48,20 @@ const frame = element => command('POST', '/frame', { id: element })
 const imageEvidence = []
 const screenshot = async (name, verify = true) => {
   let bytes, pixels, attempts=0
+  const target=(await find('.ac-sheet'))[0]??(await find('body'))[0]
+  assert.ok(target,'A real application element is required for native visual acceptance')
   const end=Date.now()+10000
   do {
     if (verify) await command('POST', '/execute/async', { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(document.visibilityState)))', args: [] })
-    bytes=Buffer.from(await command('GET','/screenshot'),'base64');pixels=inspectPngEvidence(bytes);attempts++
+    bytes=Buffer.from(await command('GET','/element/'+idOf(target)+'/screenshot'),'base64');pixels=inspectPngEvidence(bytes);attempts++
     if(!verify || pixels.colors>=128 && pixels.distinctPixels>=1500)break
   } while(Date.now()<end)
   await writeFile(path.join(output, name + '.png'), bytes)
   const layout=await execute('const view=e=>{if(!e)return null;const s=getComputedStyle(e);return {opacity:s.opacity,visibility:s.visibility,display:s.display,transform:s.transform,zIndex:s.zIndex,animationName:s.animationName,animationPlayState:s.animationPlayState,rect:e.getBoundingClientRect().toJSON()}};return {sheet:view(document.querySelector(".ac-sheet")),mask:view(document.querySelector(".ac-mask")),body:view(document.body),animations:document.getAnimations().map(a=>({state:a.playState,time:a.currentTime,name:a.animationName}))}').catch(()=>undefined)
-  let elementSnapshot
-  if(verify&&(pixels.colors<128||pixels.distinctPixels<1500)){
-    const element=(await find('.ac-sheet'))[0]??(await find('body'))[0]
-    if(element){
-      const elementBytes=Buffer.from(await command('GET','/element/'+idOf(element)+'/screenshot'),'base64')
-      await writeFile(path.join(output,name+'-element-probe.png'),elementBytes)
-      elementSnapshot=inspectPngEvidence(elementBytes)
-    }
-  }
-  imageEvidence.push({ name, attempts, usable:pixels.colors>=128&&pixels.distinctPixels>=1500, ...pixels, layout, elementSnapshot })
+  const windowBytes=Buffer.from(await command('GET','/screenshot'),'base64'),windowPixels=inspectPngEvidence(windowBytes)
+  await writeFile(path.join(output,name+'-window.png'),windowBytes)
+  imageEvidence.push({ name, capture:'webdriver-element', attempts, usable:pixels.colors>=128&&pixels.distinctPixels>=1500, ...pixels, layout,
+    windowCapture:{file:name+'-window.png',status:windowPixels.colors>=128&&windowPixels.distinctPixels>=1500?'available':'blank',...windowPixels} })
 }
 try {
   if(awake)await until(async()=>{
@@ -74,6 +70,10 @@ try {
     wakeAssertionObserved=assertions.includes('pid '+awake.pid+'(')&&/PreventUserIdleDisplaySleep\s+1/.test(assertions)
     return wakeAssertionObserved
   },'Disposable display wake assertion',10000)
+  driverVersion=execFileSync('/usr/bin/safaridriver',['--version'],{encoding:'utf8',timeout:10000}).trim()
+  // LaunchServices prepares the updated app without requesting Apple Events
+  // control of Safari. This is confined to the disposable test runner.
+  if(process.env.GITHUB_ACTIONS==='true')execFileSync('/usr/bin/open',['-a','/Applications/Safari.app','about:blank'],{stdio:'pipe',timeout:15000})
   await until(async () => (await request('GET', '/status'))?.ready === true, 'Safari driver readiness')
   const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari', 'safari:automaticInspection': false, 'safari:automaticProfiling': false } } })
   session = created.sessionId; capabilities = created.capabilities
@@ -122,7 +122,9 @@ try {
   await frame((await find('.ac-grid iframe'))[0])
   assert.equal(await execute('return window.__acDocumentMarker'), documentMarker, 'Language switching reloaded the actual preview document')
   assert.equal(await execute('return document.querySelector("input[type=search]").value'), 'Safari preserved input')
-  await top(); await screenshot('safari-comparison')
+  await top()
+  await execute('document.querySelector(".ac-grid").scrollIntoView({block:"start",behavior:"instant"})')
+  await screenshot('safari-comparison')
   const originalWindow = await command('GET', '/window')
   const tab = await command('POST', '/window/new', { type: 'tab' })
   await command('POST', '/window', { handle: tab.handle })
@@ -152,6 +154,7 @@ try {
   result.firstPartyStorageIsolation=true
   result.numericSecureContext=true
   result.driverReportedVersion=capabilities.browserVersion
+  result.driverExecutableVersion=driverVersion
   result.browserVersion=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleShortVersionString','/Applications/Safari.app/Contents/Info.plist'],{encoding:'utf8',timeout:10000}).trim()
   result.userAgent=await execute('return navigator.userAgent')
   result.imageEvidence = imageEvidence
@@ -171,7 +174,7 @@ try {
     runnerState = 'Native WebDriver evidence; no Apple Events desktop-control request'
     try { execFileSync('/usr/sbin/screencapture', ['-x', path.join(output, 'safari-runner-screen.png')], { timeout: 10000 }) } catch (cause) { runnerState += '\nScreen capture: ' + cause.message }
   }
-  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence, wakeAssertionObserved }, null, 2))
+  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence, wakeAssertionObserved, driverVersion }, null, 2))
   throw error
 } finally {
   if (session) await command('DELETE', '').catch(() => {})

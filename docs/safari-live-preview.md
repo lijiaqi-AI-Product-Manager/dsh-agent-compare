@@ -29,3 +29,5 @@ Safari 仍可能限制嵌入页面的 Cookie；直接标签页与嵌入页面的
 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)分别检查当前原生 Safari、Playwright WebKit 和实际 DSH SDK。原生 Safari 记录应用版本，而非把 WebKit 引擎版本当作浏览器版本。检查包括双预览输入、语言切换保留文档、第一方 Cookie/存储分离、父级 Cookie 不进入预览、精确地址绑定、重启后的地址归属与清理。
 
 系统地址测试只在一次性 macOS runner 中使用其明确的管理员授权；不会自动操作维护者电脑上的授权窗口。这些固定应用与受控运行检查不代表外部模型生成质量或耗时测量。
+
+原生视觉验收使用标准 WebDriver 元素截图，直接检查应用内容的真实像素，并与同一会话的输入、文档身份和存储检查绑定。Safari 27.2 在当前 ARM runner 中的整窗捕获曾返回灰白空图，而元素捕获正确呈现应用；整窗结果仍单独保存并标明是否可用，不计作成功截图，也不替换成其它浏览器的图片。
