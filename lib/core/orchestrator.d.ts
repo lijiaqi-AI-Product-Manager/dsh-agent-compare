@@ -1,8 +1,9 @@
+export { publicView, verdictOf, type PublicCandidate, type PublicRun } from './run-view.ts';
 import { type CopyCleanupPlan } from './copy-resources.ts';
 import { type PrepareProjectProcess } from './project-process.ts';
 import { type WindowsProcessCompatMode } from './windows-compat.ts';
 import { RunStore } from './run-store.ts';
-import { type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewOriginMode, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts';
+import { type AgentRoute, type CandidateLabel, type ChecksSpec, type PreviewOriginMode, type RunRecord, type Strategy, type Usage } from './types.ts';
 export interface AgentRunRequest {
     readonly label: CandidateLabel;
     readonly cwd: string;
@@ -235,62 +236,3 @@ export declare class Comparer {
     private save;
     private mutate;
 }
-/** Decide adoption eligibility from recorded facts only. */
-export declare function verdictOf(c: Candidate, acceptance: Acceptance): Verdict;
-export interface PublicCandidate {
-    readonly label: CandidateLabel;
-    readonly stage: CandidateStage;
-    readonly previewUrl?: string;
-    readonly previewKind?: 'build' | 'dev';
-    readonly checks?: Candidate['checks'];
-    readonly execution?: Candidate['execution'];
-    readonly patchStats?: Candidate['patchStats'];
-    readonly touchedFiles?: string[];
-    readonly timings: Candidate['timings'];
-    readonly error?: Candidate['error'];
-    readonly verdict?: Verdict;
-    readonly usage?: Usage;
-    readonly install?: Candidate['install'];
-    readonly verificationHistory?: Candidate['verificationHistory'];
-    readonly canRetryVerification: boolean;
-    readonly hasScreenshot: boolean;
-    readonly hasMobileScreenshot: boolean;
-    readonly generation?: Candidate['generation'];
-    readonly progress?: Candidate['progress'];
-    /** Failed while generating, and its copy is still there: what it wrote can still be verified. */
-    readonly salvageable: boolean;
-    /** Finished, not being served, and its copy still exists: the preview can be started again. */
-    readonly canReopenPreview: boolean;
-    /** Present only after the reveal. */
-    readonly strategy?: Strategy;
-    readonly route?: AgentRoute;
-    readonly actualRoute?: AgentRoute;
-    readonly summary?: string;
-}
-export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance' | 'adoption'> & {
-    candidates: PublicCandidate[];
-    baseline: {
-        dirty: boolean;
-        headCommit?: string;
-        repoRoot: string;
-    };
-    acceptance: {
-        source: Acceptance['source'];
-        checks: string[];
-        steps: number;
-        sha256: string;
-        frozenInstall: boolean;
-    };
-    adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers'> & {
-        rehearsed?: boolean;
-        rehearsalChecks?: CheckResult[];
-        retainedDirectory?: string;
-        retainedDirectories?: string[];
-    };
-};
-/**
- * The view the UI and the model see. Before the reveal it carries nothing
- * that names the strategy or model; summaries are withheld because agents
- * tend to describe their own approach.
- */
-export declare function publicView(r: RunRecord): PublicRun;

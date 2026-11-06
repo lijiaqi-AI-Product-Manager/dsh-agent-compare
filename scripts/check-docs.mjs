@@ -9,7 +9,7 @@ import { chineseGuideAlias } from './chinese-guide-alias.mjs'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const canonical = ['README.md', 'README.en.md', 'README.ja.md', 'README.ko.md', 'README.es.md', 'README.pt-BR.md', 'README.fr.md', 'README.de.md']
 const guides = [...canonical, 'README.zh.md']
-const referenceDocs = ['docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md', 'docs/distribution.md', 'docs/distribution.en.md', 'docs/first-use.md', 'docs/safari-live-preview.md', 'docs/safari-live-preview.en.md', 'docs/windows-process-compat.md', 'docs/windows-process-compat.en.md']
+const referenceDocs = ["docs/demo.md","docs/runs-and-recovery.md","docs/runs-and-recovery.en.md","docs/distribution.md","docs/distribution.en.md","docs/first-use.md","docs/safari-live-preview.md","docs/safari-live-preview.en.md","docs/windows-process-compat.md","docs/windows-process-compat.en.md","docs/quickstart.md","docs/quickstart.en.md","docs/maintenance.md","docs/maintenance.en.md"]
 const repositoryOnlyDocs = new Set(['docs/demo.md', 'docs/first-use.md', 'docs/distribution.md', 'docs/distribution.en.md'])
 const mediaFiles = ['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json', 'assets/icon.png', 'assets/icon.svg', 'screenshots.json', 'docs/media/screenshots/manifest.json', ...JSON.parse(await readFile(path.join(root, 'screenshots.json'), 'utf8'))]
 const repositoryOnlyMedia = new Set(['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json'])

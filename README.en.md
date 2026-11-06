@@ -43,6 +43,8 @@ Controlled-candidate recording of the public 1.1.0 artifact, with its Chinese in
 
 [Full video (29 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
+[Four-step quick start](docs/quickstart.en.md) · [Troubleshooting a run](docs/runs-and-recovery.en.md)
+
 <a id="install"></a>
 
 ## Install
