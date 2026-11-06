@@ -37,9 +37,9 @@ AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek
 
 [![Exemple à candidats fixes : essayer, vérifier, choisir et appliquer](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Exemple à candidats fixes, avec une interface en chinois. Les applications, les vérifications communes et l’application des modifications sont réelles ; les attentes sont coupées et les chemins locaux masqués.
+Démonstration à candidats fixes du paquet public 1.1.0, avec son interface chinoise. Les applications, vérifications communes, adoption et annulation sont réellement exécutées. La vidéo coupe les attentes ; le GIF rejoue les interactions à 0,5×. Les chemins locaux sont masqués.
 
-[Vidéo complète (28 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Vidéo complète (29 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <a id="install"></a>
 

@@ -1,0 +1,53 @@
+{
+  "schema": "agentcompare.demo/v1",
+  "source": {
+    "version": "0.2.0-alpha.17",
+    "commit": "9d036c5d53377c9da2878e226580a3caba0d9baa",
+    "host": "0.2.1-rc.5",
+    "node": "26.13.0",
+    "browser": "Chromium 156.0.8078.4"
+  },
+  "method": "Fixed candidates, real application execution and adoption. No external model request.",
+  "editing": {
+    "rawSeconds": 117.6,
+    "workflowSeconds": 28.16,
+    "previewSeconds": 12.6,
+    "waitingPeriodsCut": true,
+    "localPathsHidden": true
+  },
+  "result": {
+    "A": {
+      "typecheck": "passed",
+      "build": "passed",
+      "browser": "passed",
+      "adoptable": true
+    },
+    "B": {
+      "typecheck": "passed",
+      "build": "passed",
+      "browser": "failed",
+      "adoptable": false
+    },
+    "adopted": "A",
+    "filesWritten": 2,
+    "headAndIndexUnchanged": true,
+    "ownedResourcesCleaned": true
+  },
+  "files": [
+    {
+      "path": "comparison-workflow.mp4",
+      "bytes": 832484,
+      "sha256": "8084eb127dc286e84179018543864daef69b529c032c05f927a46a72412d131a"
+    },
+    {
+      "path": "comparison-preview.gif",
+      "bytes": 724525,
+      "sha256": "49f1aa70d43b139000d08b045affeae4d662021f882a4f8f9b876778f59e5567"
+    },
+    {
+      "path": "social-preview.png",
+      "bytes": 134997,
+      "sha256": "6747b64ebd3b45075b0de3ffb1d615e68e0a51d1db3ec019c1ead00b42497dd7"
+    }
+  ]
+}
