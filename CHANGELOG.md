@@ -4,6 +4,7 @@
 
 - Add native macOS project and host-runtime jobs, dedicated Firefox/WebKit interface jobs and a separate native Safari driver check. Record live preview origins, independent input/storage and parent-cookie boundaries independently of browser-engine labels.
 - Prepare dedicated numeric preview transport with exact-address binding and probing. Provisioning and ownership remain the host's responsibility; this transport does not configure system addresses or enable Safari setup by itself.
+- Refresh workflow media from the verified public 1.1.0 archive on DSH 0.2.2-rc.1. Preserve controlled-candidate labels, real checks/adoption/undo, editing conditions and historical assets; package two focused screenshots instead of inactive media.
 - Synchronize composer and overlay state across separate host roots without losing settings updates. Disable mode entry until saved settings load, retain drafts on retry and restore history/tutorial focus to the actual trigger.
 - Measure restored preview width before paint and preserve usable desktop/phone layouts. Serialize settings reads with admitted writes for the same conversation without blocking unrelated conversations.
 

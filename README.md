@@ -39,9 +39,9 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 [![固定候选流程示例：实际操作两版应用，检查、选择并审查采用](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-固定候选样例，中文界面。应用运行、共同验收与采用实际执行；等待段已剪辑，本地路径已隐藏。
+公开 1.1.0 产物的固定候选演示，中文界面。两份应用、共同验收、采用与撤销均实际执行；视频剪去了等待，GIF 以 0.5 倍速回放交互片段，本地路径已隐藏。
 
-[完整视频（28 秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [演示条件与结果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[完整视频（29 秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [演示条件与结果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <a id="install"></a>
 

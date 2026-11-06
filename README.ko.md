@@ -37,9 +37,9 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 [![두 앱을 사용하고 확인한 뒤 적용하는 고정 후보 예시](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-고정 후보를 사용한 중국어 화면 예시입니다. 앱 실행·공통 검증·적용은 실제로 수행했으며 대기 구간은 편집하고 로컬 경로는 가렸습니다.
+공개된 1.1.0 패키지의 고정 후보 시연이며 화면은 중국어입니다. 두 앱 실행, 공통 검사, 적용과 되돌리기는 실제로 수행합니다. 영상은 대기 구간을 편집했고 GIF는 조작 장면을 0.5배속으로 재생합니다. 로컬 경로는 숨겼습니다.
 
-[전체 영상(28초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[전체 영상(29초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <a id="install"></a>
 

@@ -1,19 +1,42 @@
 {
   "schema": "agentcompare.demo/v1",
   "source": {
-    "version": "0.2.0-alpha.17",
-    "commit": "9d036c5d53377c9da2878e226580a3caba0d9baa",
-    "host": "0.2.1-rc.5",
+    "version": "1.1.0",
+    "commit": "8dd54760981823be252feb46ce4ebd8e67ba26cd",
+    "archiveSha256": "0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b",
+    "host": "0.2.2-rc.1",
     "node": "26.13.0",
-    "browser": "Chromium 156.0.8078.4"
+    "browser": "Chromium 156.0.8078.4",
+    "platform": "Windows",
+    "matchingInstalledRuntimeFiles": 81
   },
-  "method": "Fixed candidates, real application execution and adoption. No external model request.",
+  "capturedAt": "2026-11-06T08:04:27.661Z",
+  "method": "Controlled candidates; real applications, shared checks, reviewed adoption and undo. No external model request.",
   "editing": {
-    "rawSeconds": 117.6,
-    "workflowSeconds": 28.16,
-    "previewSeconds": 12.6,
+    "rawSeconds": 52.76,
+    "workflowWallSeconds": 50.851,
+    "workflowSeconds": 28.76,
+    "previewSeconds": 5,
+    "workflowPlaybackRate": 1,
+    "previewPlaybackRate": 0.5,
+    "workflowSegments": [
+      [
+        0,
+        5
+      ],
+      [
+        29,
+        52.76
+      ]
+    ],
+    "previewRawSegment": [
+      32.6,
+      35.1
+    ],
     "waitingPeriodsCut": true,
-    "localPathsHidden": true
+    "localPathsHidden": true,
+    "captionsAdded": true,
+    "executionOutcomesEdited": false
   },
   "result": {
     "A": {
@@ -29,25 +52,27 @@
       "adoptable": false
     },
     "adopted": "A",
+    "undoVerified": true,
     "filesWritten": 2,
     "headAndIndexUnchanged": true,
-    "ownedResourcesCleaned": true
+    "pageErrors": 0,
+    "controlledProvider": true
   },
   "files": [
     {
       "path": "comparison-workflow.mp4",
-      "bytes": 832484,
-      "sha256": "8084eb127dc286e84179018543864daef69b529c032c05f927a46a72412d131a"
+      "bytes": 1264813,
+      "sha256": "56a4dae4b5ee1d0bbf0c3128626294fdd294e939a6ec7262c68721b8f066905e"
     },
     {
       "path": "comparison-preview.gif",
-      "bytes": 724525,
-      "sha256": "49f1aa70d43b139000d08b045affeae4d662021f882a4f8f9b876778f59e5567"
+      "bytes": 658473,
+      "sha256": "4c17a87581a1fbbb98c92ea231346a9b94bb10abed79263dcb0b49908470a639"
     },
     {
       "path": "social-preview.png",
-      "bytes": 134997,
-      "sha256": "6747b64ebd3b45075b0de3ffb1d615e68e0a51d1db3ec019c1ead00b42497dd7"
+      "bytes": 57862,
+      "sha256": "992599bd3a3c7a545e38eeb31db732bc2e5edf95b21346003524baf6e22e0676"
     }
   ]
 }

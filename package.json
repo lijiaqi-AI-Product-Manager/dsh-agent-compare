@@ -44,7 +44,9 @@
     "!docs/media/manifest.json",
     "!docs/demo.md",
     "!docs/first-use.md",
-    "!docs/distribution*.md"
+    "!docs/distribution*.md",
+    "!docs/media/history",
+    "!docs/media/screenshots/0*.png"
   ],
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
