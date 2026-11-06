@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { currentLocale, languagePreference, localeSnapshot, setLanguagePreference, subscribeLocale, t, translatedDiagnostic } from '../src/client/i18n.ts'
 import { messages } from '../src/client/messages.ts'
 
@@ -60,12 +60,21 @@ describe('interface language', () => {
     setLanguagePreference('zh-CN')
     expect(translatedDiagnostic('磁盘提供程序返回了未识别错误 <raw>')).toBe('磁盘提供程序返回了未识别错误 <raw>')
   })
+  it('translates exact copy including intentional surrounding whitespace', () => {
+    setLanguagePreference('en')
+    for (const [source, translated] of Object.entries(messages)) expect(t(source), source).toBe(translated)
+    expect(t(' \n候选 {0}\t', { 0: 'A' })).toBe(' \nCandidate A\t')
+    setLanguagePreference('zh-CN')
+    expect(t('进程兼容方式 ')).toBe('进程兼容方式 ')
+    expect(t(' · 观察到的触发：')).toBe(' · 观察到的触发：')
+  })
   it('covers every explicit interface-copy call with an English entry', async () => {
-    for (const name of ['index.tsx', 'language.tsx', 'preview-network.tsx']) {
+    const directory = new URL('../src/client/', import.meta.url)
+    for (const name of (await readdir(directory, { recursive: true })).filter(name => /\.tsx?$/.test(name))) {
       const source = await readFile(new URL('../src/client/' + name, import.meta.url), 'utf8')
       for (const match of source.matchAll(/\bt\(("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g)) {
         const key: string = match[1]!.startsWith('"') ? JSON.parse(match[1]!) : match[1]!.slice(1, -1)
-        expect(messages[key.trim()], `Missing English copy in ${name}: ${key}`).toBeDefined()
+        expect(messages[key] ?? messages[key.trim()], `Missing English copy in ${name}: ${key}`).toBeDefined()
       }
     }
     for (const [key, value] of Object.entries(messages)) {

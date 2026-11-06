@@ -6,6 +6,8 @@
 - Add explicit Safari preview setup with reviewable, cancellable system authorization. Journal temporary numeric loopback addresses before configuring them, exclude existing addresses and never reassign used ones. Bind and probe each preview's exact address; retain unknown ownership after partial setup instead of guessing.
 - Block generation before repository/model work when an opted-in address pool expires, expose recovery in other Mac browsers and bind each comparison's origin mode to its shared verification identity. Check old-reader refusal of unknown execution settings against the checksum-verified public 1.1.0 artifact.
 - Reopen retained Safari candidates at dedicated addresses without generating again. Preserve the stopped state after a failed replacement, keep the peer running and reject source changes against the sealed candidate. Serve successful custom build output through Vite preview rather than falling back to development mode.
+- Translate exact interface-copy keys with intentional whitespace, including advanced Windows labels and hook evidence. Let the longer process selector wrap on small screens. Check literal copy in every client module and the visible English label at narrow and wide widths.
+
 - Refresh the acceptance baseline to Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0, regenerate manager fixture locks with their exact tools, and add native macOS regression/runtime jobs with pinned minimum and current DSH versions. Keep native Safari and known Windows/PnP limits separately identified.
 
 - Add an advanced Windows auto/off control bound to each comparison. Preserve confinement and frozen checks when disabled; record observed compatibility hooks separately from the configured mode and withhold hook fingerprints until reveal.
