@@ -21,6 +21,7 @@ const port = await new Promise((resolve, reject) => {
   server.listen(0, '127.0.0.1', () => { const address = server.address(); server.close(() => address && typeof address === 'object' ? resolve(address.port) : reject(new Error('No driver port'))) })
 })
 const driver = spawn('/usr/bin/safaridriver', ['--port', String(port), '--diagnose'], { stdio: ['ignore', 'pipe', 'pipe'] })
+const driverStartedAt = Date.now()
 const awake=process.env.GITHUB_ACTIONS==='true'?spawn('/usr/bin/caffeinate',['-d','-i','-u','-t','600'],{stdio:'ignore'}):undefined
 let awakeError,wakeAssertionObserved=false
 awake?.once('error',error=>{awakeError=error})
@@ -179,13 +180,18 @@ try {
       diagnostics.processes = execFileSync('/bin/ps', ['-axo', 'pid=,ppid=,uid=,lstart=,comm='], { encoding: 'utf8', timeout: 5000 })
         .split('\n').filter(line => /\/(?:Safari|safaridriver|webinspectord|com\.apple\.WebKit\.[\w.]+)$/.test(line)).slice(-32)
       const folder = path.join(os.homedir(), 'Library/Logs/com.apple.WebDriver')
-      for (const name of (await readdir(folder)).filter(name => name.includes(String(driver.pid))).slice(-8)) {
+      diagnostics.driverFiles = (await readdir(folder)).slice(-32)
+      for (const name of diagnostics.driverFiles.slice(-8)) {
         const file = path.join(folder, name), info = await stat(file)
-        if (!info.isFile() || info.size > 2 * 1024 * 1024) continue
+        if (!info.isFile() || info.size > 2 * 1024 * 1024 || info.mtimeMs < driverStartedAt - 1000) continue
         const text = await readFile(file, 'utf8')
         diagnostics.driver.push({ name, bytes: info.size, messages: text.split('\n').filter(line => /RWI|Safari|RemoteInspector|WebDriver/.test(line) && /error|fail|launch|compatible|version/i.test(line)).slice(-80) })
       }
     } catch (cause) { diagnostics.collectionError = cause.code ?? cause.name }
+    try {
+      diagnostics.systemMessages = execFileSync('/usr/bin/log', ['show', '--last', '2m', '--style', 'compact', '--predicate', 'process == "safaridriver" OR process == "Safari" OR process == "webinspectord"'], { encoding: 'utf8', timeout: 15000, maxBuffer: 3 * 1024 * 1024 })
+        .split('\n').filter(line => /fail|error|denied|RWI|compatib|automation|remote.?inspect|dyld|XPC/i.test(line)).slice(-96)
+    } catch (cause) { diagnostics.systemCollectionError = cause.code ?? cause.name }
     await writeFile(path.join(output, 'native-startup-diagnostics.json'), JSON.stringify(diagnostics, null, 2))
   }
   await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence, wakeAssertionObserved, driverVersion }, null, 2))

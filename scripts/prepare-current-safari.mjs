@@ -18,6 +18,9 @@ try {
     assert.ok(selected,'The runner does not offer Safari 27.2; do not report its older bundled browser as current')
     execFileSync('/usr/bin/sudo',['-n','/usr/sbin/softwareupdate','--install',selected],{stdio:'inherit',timeout:600000})
     after=readVersion()
+    // Refresh only the updated application's Launch Services registration.
+    // Do not reset the user's application database or permission settings.
+    execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister',['-f','/Applications/Safari.app'],{stdio:'inherit',timeout:30000})
   }
   assert.ok(current(after),'Safari is still older than the current stable acceptance baseline')
   console.log(JSON.stringify({safariBefore:before,safariAfter:after,updated:Boolean(selected),source:'Apple system software update',systemRebootRequested:false}))
