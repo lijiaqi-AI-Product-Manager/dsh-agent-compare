@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { launchUiBrowser } from './ui-browser.mjs'
@@ -9,15 +9,15 @@ import { createUiHarness } from './preview-ui.mjs'
 const harness = await createUiHarness({ port: 0, demoPort: 0 })
 const output = process.env.AGENT_COMPARE_UI_ARTIFACTS ?? await mkdtemp(path.join(os.tmpdir(), 'agent-compare-ui-'))
 await mkdir(output, { recursive: true })
-let browser
+let browser, page
+const errors = []
 let assertions = 0
 const check = (value, message) => { assert.ok(value, message); assertions++ }
 try {
   const launched = await launchUiBrowser()
   const { engine, channel } = launched
   browser = launched.browser
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', locale: 'zh-CN' })
-  const errors = []
+  page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', locale: 'zh-CN' })
   page.on('pageerror', error => errors.push(error.message))
   const open = async (state, extra = '') => {
     await page.emulateMedia({ colorScheme: extra.includes('theme=dark') ? 'dark' : 'light' })
@@ -95,6 +95,9 @@ try {
   await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
   check(await page.getByLabel('内置示例范围').inputValue() === 'full', 'the example choice must survive reload')
   check(await page.getByLabel('每版生成上限').inputValue() === '60', 'the time limit must survive reload')
+  // Preferences and configured model discovery are separate asynchronous reads.
+  // Check the selected value after its option exists, without hiding lost data.
+  await page.locator('.ac-models select').nth(1).locator('option[value="deepseek/deepseek-reasoner"]').waitFor({ state: 'attached' })
   check(await page.locator('.ac-models select').nth(1).inputValue() === 'deepseek/deepseek-reasoner', 'model choices must survive reload')
   await page.getByRole('button', { name: '退出 A|B 模式' }).click()
   await page.waitForFunction(() => document.querySelector('.ac-mode-btn').getAttribute('aria-pressed') === 'false')
@@ -160,11 +163,14 @@ try {
   check(await records.evaluate(el => el === document.activeElement), 'closing after the original header unmounts must focus the current navigation control')
   await page.evaluate(() => window.__switchHeader('s1', true))
   await page.locator('.ac-header-tools-hero').waitFor()
+  await editor.focus()
   await guide.click()
   await page.getByRole('button', { name: '回到输入框，开启 A|B', exact: true }).waitFor()
   check(await page.getByRole('button', { name: '使用教程', exact: true }).getAttribute('aria-current') === 'page', 'the tutorial control must open guidance directly')
   check(await page.evaluate(() => window.__commands.length === 0), 'reading guidance must not execute a task')
   await page.keyboard.press('Escape')
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === '打开 AgentCompare 使用教程')
+  check(await guide.evaluate(el => el === document.activeElement), 'tutorial close must restore its actual mouse trigger even when the editor previously had focus')
   await page.getByRole('button', { name: '宿主侧栏', exact: true }).click()
   check(await page.evaluate(() => window.__cornerClicks) === 1, 'the host corner control must remain usable')
   await page.setViewportSize({ width: 390, height: 844 })
@@ -719,6 +725,26 @@ try {
     check(await editor.inputValue() === '', 'an unavailable local observer must not reverse an admitted command')
     check(await page.evaluate(() => window.__commands.length === 1 && window.__commandAcks.length === 0), 'the admitted run must not be duplicated after a notification failure')
   }
+  await page.goto(`${harness.url}/?state=blank&error=preferences-pending`)
+  await mode.waitFor()
+  await page.waitForFunction(() => typeof window.__releasePreferences === 'function')
+  check(await mode.isDisabled(), 'mode entry must stay disabled while saved settings are unresolved')
+  await editor.fill('preserve this draft while settings are loading')
+  check(await page.evaluate(() => window.__commands.length === 0 && window.__edits.length === 0), 'pending preferences must neither dispatch nor claim a draft')
+  await page.evaluate(() => window.__releasePreferences())
+  await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
+  check(await editor.inputValue() === 'preserve this draft while settings are loading', 'restoring preferences must preserve the current draft')
+
+  await page.goto(`${harness.url}/?state=blank&error=preferences`)
+  await page.getByRole('alert').filter({ hasText: '请求失败，请重试' }).waitFor()
+  check(await mode.isDisabled(), 'a failed settings load must not admit a comparison using defaults')
+  await editor.fill('preserve this draft while retrying settings')
+  await page.evaluate(() => window.__sessionPlans.push({method:'preferences',sessionId:'s1',value:{enabled:false,mode:'same-model',generationMinutes:30,models:[{},{}]}}))
+  await page.getByRole('button', { name: '重新读取设置', exact: true }).click()
+  await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
+  check(await editor.inputValue() === 'preserve this draft while retrying settings', 'retrying saved settings must preserve the task')
+  check(await page.evaluate(() => window.__commands.length === 0), 'retrying settings must not start a comparison')
+
   await open('blank', '&error=missing-anchor')
   check(await page.locator('.ac-header-tools-hero button').count() === 0, 'blank-session navigation must not overlay other controls when the anchor is absent')
   check(await mode.isVisible(), 'a missing header anchor must not remove the input mode')
@@ -741,6 +767,10 @@ try {
   check(await page.evaluate(() => document.activeElement.classList.contains('ac-header-btn')), 'closing must restore entry-button focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
   console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, react: await page.evaluate(() => React.version), node: process.version }))
+} catch (error) {
+  await page?.screenshot({ path: path.join(output, 'interface-failure.png') }).catch(() => {})
+  await writeFile(path.join(output, 'interface-failure.json'), JSON.stringify({ assertions, message: error.message, browser: browser?.version(), pageErrors: errors }, null, 2))
+  throw error
 } finally {
   await browser?.close()
   await harness.close()

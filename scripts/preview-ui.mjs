@@ -82,6 +82,9 @@ ${theme === 'dark' ? ':root{--dsw-alias-bg-base:#1b1d22;--dsw-alias-bg-layer-1:#
 <div class="titlebar">Client harness · sample data</div><header class="header"><b>Conversation</b><span id="btn"></span><span data-conversation-header-corner style="position:fixed;right:12px;top:5px;width:28px;height:28px"><button aria-label="宿主侧栏" style="width:28px;height:28px" onclick="window.__cornerClicks=(window.__cornerClicks??0)+1">☰</button></span></header><div id="hero-options"></div>
 <main class="harness-main"><div id="chat" class="harness-chat"></div><div class="harness-composer"><div id="settings"></div><div class="harness-input"><label for="draft" class="harness-label">需求</label><textarea id="draft" aria-label="需求"></textarea><div class="harness-tools"><div id="mode"></div><button class="harness-send" id="send">发送</button></div><p id="notice" role="status"></p></div></div></main><div id="overlay"></div>
 <script>
+window.__harnessErrors = [];
+window.addEventListener('error', event => window.__harnessErrors.push(event.message));
+window.addEventListener('unhandledrejection', event => window.__harnessErrors.push(String(event.reason?.message ?? event.reason)));
 const runs = ${JSON.stringify((states[state] ?? []).map(record => ({ ...record, sessionId: 's1' })))};
 const history = ${JSON.stringify(retainedHistory(state))}, legacy = ${JSON.stringify(state === 'history-damaged' ? [...legacy, { runId: '33333333', task: '读取中断的比较记录', createdAt: 0, state: 'unavailable', legacy: true, unavailable: true, reason: 'JSON 内容不完整或格式错误' }] : legacy)};
 const templateRun = ${JSON.stringify({ ...base, state: 'judging', candidates: [A, B] })};
@@ -124,7 +127,10 @@ window.fetch = async (url, init) => {
     const delay=plan.delayMs??(${JSON.stringify(error)}==='shot-slow'&&!body.mobile?1200:0);if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
     return new Response(JSON.stringify({ok:true,value:{dataUrl}}),{headers:{'content-type':'application/json'}});
   }
-  if (m[1] === 'preferences') return realFetch('/harness/preferences',init);
+  if (m[1] === 'preferences') {
+    if (${JSON.stringify(error)} === 'preferences-pending' && body.value === undefined) await new Promise(resolve => { window.__releasePreferences=resolve });
+    return realFetch('/harness/preferences',init);
+  }
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
   let value = m[1] === 'latest' ? listHistory(body).runs[0] ?? null
     : m[1] === 'list' ? listHistory(body)
@@ -204,11 +210,19 @@ window.__ModuleLoader__ = {load:({factory})=>{
   window.__switchComposer=(sessionId,isBlank)=>{for(const [slot,id]of [['conversation.input.left','mode'],['conversation.input.dock','settings']]){const item=regs[slot];composerRoots[id].render(React.createElement(item.C,{...item.spec.inject(sessionId),session:{blank:isBlank}}))}};
   window.__switchComposer('s1',blank);
   if(${JSON.stringify(state==='inline')}) renderCommand({kind:'success',text:'A|B 比较已开始 · 运行 0a1b2c3d'});
-  else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) setTimeout(()=>{
-    document.querySelector('.ac-header-btn').focus();document.querySelector('.ac-header-btn').click();
-    if(${JSON.stringify(state==='guide')})setTimeout(()=>[...document.querySelectorAll('.ac-tab')].at(-1).click(),100);
-    else if(${JSON.stringify(!['history', 'history-many', 'history-old', 'history-damaged'].includes(state))})setTimeout(()=>document.querySelector('.ac-hrow')?.click(),200);
-  },50);
+  else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) {
+    const ready = selector => new Promise((resolve, reject) => {
+      const find=()=>document.querySelector(selector);if(find())return resolve(find());
+      const timer=setTimeout(()=>{observer.disconnect();reject(new Error('Harness element unavailable: '+selector))},10000);
+      const observer=new MutationObserver(()=>{const element=find();if(element){clearTimeout(timer);observer.disconnect();resolve(element)}});
+      observer.observe(document.body,{childList:true,subtree:true,attributes:true});
+    });
+    void (async()=>{
+      const button=await ready('.ac-header-btn');button.focus();button.click();
+      if(${JSON.stringify(state==='guide')}) (await ready('.ac-tab:last-child')).click();
+      else if(${JSON.stringify(!['history', 'history-many', 'history-old', 'history-damaged'].includes(state))}) (await ready('.ac-hrow')).click();
+    })().catch(error=>window.__harnessErrors.push(error.message));
+  }
 }};
 </script><script src="/lib/client.js"></script></body></html>`
 

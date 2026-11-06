@@ -91,11 +91,11 @@ async function call<T>(method: string, body: Record<string, unknown>, signal?: A
 }
 // ---- tiny shared store: which session's sheet is open, optionally on one run ----
 type Tab = 'history' | 'guide'
-let openSession: { sessionId: string; runId?: string; tab?: Tab } | undefined
+let openSession: { sessionId: string; runId?: string; tab?: Tab; trigger?: HTMLElement } | undefined
 let focusComposerOnClose: string | undefined
 const listeners = new Set<() => void>()
-function setOpen(sessionId: string | undefined, runId?: string, tab?: Tab): void {
-  openSession = sessionId === undefined ? undefined : { sessionId, ...(runId ? { runId } : {}), ...(tab ? { tab } : {}) }
+function setOpen(sessionId: string | undefined, runId?: string, tab?: Tab, trigger?: HTMLElement): void {
+  openSession = sessionId === undefined ? undefined : { sessionId, ...(runId ? { runId } : {}), ...(tab ? { tab } : {}), ...(trigger ? { trigger } : {}) }
   for (const l of listeners) l()
 }
 function useOpen(): typeof openSession {
@@ -980,7 +980,7 @@ function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement 
     mode.collapsed = false
     saveMode(sessionId, { ...mode.preferences, enabled: !enabled }); inputShell(sessionId)?.focus?.()
   }
-  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? t("A|B 对比模式已开启，点此退出") : t("开启 A|B 对比模式，在主对话里运行两版"))} aria-label={t("A|B 对比模式")}>A|B</button></>
+  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={!mode.loaded || mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? t("A|B 对比模式已开启，点此退出") : t("开启 A|B 对比模式，在主对话里运行两版"))} aria-label={t("A|B 对比模式")}>A|B</button></>
 }
 function History({ data, open, busy, failed, scope, query, onScope, onSearch, onPage, onlyUnavailable, problemSupported, onUnavailable }: {
   data?: ListResult; open: (r: Run) => void; busy: boolean; failed?: string
@@ -1049,7 +1049,7 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
   </div>
 }
 /** History, guidance, and expanded inspection share the same persisted records. */
-function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; tab?: Tab }): React.ReactElement {
+function Sheet({ sessionId, runId, tab, trigger }: { sessionId: string; runId?: string; tab?: Tab; trigger?: HTMLElement }): React.ReactElement {
   const [view, setView] = useState<Tab>(runId ? 'history' : tab ?? 'history')
   const [selected, setSelected] = useState<string | undefined>(runId)
   const [list, setList] = useState<ListResult>()
@@ -1080,7 +1080,8 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
   useEffect(() => () => { historyAbort.current?.abort() }, [])
   useEffect(() => { setSelected(runId); setView(runId ? 'history' : tab ?? 'history') }, [runId, tab])
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
+    // Safari does not necessarily focus a button when it is clicked.
+    const previous = trigger ?? document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const element = sheet.current
@@ -1115,7 +1116,7 @@ function Sheet({ sessionId, runId, tab }: { sessionId: string; runId?: string; t
       const composer = focusComposerOnClose
       focusComposerOnClose = undefined
       if (composer) inputShell(composer)?.focus?.()
-      else if (previous?.isConnected) previous.focus()
+      else if (previous?.isConnected && previous !== document.body && previous !== document.documentElement) previous.focus()
       else (document.querySelector<HTMLElement>('[data-ac-history]') ?? document.querySelector<HTMLElement>('.ac-mode-btn:not(:disabled)'))?.focus()
     }
   }, [])
@@ -1143,8 +1144,8 @@ function HeaderButton({ sessionId }: { sessionId: string }): React.ReactElement 
     <div lang={currentLocale()} className="ac-root ac-header-tools" role="group" aria-label={t("AgentCompare 导航")}>
       <Styles />
       <LanguageControl compact />
-      <button data-ac-history="true" className="ac-header-btn" title={t("AgentCompare：比较记录")} aria-label={t("打开 AgentCompare 比较记录")} onClick={() => setOpen(sessionId)}><span className="ac-header-label">{t("比较记录")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3v4h4M2.2 6A6 6 0 1 1 2 10M8 4v4l2.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-      <button className="ac-header-btn" title={t("AgentCompare：使用教程")} aria-label={t("打开 AgentCompare 使用教程")} onClick={() => setOpen(sessionId, undefined, 'guide')}><span className="ac-header-label">{t("使用教程")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" /><path d="M6.5 6a1.5 1.5 0 1 1 2 1.4c-.5.2-.5.6-.5 1.1M8 11h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg></button>
+      <button data-ac-history="true" className="ac-header-btn" title={t("AgentCompare：比较记录")} aria-label={t("打开 AgentCompare 比较记录")} onClick={event => setOpen(sessionId, undefined, undefined, event.currentTarget)}><span className="ac-header-label">{t("比较记录")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3v4h4M2.2 6A6 6 0 1 1 2 10M8 4v4l2.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+      <button className="ac-header-btn" title={t("AgentCompare：使用教程")} aria-label={t("打开 AgentCompare 使用教程")} onClick={event => setOpen(sessionId, undefined, 'guide', event.currentTarget)}><span className="ac-header-label">{t("使用教程")}</span><svg className="ac-header-glyph" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" /><path d="M6.5 6a1.5 1.5 0 1 1 2 1.4c-.5.2-.5.6-.5 1.1M8 11h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg></button>
     </div>
   )
 }
@@ -1175,7 +1176,7 @@ function HeroHeader({ sessionId }: { sessionId: string }): React.ReactElement {
 }
 function Overlay(): React.ReactElement | null {
   const open = useOpen()
-  return open === undefined ? null : <Sheet key={open.sessionId} sessionId={open.sessionId} {...(open.runId ? { runId: open.runId } : {})} {...(open.tab ? { tab: open.tab } : {})} />
+  return open === undefined ? null : <Sheet key={open.sessionId} sessionId={open.sessionId} {...(open.runId ? { runId: open.runId } : {})} {...(open.tab ? { tab: open.tab } : {})} {...(open.trigger ? { trigger: open.trigger } : {})} />
 }
 /**
  * DSH 0.2.1 treats any client entry that fails to activate as a fatal web

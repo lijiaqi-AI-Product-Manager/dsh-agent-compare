@@ -92,8 +92,10 @@ try {
   await writeFile(path.join(output, 'native-safari.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))
 } catch (error) {
+  let documentState
+  if (session) { await top().catch(() => {}); documentState = await execute('return {url:location.href,ready:document.readyState,encoding:document.characterSet,text:document.body.innerText.slice(0,12000),errors:window.__harnessErrors,frames:Array.from(document.querySelectorAll("iframe"),f=>f.src)}').catch(() => undefined) }
   if (session) { await top().catch(() => {}); await screenshot('safari-failure').catch(() => {}) }
-  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog }, null, 2))
+  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState }, null, 2))
   throw error
 } finally {
   if (session) await command('DELETE', '').catch(() => {})

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { launchUiBrowser } from './ui-browser.mjs'
@@ -9,13 +9,13 @@ const harness = await createUiHarness({ port: 0, demoPort: 0 })
 const output = process.env.AGENT_COMPARE_UI_ARTIFACTS ?? await mkdtemp(path.join(os.tmpdir(), 'agent-compare-locales-'))
 await mkdir(output, { recursive: true })
 const check = (condition, message) => { assert.ok(condition, message); assertions++ }
-let assertions = 0, browser
+let assertions = 0, browser, page
+const errors = []
 try {
   const launched = await launchUiBrowser()
   const { engine, channel } = launched
   browser = launched.browser
-  const page = await browser.newPage({ locale: 'en-GB', viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
-  const errors = []
+  page = await browser.newPage({ locale: 'en-GB', viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
   page.on('pageerror', error => errors.push(error.message))
   const language = () => page.getByRole('combobox', { name: 'Interface language', exact: true }).first()
   const open = async (state, extra = '') => {
@@ -122,4 +122,8 @@ try {
   check(await page.evaluate(() => document.activeElement.matches('[data-ac-history]')), 'English close must restore the translated history entry focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
   console.log(JSON.stringify({ localeAssertions: assertions, screenshots: output, browser: browser.version(), engine, channel, locale: 'en-GB', languages: ['zh-CN', 'en'] }))
+} catch (error) {
+  await page?.screenshot({ path: path.join(output, 'language-failure.png') }).catch(() => {})
+  await writeFile(path.join(output, 'language-failure.json'), JSON.stringify({ localeAssertions: assertions, message: error.message, browser: browser?.version(), pageErrors: errors }, null, 2))
+  throw error
 } finally { await browser?.close(); await harness.close() }
