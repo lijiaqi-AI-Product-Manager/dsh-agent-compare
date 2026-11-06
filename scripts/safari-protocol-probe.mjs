@@ -49,7 +49,8 @@ export async function probeNativeSafariProtocol(options = {}) {
       properties: Object.fromEntries(Object.entries(tool.inputSchema?.properties ?? {}).map(([name, value]) => [name, { type: value.type, enum: value.enum }])),
     })), interactionSchema: listed.tools.find(tool => tool.name === 'page_interactions')?.inputSchema }
     if (options.url && options.output) {
-      assert.equal(new URL(options.url).hostname, 'localhost', 'Only the owned local fixture may be opened')
+      const target = new URL(options.url)
+      assert.ok(target.protocol === 'http:' && ['localhost','127.0.0.1'].includes(target.hostname) && Number(target.port) >= 1024, 'Only the owned local fixture may be opened')
       const call = async (name, args) => {
         const response = await request('tools/call', { name, arguments: args }, 30000)
         if (response.isError) throw new Error('Native protocol tool failed: ' + name)
