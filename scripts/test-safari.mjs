@@ -18,7 +18,7 @@ const port = await new Promise((resolve, reject) => {
   server.listen(0, '127.0.0.1', () => { const address = server.address(); server.close(() => address && typeof address === 'object' ? resolve(address.port) : reject(new Error('No driver port'))) })
 })
 const driver = spawn('/usr/bin/safaridriver', ['--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] })
-let driverLog = '', session, capabilities, result
+let driverLog = '', session, capabilities, result, nativeScreen, nativeWindow
 for (const stream of [driver.stdout, driver.stderr]) stream.setEncoding('utf8').on('data', chunk => { driverLog = (driverLog + chunk).slice(-12000) })
 const endpoint = `http://127.0.0.1:${port}`
 async function request(method, route, body) {
@@ -52,15 +52,17 @@ const screenshot = async (name, verify = true) => {
     if(!verify || pixels.colors>=128 && pixels.distinctPixels>=1500)break
   } while(Date.now()<end)
   await writeFile(path.join(output, name + '.png'), bytes)
-  if (verify) assert.ok(pixels.colors >= 128 && pixels.distinctPixels >= 1500, 'Safari returned blank or incomplete screenshot evidence: ' + JSON.stringify(pixels))
-  imageEvidence.push({ name, attempts, ...pixels })
+  const layout=await execute('const view=e=>{if(!e)return null;const s=getComputedStyle(e);return {opacity:s.opacity,visibility:s.visibility,display:s.display,transform:s.transform,zIndex:s.zIndex,animationName:s.animationName,animationPlayState:s.animationPlayState,rect:e.getBoundingClientRect().toJSON()}};return {sheet:view(document.querySelector(".ac-sheet")),mask:view(document.querySelector(".ac-mask")),body:view(document.body),animations:document.getAnimations().map(a=>({state:a.playState,time:a.currentTime,name:a.animationName}))}').catch(()=>undefined)
+  imageEvidence.push({ name, attempts, usable:pixels.colors>=128&&pixels.distinctPixels>=1500, ...pixels, layout })
 }
 try {
   await until(async () => (await request('GET', '/status'))?.ready === true, 'Safari driver readiness')
   const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari', 'safari:automaticInspection': false, 'safari:automaticProfiling': false } } })
   session = created.sessionId; capabilities = created.capabilities
   assert.ok(session); assert.equal(capabilities.browserName.toLowerCase(), 'safari')
-  await command('POST', '/window/rect', { width: 1440, height: 1000 })
+  nativeScreen=await execute('return {width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,availLeft:screen.availLeft,availTop:screen.availTop,scale:devicePixelRatio}')
+  assert.ok(nativeScreen.availWidth>=900&&nativeScreen.availHeight>=600,'The native runner needs a usable visible desktop')
+  nativeWindow=await command('POST','/window/rect',{x:Math.max(0,nativeScreen.availLeft??0),y:Math.max(0,nativeScreen.availTop??0),width:Math.min(1440,nativeScreen.availWidth),height:Math.min(1000,nativeScreen.availHeight)})
   // Stay within WebDriver. Apple Events would request a second, unrelated
   // desktop-control permission and can obscure the actual page with a dialog.
   await command('POST','/window',{handle:await command('GET','/window')})
@@ -135,6 +137,10 @@ try {
   result.browserVersion=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleShortVersionString','/Applications/Safari.app/Contents/Info.plist'],{encoding:'utf8',timeout:10000}).trim()
   result.userAgent=await execute('return navigator.userAgent')
   result.imageEvidence = imageEvidence
+  result.nativeScreen=nativeScreen
+  result.nativeWindow=nativeWindow
+  await writeFile(path.join(output,'native-safari-observations.json'),JSON.stringify({...result,visualAcceptance:imageEvidence.every(e=>e.usable)?'passed':'failed'},null,2))
+  assert.ok(imageEvidence.every(e=>e.usable),'Safari returned blank or incomplete screenshot evidence: '+JSON.stringify(imageEvidence.map(({name,colors,distinctPixels,usable})=>({name,colors,distinctPixels,usable}))))
   await writeFile(path.join(output, 'native-safari.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))
 } catch (error) {
@@ -146,7 +152,7 @@ try {
     runnerState = 'Native WebDriver evidence; no Apple Events desktop-control request'
     try { execFileSync('/usr/sbin/screencapture', ['-x', path.join(output, 'safari-runner-screen.png')], { timeout: 10000 }) } catch (cause) { runnerState += '\nScreen capture: ' + cause.message }
   }
-  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState }, null, 2))
+  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence }, null, 2))
   throw error
 } finally {
   if (session) await command('DELETE', '').catch(() => {})
