@@ -36,10 +36,11 @@ function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editT
 }
 const defaultEdit: Edit = async (dir, req) => writeFile(path.join(dir, 'index.html'), `<h1>shop ${req.label}</h1>\n`)
 
-async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number; onUpdate?: ComparerOptions['onUpdate']; prepareProjectProcess?: ComparerOptions['prepareProjectProcess'] } = {}) {
+async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number; onUpdate?: ComparerOptions['onUpdate']; prepareProjectProcess?: ComparerOptions['prepareProjectProcess']; preparePreviewHost?: ComparerOptions['preparePreviewHost']; beforeStart?(repo: string): Promise<void> } = {}) {
   const repo = await fixtureRepo()
+  await opts.beforeStart?.(repo)
   const store = new RunStore(await tmp('ac-home'))
-  const comparer = new Comparer({ prepareProjectProcess: opts.prepareProjectProcess ?? prepareFixtureProcess, store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
+  const comparer = new Comparer({ prepareProjectProcess: opts.prepareProjectProcess ?? prepareFixtureProcess, preparePreviewHost: opts.preparePreviewHost, store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
   const started = await comparer.start({ repo, task: 'make the shop nicer', assignment: 'fixed' })
   const done = (await comparer.wait(started.runId))!
   const failedPreparation = done.candidates.filter(c => c.error?.stage === 'preparing')
@@ -298,6 +299,38 @@ describe.concurrent('comparison run', () => {
 })
 
 describe.concurrent('adoption', () => {
+  it('replaces a preview honestly after allocation failure, preserving its peer and custom build output', async () => {
+    let deny=false
+    const { store, comparer, runId, done }=await setup({}, {
+      preparePreviewHost:async()=>{if(deny)throw new Error('Dedicated addresses unavailable');return undefined},
+      beforeStart:async repo=>{
+        const file=path.join(repo,'vendor/vite/bin/vite.js')
+        await writeFile(file,(await readFile(file,'utf8')).replaceAll("'dist'","'client-build'"))
+        await writeFile(path.join(repo,'.gitignore'),'node_modules/\ndist/\nclient-build/\n')
+      },
+    })
+    try {
+      expect(done.candidates.every(candidate=>candidate.stage==='ready')).toBe(true)
+      const oldA=done.candidates[0]!.preview!,peer=done.candidates[1]!.preview!
+      expect(existsSync(path.join(done.candidates[0]!.dir!,'dist'))).toBe(false)
+      deny=true
+      await expect(comparer.reopenPreview(runId,'A',true)).rejects.toThrow('Dedicated addresses unavailable')
+      const stopped=(await store.load(runId))!
+      expect(stopped.candidates[0]!.preview).toBeUndefined()
+      expect(stopped.candidates[1]!.preview).toEqual(peer)
+      await expect(fetchPreview(oldA.url,{signal:AbortSignal.timeout(1000)})).rejects.toThrow()
+      expect(await(await fetchPreview(peer.url)).text()).toContain('shop B')
+      deny=false
+      const reopened=await comparer.reopenPreview(runId,'A'),candidate=reopened.candidates[0]!
+      expect(candidate.preview!.kind).toBe('build')
+      expect(await(await fetchPreview(candidate.preview!.url)).text()).toContain('shop A')
+      const live=candidate.preview!.url
+      await writeFile(path.join(candidate.dir!,'index.html'),'unverified edit\n')
+      await expect(comparer.reopenPreview(runId,'A',true)).rejects.toThrow(/封存版本不一致/)
+      expect(await(await fetchPreview(live)).text()).toContain('shop A')
+    } finally {await comparer.cleanup(runId)}
+  },T)
+
   it('a preview stopped by a host restart can be opened again from its copy', async () => {
     const { store, comparer, runId, done } = await setup({})
     const previous = done.candidates[0]!.preview!

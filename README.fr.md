@@ -113,13 +113,13 @@ Le verrou du dépôt coordonne les opérations de l'extension, sans verrouiller 
 
 L'historique affiche toutes les conversations par défaut, avec filtre sur la conversation courante, recherche par demande, dépôt ou identifiant et pages de 30 entrées. Résultat, choix et adoption sont conservés. Les notes sont transmises à la même conversation et réessayées si elle est indisponible. Les longs journaux ne sont pas injectés intégralement dans le contexte principal.
 
-Les anciens fichiers ou enregistrements endommagés restent en lecture seule avec une explication. Après un redémarrage, les captures sont identifiées comme des images statiques, pas des applications actives. Une copie conservée peut être relancée. Chaque ouverture utilise une nouvelle adresse `.localhost`, séparant cookies et stockage par origine entre propositions. L'état temporaire de la page est réinitialisé ; l'historique et les captures restent disponibles.
+Les anciens enregistrements ou fichiers endommagés restent en lecture seule avec une explication. Les captures sont distinguées des applications actives. Une copie conservée peut être relancée à une nouvelle adresse. Safari nécessite une configuration explicite d'adresses locales indépendantes ; voir le [guide Safari](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/safari-live-preview.en.md). L'état temporaire de la page est réinitialisé ; l'historique et les captures restent disponibles.
 
 ## Compatibilité et limites
 
 Un worktree n'est pas une frontière de sécurité complète. La politique d'écriture de DSH est utilisée ; Windows la signale comme **partial**. Lectures de fichiers et réseau ne sont pas isolés. Les cookies intégrés suivent les politiques du navigateur ; un onglet externe peut employer un autre contexte de stockage. Connexion à un compte, services backend externes et bases partagées sont hors périmètre.
 
-L'installation et les vérifications npm ont été exécutées. macOS et le parcours complet pnpm/yarn restent non vérifiés. Les combinaisons de fournisseurs avec deux modèles, ainsi que les performances actuelles d'une livraison complète avec un modèle externe, demandent encore des mesures. Consultez la [matrice détaillée](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
+CI couvre projets et SDK natifs sur Windows/Linux/macOS, navigateurs et gestionnaires de paquets. Les résultats restent liés à leur révision ; Windows avec pnpm 12 et TypeScript 7/PnP conservent des limites connues. Les combinaisons de fournisseurs et les performances des modèles externes demandent leurs propres mesures. Consultez la [matrice détaillée](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
 
 ## Durée, coût et preuves
 

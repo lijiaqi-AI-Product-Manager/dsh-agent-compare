@@ -35,6 +35,7 @@ import { authorizeComparisonAction, CONVERSATION_ACTIONS } from './action-access
 import { startToolComparison, type StartToolArgs } from './start-tool.ts'
 import { hostCapabilities } from './capabilities.ts'
 import { HttpError, readBody } from './request.ts'
+import { PreviewNetwork } from './preview-network.ts'
 
 export const name = 'agent-compare'
 // webServer/connection are optional: headless and SDK profiles have no Web UI,
@@ -357,6 +358,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     scrubbedParentEnv: await environmentContract,
   })
   const store = new RunStore(config.home ?? defaultHome())
+  const previewNetwork = new PreviewNetwork(store)
   ctx.effect(() => ctx.on('system-prompt/assemble', (_assembly: ComparisonAssembly, context: { agent?: AgentLike; scope?: unknown; signal?: AbortSignal }, next: () => Promise<ComparisonAssembly>) => withCurrentComparisonState(context, next, {
     latest: async sessionId => (await store.list()).filter(record => record.sessionId === sessionId).sort((a, b) => b.updatedAt - a.updatedAt || b.rev - a.rev)[0],
     warn: message => ctx.logger.warn(message),
@@ -378,6 +380,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     runner,
     version: VERSION,
     prepareProjectProcess: createProjectProcess(() => ctx.get('sandbox') as ProjectSandbox | undefined, undefined, undefined, bundledPnpm),
+    preparePreviewHost: (owner, signal) => previewNetwork.allocate(owner, signal),
     generationMs: (config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000) * 60_000,
     maxActiveRuns: config.maxActiveRuns ?? 1,
     onUpdate: remember,
@@ -540,7 +543,15 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
         }
       }
-      return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, features: { currentComparisonContext: 'scoped-assembly-v1' }, capabilities: await capabilities(), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
+      return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, features: { currentComparisonContext: 'scoped-assembly-v1' }, capabilities: await capabilities(), previewNetwork: await previewNetwork.status(signal), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
+    },
+    async previewNetworkStatus(b, signal) {
+      await agentFor(b, signal)
+      return previewNetwork.status(signal)
+    },
+    async enablePreviewNetwork(b, signal) {
+      await agentFor(b, signal)
+      return previewNetwork.enable(b.confirmed === true, signal)
     },
     async list(b) {
       const page = await historyPage(store, b)
@@ -597,7 +608,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     async reopenPreview(b) {
       const l = label(b.label)
       if (l === undefined) throw new HttpError(400, 'label must be A or B')
-      return present(await comparer.reopenPreview(runIdOf(b), l))
+      return present(await comparer.reopenPreview(runIdOf(b), l, b.replace === true))
     },
     async salvage(b) {
       const l = label(b.label)

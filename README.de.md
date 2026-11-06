@@ -113,13 +113,13 @@ Die Repository-Sperre koordiniert Plugin-Vorgänge, sperrt jedoch keine externen
 
 Der Verlauf zeigt standardmäßig alle Gespräche, mit Filter für das aktuelle Gespräch, Suche nach Aufgabe, Repository oder Kennung und 30 Einträgen pro Seite. Ergebnis, Wahl und Übernahme bleiben gespeichert. Hinweise werden an dasselbe Gespräch zugestellt und bei vorübergehender Nichtverfügbarkeit erneut versucht. Lange Protokolle werden nicht vollständig in den Hauptkontext eingefügt.
 
-Alte oder beschädigte Aufzeichnungen bleiben mit Begründung schreibgeschützt erhalten. Nach einem Neustart werden gespeicherte Prüfbilder von laufenden Anwendungen unterschieden. Ist die Kopie noch vorhanden, kann die Vorschau neu gestartet werden. Jeder Start erhält eine neue `.localhost`-Adresse, damit Cookies und Origin-Speicher nicht zwischen den Vorschlägen geteilt werden. Temporärer Seitenzustand wird zurückgesetzt; Vergleichsaufzeichnungen und Bilder bleiben erhalten.
+Alte oder beschädigte Aufzeichnungen bleiben mit Begründung schreibgeschützt. Gespeicherte Bilder werden von laufenden Anwendungen unterschieden. Eine erhaltene Kopie kann unter einer neuen Adresse geöffnet werden. Safari benötigt eine ausdrücklich bestätigte Einrichtung eigener Loopback-Adressen; siehe [Safari-Anleitung](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/safari-live-preview.en.md). Temporärer Seitenzustand wird zurückgesetzt; Aufzeichnungen und Bilder bleiben erhalten.
 
 ## Kompatibilität und Grenzen
 
 Ein Worktree ist keine vollständige Sicherheitsgrenze. Das Plugin nutzt die DSH-Schreibrichtlinie; unter Windows wird sie als **partial** gemeldet. Dateilesen und Netzwerk sind nicht isoliert. Eingebettete Cookies folgen den Browserrichtlinien; ein externer Tab kann einen anderen Speicherkontext verwenden. Anmeldung, externe Backends und gemeinsam genutzte Datenbanken liegen außerhalb des aktuellen Umfangs.
 
-Installation und Prüfungen mit npm wurden ausgeführt. macOS und der vollständige Ablauf mit pnpm/yarn sind noch nicht verifiziert. Auch Kombinationen verschiedener Modellanbieter und aktuelle Leistungswerte eines vollständigen Ablaufs mit externem Modell benötigen weitere Prüfung. Siehe die [ausführliche Kompatibilitätsmatrix](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
+CI umfasst native Projekte und SDKs auf Windows/Linux/macOS sowie Browser und Paketmanager. Bestandene Prüfungen gelten für die jeweilige Revision; Windows mit pnpm 12 und TypeScript 7/PnP haben weiterhin bekannte Grenzen. Anbieterkombinationen und die Leistung externer Modelle benötigen eigene Messungen. Siehe die [Kompatibilitätsmatrix](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
 
 ## Laufzeit, Kosten und Nachweise
 

@@ -14,7 +14,7 @@ Search terms include AgentCompare, dsh-agent-compare, A|B, live previews, blind 
 
 `engines.dsh` is `>=0.2.1-rc.3 <0.3.0-0`. DSH's `@deepseek-ai/dsh-app-boot` evaluates it with `includePrerelease: true`, so 0.2.2 alpha/rc versions participate. Default npm semver options do not establish a DSH installation rejection. The `-0` upper boundary excludes 0.3.0 prereleases.
 
-Admission is separate from executed acceptance. Required Windows/Linux native runtime checks pin DSH 0.2.1-rc.5. Separately named, non-blocking `next host canary` jobs track the next channel. Each run prints the resolved host version and exercises that host's actual compatibility evaluator at the boundaries. Canary failures require investigation and are not passes; these jobs do not establish external-model or final Desktop-shell acceptance. See [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) for the latest results.
+Admission is separate from executed acceptance. Required Windows/Linux/macOS native runtime checks pin DSH 0.2.1-rc.5 and 0.2.2-rc.1. Separately named, non-blocking `next host canary` jobs track the next channel. Each run prints the resolved host version and exercises that host's actual compatibility evaluator at the boundaries. Canary failures require investigation and are not passes; these jobs do not establish external-model or final Desktop-shell acceptance. See [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) for the latest results.
 
 ## Directory sources
 
@@ -47,7 +47,7 @@ DSH's native Discover surface reads third-party plugin indexes. Each index suppl
 - Ordered screenshots: [`screenshots.json`](../screenshots.json) at the repository root, using relative paths.
 - Capture facts: [`manifest.json`](media/screenshots/manifest.json) records the source package, host and image hashes.
 
-The screenshots use fixed candidates and real applications, shared checks, interactions and adoption. Local paths are hidden. The current captures use the published npm package 0.2.0-alpha.18 on DSH 0.2.1-rc.5. Consult individual model-run records for generation timing.
+The screenshots use fixed candidates and real applications, shared checks, interactions and adoption. Local paths are hidden. The current catalog captures use published npm package 1.1.0 on DSH 0.2.2-rc.1; older captures remain historical assets. Consult individual model-run records for generation timing.
 
 ## Data and permissions
 

@@ -120,6 +120,14 @@ window.fetch = async (url, init) => {
   }
   if (m[1] === ${JSON.stringify(error)}) return new Response(JSON.stringify({ok:false,error:'请求失败，请重试'}),{status:503});
   if (m[1] === 'setup' && ${JSON.stringify(error === 'setup-slow')}) await new Promise(resolve=>setTimeout(resolve,5000));
+  window.__previewNetwork ??= {platform:'darwin',state:${JSON.stringify(error.startsWith('preview-network')?'needs-setup':'ready')},available:${error.startsWith('preview-network')?0:64},configured:${error.startsWith('preview-network')?0:64},used:0,unconfirmed:0};
+  if (m[1] === 'previewNetworkStatus') return new Response(JSON.stringify({ok:true,value:window.__previewNetwork}),{headers:{'content-type':'application/json'}});
+  if (m[1] === 'enablePreviewNetwork') {
+    if (${JSON.stringify(error==='preview-network-cancel')} && !window.__setupCanceledOnce) {window.__setupCanceledOnce=true;window.__previewNetwork.unconfirmed=64;return new Response(JSON.stringify({ok:false,error:'已取消系统授权；未启动比较，需求和历史记录保留。',code:'preview-network-cancelled'}),{status:409})}
+    if (body.confirmed !== true) return new Response(JSON.stringify({ok:false,error:'确认信息缺失'}),{status:400});
+    window.__previewNetwork={...window.__previewNetwork,state:'ready',available:64,configured:64};
+    return new Response(JSON.stringify({ok:true,value:window.__previewNetwork}),{headers:{'content-type':'application/json'}});
+  }
   if (m[1] === 'shot') {
     const plan = window.__shotPlans.shift() ?? {};
     if (${JSON.stringify(error)} === 'shot-once' && !window.__shotFailedOnce) {window.__shotFailedOnce=true;return new Response(JSON.stringify({ok:false,error:'截图请求暂不可用'}),{status:503})}
@@ -136,7 +144,7 @@ window.fetch = async (url, init) => {
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
   let value = m[1] === 'latest' ? listHistory(body).runs[0] ?? null
     : m[1] === 'list' ? listHistory(body)
-    : m[1] === 'setup' ? {current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)},warning:${JSON.stringify(error === 'manager-warning' ? 'Yarn PnP 与 TypeScript 7 组合仍有限制，失败检查不会被跳过。' : undefined)}},dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
+    : m[1] === 'setup' ? {current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)},warning:${JSON.stringify(error === 'manager-warning' ? 'Yarn PnP 与 TypeScript 7 组合仍有限制，失败检查不会被跳过。' : undefined)}},previewNetwork:window.__previewNetwork,dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true,...(${JSON.stringify(error)}==='old-apply-host'?{}:{protectedWorktreeApply:true})}
     : m[1] === 'copyCleanupPlan' ? {version:1,runId:body.runId,rev:runs.find(r=>r.runId===body.runId)?.rev??0,state:'revealed',allowed:true,reasons:[],bytes:15728640,token:'a'.repeat(64),otherSession:${JSON.stringify(error==='other-session-cleanup')},resources:[{label:'A',path:'D:/Comparisons/0a1b2c3d/A',bytes:7340032,files:100,links:0,stopsPreview:true},{label:'B',path:'D:/Comparisons/0a1b2c3d/B',bytes:8388608,files:120,links:2,stopsPreview:true}]}

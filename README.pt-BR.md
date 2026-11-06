@@ -113,13 +113,13 @@ O bloqueio do repositório coordena operações do plugin; ele não bloqueia o e
 
 O histórico começa com todas as conversas, com filtro da conversa atual, busca por pedido, repositório ou identificador e páginas de 30 registros. Resultado, escolha e aplicação são preservados. As notas são entregues à mesma conversa, com novas tentativas se ela estiver indisponível. Logs longos não são inseridos integralmente no contexto principal.
 
-Registros antigos ou danificados permanecem somente para leitura, com explicação. Depois de reiniciar, capturas salvas são identificadas como imagens estáticas. Se a cópia ainda existe, a prévia pode ser reaberta. Cada abertura usa um endereço `.localhost` novo, separando cookies e armazenamento por origem entre as versões. O estado temporário da página é reiniciado; registros e capturas continuam disponíveis.
+Registros antigos ou danificados permanecem somente para leitura, com explicação. Capturas salvas são diferenciadas de aplicativos ativos. Uma cópia preservada pode ser reaberta em um endereço novo. Safari requer a configuração explícita de endereços locais independentes; veja o [guia Safari](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/safari-live-preview.en.md). O estado temporário da página é reiniciado; registros e capturas continuam disponíveis.
 
 ## Compatibilidade e limites
 
 Um worktree não é uma barreira completa de segurança. O plugin usa a política de escrita do DSH; no Windows, a proteção é informada como **partial**. Leituras de arquivos e rede não são isoladas. Cookies em páginas incorporadas seguem a política do navegador, e uma aba externa pode ter outro contexto de armazenamento. Login, backends externos e bancos de dados compartilhados ficam fora do escopo atual.
 
-A instalação e a verificação com npm foram executadas. macOS e o fluxo completo com pnpm/yarn ainda não foram verificados. Combinações de provedores com dois modelos e medições atuais de desempenho com um modelo externo também precisam de validação. Veja a [matriz detalhada](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
+CI cobre projetos e SDKs nativos em Windows/Linux/macOS, navegadores e gerenciadores de pacotes. Os resultados valem para a revisão correspondente; Windows com pnpm 12 e TypeScript 7/PnP mantêm limites conhecidos. Combinações de provedores e desempenho com modelos externos exigem medições próprias. Veja a [matriz detalhada](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
 
 ## Tempo, custo e evidências
 

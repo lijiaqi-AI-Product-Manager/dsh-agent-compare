@@ -10,10 +10,12 @@ import { runProjectProcess } from '../lib/core/project-process.js'
 import { runCommandChecks } from '../lib/core/checks.js'
 import { inspectProject, installArgv } from '../lib/core/project.js'
 import { startVitePreview } from '../lib/core/preview.js'
-import { fetchPreview } from '../lib/core/preview-url.js'
+import { fetchPreview, isNumericPreviewHost } from '../lib/core/preview-url.js'
 import { createExampleRepo } from '../lib/core/index.js'
 
 const runtime = path.resolve(process.env.AGENT_COMPARE_DSH_RUNTIME ?? '.runtime-checks/host-sdk')
+const numericHosts=process.env.AGENT_COMPARE_RUNTIME_PREVIEW_HOSTS?.split(',')
+if(numericHosts)assert.ok(numericHosts.length===2&&new Set(numericHosts).size===2&&numericHosts.every(isNumericPreviewHost))
 const resolveRuntime = createRequire(path.join(runtime, 'package.json'))
 const load = name => import(pathToFileURL(resolveRuntime.resolve(name)).href)
 const { Context } = await load('@deepseek-ai/cordis')
@@ -122,7 +124,8 @@ try {
   assert.ok(checks.every(check => check.outcome === 'passed'), JSON.stringify(checks))
   const viteVersion = JSON.parse(await readFile(path.join(repo, 'node_modules/vite/package.json'), 'utf8')).version
   for (let i = 0; i < 2; i++) {
-    preview = await startVitePreview(repo, { prepareProjectProcess: prepare, timeoutMs: 60000 })
+    preview = await startVitePreview(repo, { prepareProjectProcess: prepare, timeoutMs: 60000, ...(numericHosts?{loopbackHost:numericHosts[i]}:{}) })
+    if(numericHosts)assert.equal(new URL(preview.url).hostname,numericHosts[i])
     const response = await fetchPreview(preview.url)
     assert.equal(response.status, 200)
     assert.ok((await response.text()).includes('id="root"'))

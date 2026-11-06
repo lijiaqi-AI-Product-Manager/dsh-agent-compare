@@ -145,7 +145,7 @@ export declare class Comparer {
      * restart, or was never started). Uses the copy's existing build output
      * when there is one; the copy must still be the one this run created.
      */
-    reopenPreview(runId: string, label: CandidateLabel): Promise<RunRecord>;
+    reopenPreview(runId: string, label: CandidateLabel, replace?: boolean): Promise<RunRecord>;
     private reopenRunPreview;
     /** Report-only adoption check: overlap, eligibility and whether a rehearsal will run. Writes nothing. */
     adoptPreflight(runId: string): Promise<{

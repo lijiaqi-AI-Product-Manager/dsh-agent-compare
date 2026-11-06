@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Add native macOS project and host-runtime jobs, dedicated Firefox/WebKit interface jobs and a separate native Safari driver check. Record live preview origins, independent input/storage and parent-cookie boundaries independently of browser-engine labels.
-- Prepare dedicated numeric preview transport with exact-address binding and probing. Provisioning and ownership remain the host's responsibility; this transport does not configure system addresses or enable Safari setup by itself.
+- Add explicit Safari preview setup with reviewable, cancellable system authorization. Journal temporary numeric loopback addresses before configuring them, exclude existing addresses and never reassign used ones. Bind and probe each preview's exact address; retain unknown ownership after partial setup instead of guessing.
+- Reopen retained Safari candidates at dedicated addresses without generating again. Preserve the stopped state after a failed replacement, keep the peer running and reject source changes against the sealed candidate. Serve successful custom build output through Vite preview rather than falling back to development mode.
 - Refresh workflow media from the verified public 1.1.0 archive on DSH 0.2.2-rc.1. Preserve controlled-candidate labels, real checks/adoption/undo, editing conditions and historical assets; package two focused screenshots instead of inactive media.
 - Synchronize composer and overlay state across separate host roots without losing settings updates. Disable mode entry until saved settings load, retain drafts on retry and restore history/tutorial focus to the actual trigger.
 - Measure restored preview width before paint and preserve usable desktop/phone layouts. Serialize settings reads with admitted writes for the same conversation without blocking unrelated conversations.

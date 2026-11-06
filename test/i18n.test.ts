@@ -61,7 +61,7 @@ describe('interface language', () => {
     expect(translatedDiagnostic('磁盘提供程序返回了未识别错误 <raw>')).toBe('磁盘提供程序返回了未识别错误 <raw>')
   })
   it('covers every explicit interface-copy call with an English entry', async () => {
-    for (const name of ['index.tsx', 'language.tsx']) {
+    for (const name of ['index.tsx', 'language.tsx', 'preview-network.tsx']) {
       const source = await readFile(new URL('../src/client/' + name, import.meta.url), 'utf8')
       for (const match of source.matchAll(/\bt\(("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g)) {
         const key: string = match[1]!.startsWith('"') ? JSON.parse(match[1]!) : match[1]!.slice(1, -1)

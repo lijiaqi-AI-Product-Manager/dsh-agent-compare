@@ -15,6 +15,8 @@ import { t, currentLocale, localeSnapshot, subscribeLocale } from './i18n.js'
 import { LanguageControl, Diagnostic } from './language.js'
 import { runIdFromToolResult } from './tool-result.js'
 import { clientCapabilities } from './capabilities.js'
+import { numericPreviewHost, macWebKit, safariPreviewBlocked, safariSetupRequired, SafariPreviewSetup, useSafariPreviewNetwork, type PreviewNetworkStatus } from './preview-network.js'
+function requestPreviewNetwork(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<PreviewNetworkStatus> { return call<PreviewNetworkStatus>(method, body, signal) }
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
 interface SlotsLike {
@@ -28,7 +30,7 @@ interface Route { provider?: string; model?: string }
 interface InstallFailure { kind: string; summary: string; hint: string; code?: string; diagnostic?: string }
 interface VerificationRuntime { hostNode: string; platform: string; packageManager: string; packageManagerVersion?: string }
 interface VerificationAttempt { recordedAt: number; durationMs?: number; install?: { failure?: InstallFailure; outcome?: string; runtime?: VerificationRuntime }; error?: { message: string }; checks?: Check[] }
-interface Setup { pluginVersion?: string; dshVersion?: string; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string; warning?: string } }
+interface Setup { pluginVersion?: string; dshVersion?: string; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; previewNetwork?: PreviewNetworkStatus; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string; warning?: string } }
 interface Cand {
   label: 'A' | 'B'
   stage: Stage
@@ -190,6 +192,7 @@ async function executeComparison(sessionId: string, task: string, example = fals
   const support = clientSupport(sessionId)
   if (!support.canExecute || (!example && !support.ok)) return { kind: 'error', text: clientSupportMessage(sessionId) ?? t("会话命令执行接口不可用，请检查 DSH 版本。") }
   const setup = await call<Setup>('setup', { sessionId })
+  if (safariSetupRequired(setup.previewNetwork)) return { kind: 'error', text: t("请先在设置中启用 Safari 实时比较，再发送需求。草稿保留，不会开始生成。") }
   if (setup.capabilities?.ok === false) return { kind: 'error', text: t("当前 DSH ") + (setup.dshVersion ?? t("（版本未知）")) + t(" 缺少比较所需接口：") + setup.capabilities.missing.join('、') + t("。请升级或回退至已验证的版本；草稿保留。") }
   if (!example && setup.project?.supported === false) return { kind: 'error', text: t("当前项目不受支持：") + (setup.project.reason ?? t("请使用仓库根目录的 Vite 项目。")) + t(" 草稿保留，也可以试跑内置示例。") }
   const remote = clientCtx?.remote?.commands
@@ -426,7 +429,8 @@ function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): Rea
     </>}
   </details>
 }
-function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, hidden }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; compact: boolean; hidden?: boolean }): React.ReactElement {
+function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, hidden, safariReady }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; compact: boolean; hidden?: boolean; safariReady?: boolean }): React.ReactElement {
+  const blockedPreview = safariPreviewBlocked(c.previewUrl)
   const usage = !revealed ? undefined : c.usage?.kind !== 'reported' ? t("用量未知") : [
     c.usage.totalTokens === undefined ? t("总用量未知") : `${c.usage.totalTokens.toLocaleString(currentLocale())} tokens`,
     ...([['inputTokens', t("未缓存输入")], ['outputTokens', t("输出")], ['cacheReadTokens', t("缓存读取")], ['cacheWriteTokens', t("缓存写入")]] as const)
@@ -444,7 +448,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
           {c.previewKind === 'dev' && live && <span className="ac-pill warn" title={t("构建没有通过，这是开发模式，只供观察")}>{t("开发模式")}</span>}
           <span className="ac-meta">{c.verificationHistory?.length ? t("本次验收 ") : ''}{fmt(elapsed(c))}</span>
           {run.state === 'running' && busyStage(c.stage) && c.stage !== 'stopping' && <button className="ac-btn sm" disabled={busy} onClick={() => act('cancel', { label: c.label })}>{t("停止这一版")}</button>}
-          {live && <a className="ac-icon-btn ac-preview-open" href={c.previewUrl} target="_blank" rel="noreferrer" title={t("在浏览器标签页中打开 {0}；Cookie 与存储上下文可能和嵌入预览不同", { 0: c.previewUrl })} aria-label={t("在浏览器中打开 {0}", { 0: c.label })}><IconExternal /></a>}
+          {live && !blockedPreview && <a className="ac-icon-btn ac-preview-open" href={c.previewUrl} target="_blank" rel="noreferrer" title={t("在浏览器标签页中打开 {0}；Cookie 与存储上下文可能和嵌入预览不同", { 0: c.previewUrl })} aria-label={t("在浏览器中打开 {0}", { 0: c.label })}><IconExternal /></a>}
           {revealed && c.strategy && <span className="ac-strategy">{c.strategy.title}{model ? ` · ${model}` : ''}</span>}
         </div>
         {busyStage(c.stage) && <Track c={c} />}
@@ -468,7 +472,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
       </div>
       {live ? (
         <div className="ac-browser">
-          <LivePreview c={c} device={device} compact={compact} />
+          {blockedPreview ? <div className="ac-empty"><p>{t("此预览需要切换到 Safari 独立地址，原候选和检查记录保留。")}</p><button className="ac-btn" disabled={busy || !safariReady} onClick={()=>act('reopenPreview',{label:c.label,replace:true})}>{t("用独立地址打开 {0}",{0:c.label})}</button></div> : <LivePreview c={c} device={device} compact={compact} />}
         </div>
       ) : c.error || c.canRetryVerification ? (
         <div className={`ac-fail${c.stage === 'interrupted' ? ' interrupted' : ''}`}>
@@ -555,10 +559,11 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {setup?.project?.supported === false && <div className="ac-feedback" role="status">{t("当前项目不受支持：")}<Diagnostic text={setup.project.reason ?? t("请使用仓库根目录的 Vite 项目。")} />{t(" 草稿保留，可试跑内置示例。")}</div>}
     {setup?.project?.supported && setup.project.warning && <div className="ac-feedback" role="status"><Diagnostic text={setup.project.warning} /></div>}
     {!mode.collapsed && <>
+    <SafariPreviewSetup key={sessionId} sessionId={sessionId} status={setup?.previewNetwork} request={requestPreviewNetwork} onStatus={value=>setSetup(current=>current?{...current,previewNetwork:value}:current)} onRefresh={()=>setSetupRetry(value=>value+1)} />
     <div className="ac-settings-row"><div className="ac-seg" role="group" aria-label={t("比较方式")}><button className={p.mode === 'same-model' ? 'on' : ''} aria-pressed={p.mode === 'same-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'same-model' })}>{t("同一模型 · 两种策略")}</button><button className={p.mode === 'cross-model' ? 'on' : ''} aria-pressed={p.mode === 'cross-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'cross-model' })}>{t("两个模型 · 同一要求")}</button></div>
       <label className="ac-budget">{t("每版上限 ")}<select aria-label={t("每版生成上限")} value={p.generationMinutes} onChange={e => saveMode(sessionId, { ...p, generationMinutes: Number(e.target.value) })}>{[...new Set([5, 15, 30, 60, 90, 120, p.generationMinutes])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m}{t(" 分钟")}</option>)}</select></label>
       <label className="ac-budget">{t("示例 ")}<select aria-label={t("内置示例范围")} disabled={busy || !mode.loaded} value={p.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...p, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">{t("基础 · 搜索与清空")}</option><option value="full">{t("完整 · 组合筛选与手机适配")}</option></select></label>
-      <button className="ac-btn sm" disabled={busy || !mode.loaded || setup?.capabilities?.ok === false || !clientSupport(sessionId).canExecute || (p.mode === 'cross-model' ? !validPair : !setup?.current.model)} onClick={() => { void example() }}>{busy ? t("正在创建示例…") : t("试跑内置示例")}</button>
+      <button className="ac-btn sm" disabled={busy || !mode.loaded || safariSetupRequired(setup?.previewNetwork) || setup?.capabilities?.ok === false || !clientSupport(sessionId).canExecute || (p.mode === 'cross-model' ? !validPair : !setup?.current.model)} onClick={() => { void example() }}>{busy ? t("正在创建示例…") : t("试跑内置示例")}</button>
     </div>
     {p.mode === 'cross-model' ? <div className="ac-models">{[0, 1].map(i => <label key={i}>{i === 0 ? t("模型一") : t("模型二")}<select disabled={loading || busy} value={p.models[i]?.model ? `${p.models[i]?.provider}/${p.models[i]?.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const pair: [Route, Route] = [...p.models]; pair[i] = item ? { provider: item.provider, model: item.id } : {}; saveMode(sessionId, { ...p, models: pair }) }}><option value="">{t("选择已配置的模型")}</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={p.models[1-i]?.provider === m.provider && p.models[1-i]?.model === m.id}>{m.name} · {m.providerName}</option>)}</select></label>)}{loading ? <span className="ac-meta" role="status">{t("正在读取模型…")}</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>{t("重试模型列表")}</button></span> : models.length < 2 ? <span className="ac-meta">{t("当前可读取的模型不足两个，可先使用同一模型的两种策略。")}</span> : null}</div>
       : <div className="ac-meta">{t("当前模型：")}{routeText(setup?.current) || (setup ? t("请先在输入框右下角选择模型") : t("正在读取…"))}{setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}>{t(" · 项目：")}{setup.project.path}</span> : ''}</div>}
@@ -775,6 +780,7 @@ function Banners({ run }: { run: Run }): React.ReactElement {
  * both inside the conversation (compact) and in the large window.
  */
 function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onCollapse }: { runId: string; sessionId?: string; initial?: Run; compact?: boolean; onDone?: () => void; onExpand?: () => void; onCollapse?: () => void }): React.ReactElement {
+  const network = useSafariPreviewNetwork(sessionId, requestPreviewNetwork)
   const [run, setRun] = useState<Run | undefined>(initial)
   const [err, setErr] = useState<string>()
   const [readErr, setReadErr] = useState<string>()
@@ -893,9 +899,10 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     returnToComposer(sessionId)
   } : undefined
   const previewHosts = run.candidates.filter(c => c.previewUrl).map(c => { try { return new URL(c.previewUrl!).hostname } catch { return '' } })
-  const independentHosts = previewHosts.length > 0 && previewHosts.every(host => /^ac-[0-9a-f]{32}\.localhost$/.test(host)) && new Set(previewHosts).size === previewHosts.length
+  const independentHosts = previewHosts.length > 0 && previewHosts.every(host => numericPreviewHost(host) || (!macWebKit() && /^ac-[0-9a-f]{32}\.localhost$/.test(host))) && new Set(previewHosts).size === previewHosts.length
   const body = (
     <>
+      <SafariPreviewSetup key={sessionId} sessionId={sessionId} status={network.status} error={network.error} request={requestPreviewNetwork} onStatus={network.update} onRefresh={network.refresh} />
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
       {confirmation && <div ref={confirmationBox} tabIndex={-1} className="ac-review" role="region" aria-label={t("跨对话操作确认")} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConfirmation(undefined) } }}><div><b>{t("这次比较来自另一个对话")}</b><p>{t("请确认要操作的项目：")}{run.baseline.repoRoot ?? t("记录中未提供项目路径")}</p><p>{t("运行编号：")}<code>{runId}</code>{t(" · 将执行：")}{confirmationLabel ?? ({ choose: t("选择并揭晓"), reviewAdoption: t("审查采用"), adopt: t("采用候选"), revert: t("撤销采用"), recover: t("恢复文件"), cancel: t("停止比较"), cancelAdoption: t("停止采用预演"), salvage: t("验收已有改动"), retryVerification: t("重新验收"), reopen: t("重新打开预览") } as Record<string, string>)[confirmation.method] ?? t("更新这次比较")}</p><p>{t("确认仅适用于这一次操作，仍会重新核验项目、候选与归属。")}</p></div><div className="ac-row"><button className="ac-btn" onClick={() => setConfirmation(undefined)}>{t("取消操作")}</button><button className="ac-btn primary" disabled={cancelBusy || (confirmation.method === 'cancelAdoption' ? run.control?.allowed === false : operationBlocked)} onClick={() => { const next = confirmation; setConfirmation(undefined); act(next.method, { ...next.extra, confirmOtherSession: true }) }}>{t("确认本次操作")}</button></div></div>}
       <div className="ac-action-dock"><ActionBar run={run} busy={busy || copyBusy || !!confirmation} pending={confirmation ? 'confirmation' : cancelBusy ? 'cancelAdoption' : pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
@@ -904,9 +911,10 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       <Banners run={run} />
       {revealed && <CopySpace key={runId} run={run} sessionId={sessionId} blocked={busy || !!confirmation || run.control?.allowed === false} requestKey={copyRequest?.runId === runId ? copyRequest.id : 0} publish={next => publish(next, runId)} onReleaseBusy={value => { if (activeId.current === runId) setCopyBusy(value) }} />}
       <div className="ac-compare-tools"><div className="ac-seg" aria-label={t("比较布局")}>{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: t("并排比较"), A: t("专注 A"), B: t("专注 B") }[v]}</button>)}</div><div className="ac-seg" aria-label={t("预览尺寸")}><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>{t("适应窗口")}</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t("桌面 1280")}</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>{t("手机 390")}</button></div><span className="ac-meta">{device === 'adaptive' ? t("直接在对话中操作真实页面") : t("相同视口 · 按可用宽度缩放")}</span></div>
-      {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>{t("预览环境与限制")}</summary><p>{independentHosts ? t("候选使用独立本地地址，避免同名 Cookie 相互影响。") : t("这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。")}{t("嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。")}</p></details>}
+      {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>{t("预览环境与限制")}</summary><p>{independentHosts ? t("候选使用独立本地地址，避免同名 Cookie 相互影响。") : macWebKit() ? t("Safari 预览需要独立本机地址；启用后可重新打开原候选，无需重新生成。") : t("这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。")}{t("嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。")}</p></details>}
+      {macWebKit() && independentHosts && <p className="ac-meta">{t("Safari 可能限制嵌入页面的 Cookie。需要第一方存储时，点候选右上角的打开按钮，在真实标签页继续体验；两版地址保持独立。")}</p>}
       <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
-        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} compact={compact === true} hidden={layout !== 'side' && layout !== c.label} />)}
+        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} compact={compact === true} safariReady={(network.status?.available ?? 0)>0 && network.status?.state !== "configuring" && network.status?.state !== "unavailable"} hidden={layout !== 'side' && layout !== c.label} />)}
       </div>
     </>
   )

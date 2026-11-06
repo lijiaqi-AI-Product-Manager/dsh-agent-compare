@@ -35,6 +35,9 @@ export interface Preview {
 /** A persisted Yarn wrapper must name this exact project and preview port. */
 export function isPreviewProcess(preview: PreviewInfo, commandLine: string, windows = process.platform === 'win32'): boolean {
   if (!commandHasMarkers(commandLine, [`--port ${preview.port}`], windows)) return false
+  let host: string
+  try { host = new URL(preview.url).hostname } catch { return false }
+  if (isNumericPreviewHost(host) && !commandHasMarkers(commandLine, [`--host ${host}`], windows)) return false
   if (preview.launcher !== 'yarn') return commandHasMarkers(commandLine, [path.join(preview.cwd, 'node_modules', 'vite', 'bin', 'vite.js')], windows)
   const cwd = [`--cwd ${preview.cwd}`, `--cwd "${preview.cwd}"`, `--cwd '${preview.cwd}'`]
   return cwd.some(marker => commandHasMarkers(commandLine, [marker], windows)) && commandHasMarkers(commandLine, ['exec vite'], windows)

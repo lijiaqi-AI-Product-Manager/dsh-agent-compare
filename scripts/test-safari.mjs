@@ -112,6 +112,8 @@ try {
   assert.equal(directA.parent,false,'Safari accepted a shared localhost cookie at a numeric origin')
   assert.equal(directA.secure,true,'Numeric loopback must remain a secure browser context')
   assert.equal(directA.uuid,'function')
+  const partialDomains=await execute('const accepted=[];const parts=location.hostname.split(".");for(let i=1;i<parts.length;i++){const key=arguments[0]+"-numeric-"+i;document.cookie=key+"=shared; Domain="+parts.slice(i).join(".")+"; Path=/";if(document.cookie.includes(key+"="))accepted.push(parts.slice(i).join("."))}return accepted',directKey)
+  assert.deepEqual(partialDomains,[],'Safari accepted a partial numeric address as a shared cookie domain')
   await command('POST','/url',{url:urls[1]})
   await until(()=>execute('return document.querySelector("h2")?.textContent === "Demo Shop · B"'),'Safari direct B')
   const directB=await execute('return {cookie:document.cookie.includes(arguments[0]+"=A"),parent:document.cookie.includes(arguments[0]+"-parent="),local:localStorage.getItem(arguments[0]),session:sessionStorage.getItem(arguments[0])}',directKey)
@@ -127,6 +129,9 @@ try {
   result.firstPartyCookieIsolation=true
   result.firstPartyStorageIsolation=true
   result.numericSecureContext=true
+  result.driverReportedVersion=capabilities.browserVersion
+  result.browserVersion=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleShortVersionString','/Applications/Safari.app/Contents/Info.plist'],{encoding:'utf8',timeout:10000}).trim()
+  result.userAgent=await execute('return navigator.userAgent')
   result.imageEvidence = imageEvidence
   await writeFile(path.join(output, 'native-safari.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))
