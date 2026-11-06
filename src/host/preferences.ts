@@ -40,6 +40,12 @@ export class PreferencesStore {
   private file(sessionId: string): string { return path.join(this.store.home, 'preferences', `${this.key(sessionId)}.json`) }
 
   async load(sessionId: string): Promise<AbPreferences> {
+    // A navigation can overlap the previous page's final save. Use the same
+    // session lock so a new view cannot restore an older optimistic setting.
+    return this.store.withLock(`preferences-${this.key(sessionId)}`, () => this.read(sessionId), { waitMs: 5000 })
+  }
+
+  private async read(sessionId: string): Promise<AbPreferences> {
     let text: string
     try { text = await readFile(this.file(sessionId), 'utf8') }
     catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return this.defaults; throw e }

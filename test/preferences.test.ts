@@ -24,6 +24,25 @@ describe('conversation comparison preferences', () => {
     expect(() => parsePreferences({ ...defaultPreferences(), exampleKind: ['full'] })).toThrow(/示例类型/)
   })
 
+  it('waits for an admitted save across store instances without blocking another conversation', async () => {
+    const root = await tmp('ac-preferences-read-order'), writer = new RunStore(root)
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>()
+    const original = writer.withLock.bind(writer)
+    writer.withLock = <T>(key: string, work: () => Promise<T>, options?: Parameters<RunStore['withLock']>[2]) => original(key, async () => { entered.resolve(); await release.promise; return work() }, options)
+    const first = new PreferencesStore(writer), second = new PreferencesStore(new RunStore(root))
+    const value = { ...defaultPreferences(), enabled: true, generationMinutes: 60 }
+    const saving = first.save('same-session', value)
+    await entered.promise
+    let settled = false
+    const reading = second.load('same-session').finally(() => { settled = true })
+    try {
+      expect(await second.load('other-session')).toEqual(defaultPreferences())
+      expect(settled, 'a new view must not read older settings while its previous save owns the session lock').toBe(false)
+    } finally { release.resolve() }
+    await saving
+    expect(await reading).toEqual(value)
+  })
+
   it('retains an explicitly selected example scope without requiring older settings to have it', async () => {
     const store = new PreferencesStore(new RunStore(await tmp('ac-example-preferences')))
     await store.save('example', { ...defaultPreferences(), exampleKind: 'full' })

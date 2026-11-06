@@ -5,6 +5,7 @@
 - Add native macOS project and host-runtime jobs, dedicated Firefox/WebKit interface jobs and a separate native Safari driver check. Record live preview origins, independent input/storage and parent-cookie boundaries independently of browser-engine labels.
 - Restore history/tutorial focus to the actual trigger on browsers that do not focus clicked buttons. Keep comparison mode disabled until saved settings are loaded, with a visible retry path when reading them fails.
 - Synchronize composer and overlay state across separate host roots without losing updates between rendering and subscription. Measure live preview width before paint so newly restored previews do not start at one-pixel scale.
+- Serialize saved-setting reads with an admitted write for the same conversation, so rapid navigation cannot restore stale controls while other conversations remain independent.
 - Add a Simplified Chinese/English interface with a persistent visible language selector and device-language default. Preserve drafts, references, model choices, live previews and comparison identity during switching; retain original application and diagnostic content.
 - Keep long English controls inside 320px layouts and use labeled history/tutorial icons in narrow headers. Extract shared interface copy and scoped styles, verify both languages and retain the existing package-size budget with repository-linked measurement/distribution notes.
 

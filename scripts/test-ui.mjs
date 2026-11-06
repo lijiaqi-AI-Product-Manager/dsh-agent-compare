@@ -120,7 +120,9 @@ try {
   check(await mode.getAttribute('aria-pressed') === 'true', 'failed dispatch must retain comparison mode for retry')
 
   await open('start', '&error=models')
+  if (await mode.getAttribute('aria-pressed') !== 'true') await mode.click()
   await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
+  await page.getByRole('button', { name: '两个模型 · 同一要求', exact: true }).click()
   await page.getByRole('button', { name: '重试模型列表' }).waitFor()
   await page.getByRole('button', { name: '同一模型 · 两种策略', exact: true }).click()
   check(await page.getByRole('button', { name: '试跑内置示例', exact: true }).isEnabled(), 'failed model discovery must allow returning to the current model')
