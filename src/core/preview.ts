@@ -88,7 +88,7 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
     let closed = false
     const exit = new Promise<void>((resolve) => child.once('close', () => { closed = true; resolve() }))
     child.stdout?.setEncoding('utf8').on('data', (d: string) => log.push(d))
-    child.stderr?.setEncoding('utf8').on('data', (d: string) => log.push(d))
+    child.stderr?.setEncoding('utf8').on('data', (d: string) => { log.push(d); prepared.observeStderr?.(d) })
     const entry = (): string => {
       const printed = new RegExp(`http://127\\.0\\.0\\.1:${port}/[^\\s\\u001b]*`).exec(log.toString())?.[0]
       const url = new URL(printed ?? root)

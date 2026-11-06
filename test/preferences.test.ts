@@ -22,6 +22,14 @@ describe('conversation comparison preferences', () => {
     expect(() => parsePreferences({ ...defaultPreferences(), models: [{ model: 'missing-provider' }, {}] })).toThrow(/完整配置/)
     expect(() => parsePreferences({ ...defaultPreferences(), exampleKind: 'other' })).toThrow(/示例类型/)
     expect(() => parsePreferences({ ...defaultPreferences(), exampleKind: ['full'] })).toThrow(/示例类型/)
+    for (const windowsProcessCompat of ['disabled', true, ['off']]) expect(() => parsePreferences({ ...defaultPreferences(), windowsProcessCompat })).toThrow(/兼容设置/)
+  })
+
+  it('retains explicit compatibility settings without changing old preferences', async () => {
+    const root = await tmp('ac-compat-preferences'), first = new PreferencesStore(new RunStore(root))
+    await first.save('s1', { ...defaultPreferences(), windowsProcessCompat: 'off' })
+    expect((await new PreferencesStore(new RunStore(root)).load('s1')).windowsProcessCompat).toBe('off')
+    expect((await first.load('s2')).windowsProcessCompat).toBeUndefined()
   })
 
   it('waits for an admitted save across store instances without blocking another conversation', async () => {

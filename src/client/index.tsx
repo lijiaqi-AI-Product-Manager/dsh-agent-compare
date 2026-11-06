@@ -15,6 +15,7 @@ import { t, currentLocale, localeSnapshot, subscribeLocale } from './i18n.js'
 import { LanguageControl, Diagnostic } from './language.js'
 import { runIdFromToolResult } from './tool-result.js'
 import { clientCapabilities } from './capabilities.js'
+import { WindowsProcessControl, WindowsProcessEvidence, type WindowsCompatEvidence } from './windows-compat.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
 interface SlotsLike {
@@ -26,9 +27,9 @@ type Stage = 'queued' | 'preparing' | 'generating' | 'sealing' | 'installing' | 
 interface Check { name: string; outcome: 'passed' | 'failed' | 'skipped' | 'timeout'; reason?: string; durationMs: number; steps?: Array<{ label: string; ok: boolean; detail?: string }> }
 interface Route { provider?: string; model?: string }
 interface InstallFailure { kind: string; summary: string; hint: string; code?: string; diagnostic?: string }
-interface VerificationRuntime { hostNode: string; platform: string; packageManager: string; packageManagerVersion?: string }
+interface VerificationRuntime { hostNode: string; platform: string; packageManager: string; packageManagerVersion?: string; windowsProcessCompat?: WindowsCompatEvidence }
 interface VerificationAttempt { recordedAt: number; durationMs?: number; install?: { failure?: InstallFailure; outcome?: string; runtime?: VerificationRuntime }; error?: { message: string }; checks?: Check[] }
-interface Setup { pluginVersion?: string; dshVersion?: string; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string; warning?: string } }
+interface Setup { pluginVersion?: string; dshVersion?: string; projectProcess?: { platform: string; windowsCompatControl: boolean }; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string; warning?: string } }
 interface Cand {
   label: 'A' | 'B'
   stage: Stage
@@ -140,7 +141,7 @@ function returnToComposer(sessionId: string): void {
   if (openSession) { focusComposerOnClose = sessionId; setOpen(undefined) }
   else inputShell(sessionId)?.focus?.()
 }
-interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route]; exampleKind?: 'quick' | 'full' }
+interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route]; exampleKind?: 'quick' | 'full'; windowsProcessCompat?: 'auto' | 'off' }
 interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
 const registeredShells = new WeakSet<InputShell>()
@@ -455,6 +456,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         {!revealed && <div className="ac-meta">{t("模型、策略、用量、改动规模和详细日志在选择后显示。")}</div>}
         {c.execution && <div className="ac-meta">{t("项目命令：")}{c.execution.enforcement === 'full' ? t("宿主报告完整文件写入约束") : c.execution.enforcement === 'partial' ? t("宿主报告部分文件写入约束") : t("约束完整性未知")}{t("。不包含文件读取与网络隔离。")}</div>}
         {c.install?.runtime && <div className="ac-meta">{t("验收宿主 Node ")}{c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? t("版本未记录")}</div>}
+        {revealed && <WindowsProcessEvidence value={c.install?.runtime?.windowsProcessCompat} failed={c.stage === 'failed'} />}
         {revealed && <div className="ac-meta">{t("阶段耗时：")}{(['preparing', 'generating', 'installing', 'verifying', 'previewing'] as const).map(stage => { const timing = c.timings[stage]; return `${t(STAGE_TEXT[stage])} ${timing?.endedAt === undefined ? t("未完整记录") : fmt(Math.max(0, timing.endedAt - timing.startedAt))}` }).join(' · ')}{t("。各阶段包含相应宿主开销，不等于纯模型等待。")}</div>}
         {revealed && (c.patchStats || usage) && (
           <div className="ac-meta">
@@ -562,6 +564,7 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     </div>
     {p.mode === 'cross-model' ? <div className="ac-models">{[0, 1].map(i => <label key={i}>{i === 0 ? t("模型一") : t("模型二")}<select disabled={loading || busy} value={p.models[i]?.model ? `${p.models[i]?.provider}/${p.models[i]?.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const pair: [Route, Route] = [...p.models]; pair[i] = item ? { provider: item.provider, model: item.id } : {}; saveMode(sessionId, { ...p, models: pair }) }}><option value="">{t("选择已配置的模型")}</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={p.models[1-i]?.provider === m.provider && p.models[1-i]?.model === m.id}>{m.name} · {m.providerName}</option>)}</select></label>)}{loading ? <span className="ac-meta" role="status">{t("正在读取模型…")}</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>{t("重试模型列表")}</button></span> : models.length < 2 ? <span className="ac-meta">{t("当前可读取的模型不足两个，可先使用同一模型的两种策略。")}</span> : null}</div>
       : <div className="ac-meta">{t("当前模型：")}{routeText(setup?.current) || (setup ? t("请先在输入框右下角选择模型") : t("正在读取…"))}{setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}>{t(" · 项目：")}{setup.project.path}</span> : ''}</div>}
+    {setup?.projectProcess?.platform === 'win32' && setup.projectProcess.windowsCompatControl && <WindowsProcessControl mode={p.windowsProcessCompat} disabled={busy || !mode.loaded} onChange={windowsProcessCompat => saveMode(sessionId, { ...p, windowsProcessCompat })} />}
     <div className="ac-settings-foot">{t("到时验收已写的改动 · 两版分别消耗用量 · 示例也使用真实模型，生成耗时随模型与环境变化 · ")}{mode.saving ? t("正在保存设置…") : t("设置已保存在此对话")}</div></>}
     {!mode.collapsed && (p.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}
     {setupError && !mode.collapsed && <div className="ac-feedback" role="alert">{t("无法读取当前模型与项目：")}<Diagnostic text={setupError} /><button className="ac-text-btn" onClick={() => { setSetupError(undefined); setSetupRetry(value => value + 1) }}>{t("重新读取模型与项目")}</button></div>}

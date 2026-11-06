@@ -1,4 +1,5 @@
 import { run, type RunOptions, type RunResult } from './proc.ts'
+import type { WindowsCompatEvidence, WindowsProcessCompatMode } from './windows-compat.ts'
 
 /** A host-prepared process: argv already carries its enforced file-write policy. */
 export interface PreparedProjectProcess {
@@ -6,6 +7,8 @@ export interface PreparedProjectProcess {
   readonly env: NodeJS.ProcessEnv
   /** Undefined is unknown; trusted fixture runners cannot claim host enforcement. */
   readonly enforcement?: 'full' | 'partial'
+  readonly windowsProcessCompat?: WindowsCompatEvidence
+  readonly observeStderr?: (chunk: string) => void
 }
 
 export interface ProjectProcessRequest {
@@ -14,6 +17,7 @@ export interface ProjectProcessRequest {
   /** Deliberate command settings only; never spread the ambient environment here. */
   readonly env?: NodeJS.ProcessEnv
   readonly signal?: AbortSignal
+  readonly windowsProcessCompat?: WindowsProcessCompatMode
 }
 
 export type PrepareProjectProcess = (request: ProjectProcessRequest) => Promise<PreparedProjectProcess>
@@ -31,5 +35,7 @@ export async function prepareProjectProcess(request: ProjectProcessRequest, prep
 /** Every installation and acceptance command must cross the same host boundary. */
 export async function runProjectProcess(argv: readonly string[], opts: RunOptions, prepare?: PrepareProjectProcess): Promise<RunResult> {
   const prepared = await prepareProjectProcess({ argv, cwd: opts.cwd, env: opts.env, signal: opts.signal }, prepare)
-  return run(prepared.argv, { ...opts, env: prepared.env })
+  const result = await run(prepared.argv, { ...opts, env: prepared.env })
+  prepared.observeStderr?.(result.stderr)
+  return result
 }

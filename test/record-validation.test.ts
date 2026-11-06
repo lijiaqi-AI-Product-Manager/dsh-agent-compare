@@ -9,6 +9,18 @@ import { tmp } from './fixture.ts'
 vi.mock('node:fs/promises', { spy: true })
 
 describe('serialized record validation', () => {
+  it('validates process evidence while keeping older records readable', () => {
+    const record = fixtureRecord()
+    record.rev = 1
+    assertRunRecord(record, record.runId)
+    record.candidates[0]!.install!.runtime = { hostNode: process.version, platform: 'win32-x64', packageManager: 'npm', windowsProcessCompat: { mode: 'off', observedHooks: [] } }
+    assertRunRecord(record, record.runId)
+    for (const windowsProcessCompat of [{ mode: 'disabled', observedHooks: [] }, { mode: 'auto', observedHooks: ['unknown-hook'] }]) {
+      const changed = structuredClone(record)
+      ;(changed.candidates[0]!.install!.runtime as any).windowsProcessCompat = windowsProcessCompat
+      expect(() => assertRunRecord(changed, record.runId)).toThrow(RecordValidationError)
+    }
+  })
   it('round-trips independently named local previews and rejects a forged suffix or mismatched port', async () => {
     const record = fixtureRecord(), store = new RunStore(await tmp('ac-named-preview-record'))
     record.candidates[0]!.preview = { url: `http://ac-${'a'.repeat(32)}.localhost:4321/base/`, port: 4321, pid: 999999, kind: 'build', cwd: record.candidates[0]!.dir! }
