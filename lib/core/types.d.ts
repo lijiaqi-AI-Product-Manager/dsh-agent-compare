@@ -105,6 +105,7 @@ export interface Acceptance {
         readonly packageManager: string;
         readonly platform: string;
         readonly yarnModern?: boolean;
+        readonly windowsProcessCompat?: 'auto' | 'off';
     };
     /** Where the checks came from: derived defaults, or the repository's `.agent-compare.json`. */
     readonly source: 'defaults' | 'repository';
@@ -148,6 +149,7 @@ export interface VerificationRuntime {
     readonly platform: string;
     readonly packageManager: string;
     readonly packageManagerVersion?: string;
+    readonly windowsProcessCompat?: import('./windows-compat.ts').WindowsCompatEvidence;
 }
 export interface PreviewInfo {
     readonly url: string;

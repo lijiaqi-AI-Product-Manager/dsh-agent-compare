@@ -102,7 +102,7 @@ export interface Acceptance {
   /** Baseline path → blob sha of verification-defining files. */
   readonly bound: Readonly<Record<string, string>>
   readonly lockfile?: string
-  readonly runtime: { readonly node: string; readonly packageManager: string; readonly platform: string; readonly yarnModern?: boolean }
+  readonly runtime: { readonly node: string; readonly packageManager: string; readonly platform: string; readonly yarnModern?: boolean; readonly windowsProcessCompat?: 'auto' | 'off' }
   /** Where the checks came from: derived defaults, or the repository's `.agent-compare.json`. */
   readonly source: 'defaults' | 'repository'
   readonly sha256: string
@@ -147,6 +147,7 @@ export interface VerificationRuntime {
   readonly platform: string
   readonly packageManager: string
   readonly packageManagerVersion?: string
+  readonly windowsProcessCompat?: import('./windows-compat.ts').WindowsCompatEvidence
 }
 
 export interface PreviewInfo {

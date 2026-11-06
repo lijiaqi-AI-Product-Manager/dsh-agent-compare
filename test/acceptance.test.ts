@@ -27,6 +27,14 @@ describe('acceptance configuration', () => {
 })
 
 describe('acceptance integrity', () => {
+  it('binds the Windows mode into the shared acceptance identity', async () => {
+    const repo = await fixtureRepo(), tree = (await git(repo, ['rev-parse', 'HEAD^{tree}'])).trim(), info = await inspectProject(repo)
+    const automatic = await buildAcceptance(repo, tree, info, undefined, 'auto')
+    const disabled = await buildAcceptance(repo, tree, info, undefined, 'off')
+    expect(disabled.runtime.windowsProcessCompat).toBe('off')
+    expect(automatic.sha256).not.toBe(disabled.sha256)
+    expect((await buildAcceptance(repo, tree, info, undefined, 'off')).sha256).toBe(disabled.sha256)
+  })
   it('binds root verification helpers and detects new configuration and lifecycle scripts', async () => {
     const repo = await fixtureRepo()
     const base = (await git(repo, ['rev-parse', 'HEAD^{tree}'])).trim()

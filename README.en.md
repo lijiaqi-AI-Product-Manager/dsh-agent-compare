@@ -89,6 +89,8 @@ Use **comparison records** and **tutorial** at the upper right of new or existin
 
 [Records, restarts and recovery](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/runs-and-recovery.en.md) · [Supported scope](#compatibility) · [Custom acceptance](#repository-acceptance-agent-comparejson)
 
+Unreleased main also offers [Windows process compatibility settings](docs/windows-process-compat.en.md): automatic/off controls preserve host confinement and show observed hooks after reveal. This control is not in npm 1.1.0.
+
 ## What it is for
 
 UI and interaction tasks, where quality is judged by using it and tests can only tell whether something was delivered: search and filters, form flows, landing pages, dashboard layouts, component redesigns. Bug fixes and refactors with one right answer are better served by a single agent plus tests.

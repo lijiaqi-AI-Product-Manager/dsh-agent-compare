@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an advanced Windows auto/off control bound to each comparison. Preserve confinement and frozen checks when disabled; record observed compatibility hooks separately from the configured mode and withhold hook fingerprints until reveal.
+
 - Apply conversation ownership and per-request confirmation to the actual preview restart endpoint. Validate control-route names against registered handlers and retain read-only history access.
 - Refresh workflow media from the verified public 1.1.0 archive on DSH 0.2.2-rc.1. Preserve controlled-candidate labels, real checks/adoption/undo, editing conditions and historical assets; package two focused screenshots instead of inactive media.
 - Synchronize composer and overlay state across separate host roots without losing settings updates. Disable mode entry until saved settings load, retain drafts on retry and restore history/tutorial focus to the actual trigger.

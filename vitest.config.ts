@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 // Fast checks never install a project or start a Vite server. New test files
 // outside these families remain in integration and always run in the full suite.
-const unitFiles = ['test/{action-access,action-dispatch,client-bundle,conversation,current-state,capabilities,host,i18n,install-failure,memory-retry,package-manager,preferences,request,routes,session-resolution,status-access,start-tool,tool-result,blind-view,history,history-cache,record-validation,timing}.test.ts']
+const unitFiles = ['test/{action-access,action-dispatch,client-bundle,conversation,current-state,capabilities,host,i18n,install-failure,memory-retry,package-manager,preferences,request,routes,session-resolution,status-access,start-tool,tool-result,blind-view,history,history-cache,record-validation,timing,windows-compat}.test.ts']
 
 export default defineConfig({
   test: {

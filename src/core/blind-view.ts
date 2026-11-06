@@ -9,9 +9,11 @@ function checksOf(checks: CheckResult[] | undefined): CheckResult[] | undefined 
 }
 
 function installOf(install: Candidate['install']): Candidate['install'] {
-  if (!install?.failure) return install
-  const { diagnostic: _diagnostic, ...failure } = install.failure
-  return { ...install, failure }
+  if (!install) return undefined
+  const safe = { ...install }
+  if (install.failure) { const { diagnostic: _diagnostic, ...failure } = install.failure; safe.failure = failure }
+  if (install.runtime) { const { windowsProcessCompat: _compatibility, ...runtime } = install.runtime; safe.runtime = runtime }
+  return safe
 }
 
 function errorOf(error: StageError | undefined): StageError | undefined {

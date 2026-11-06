@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { which } from '../core/proc.ts'
 import type { PrepareProjectProcess, ProjectProcessRequest } from '../core/project-process.ts'
+import type { WindowsProcessCompatMode } from '../core/windows-compat.ts'
 
 /** Matches the current host's public process-confinement seam. */
 export interface ProjectSandbox {
@@ -56,6 +57,7 @@ export function createProjectProcess(
   },
   windowsProcessModule?: string,
   bundledPnpm: () => ManagedPnpm | undefined = () => undefined,
+  windowsProcessCompat: WindowsProcessCompatMode = 'auto',
 ): PrepareProjectProcess {
   return async (request: ProjectProcessRequest) => {
     request.signal?.throwIfAborted()
@@ -72,6 +74,10 @@ export function createProjectProcess(
     const confined = await provider.confine(argv, { mode: 'workspace-write', workspaceRoot: root }, request.signal)
     if (confined.enforcement !== 'full' && confined.enforcement !== 'partial') throw new Error('宿主没有报告有效的文件写入约束，本轮项目命令已停止')
     const env = { ...await baseEnvironment() }
+    const mode = request.windowsProcessCompat ?? windowsProcessCompat
+    if (mode !== 'auto' && mode !== 'off') throw new Error('Windows 进程兼容设置无效')
+    // These activation switches belong to this invocation, not the ambient host.
+    for (const key of Object.keys(env)) if (['AGENT_COMPARE_WINDOWS_PIPE_COMPAT', 'AGENT_COMPARE_WIN32_PROCESS_MODULE'].includes(key.toUpperCase())) delete env[key]
     const cache = path.join(root, '.vite', 'agent-compare-cache')
     const explicit: NodeJS.ProcessEnv = {
       ...request.env,
@@ -82,6 +88,7 @@ export function createProjectProcess(
       YARN_INSTALL_STATE_PATH: path.join(cache, 'yarn-install-state.gz'),
       YARN_PNP_UNPLUGGED_FOLDER: path.join(cache, 'yarn-unplugged'),
     }
+    for (const key of Object.keys(explicit)) if (['AGENT_COMPARE_WINDOWS_PIPE_COMPAT', 'AGENT_COMPARE_WIN32_PROCESS_MODULE'].includes(key.toUpperCase())) delete explicit[key]
     // npm rejects unknown environment configuration. Only pnpm receives its
     // store setting; each manager still keeps its own mutable cache.
     if (pnpm) {
@@ -95,7 +102,7 @@ export function createProjectProcess(
       // package-operation environment can contain unrelated credentials.
       if (!which('pnpm') && bundled?.env?.ELECTRON_RUN_AS_NODE === '1') explicit.ELECTRON_RUN_AS_NODE = '1'
     }
-    if (process.platform === 'win32') {
+    if (process.platform === 'win32' && mode === 'auto') {
       // npm's foreground mode reuses inherited stdio for lifecycle scripts.
       // Confined Windows grandchildren cannot create the background pipes.
       // This changes output handling, not which scripts the project permits.
@@ -117,6 +124,6 @@ export function createProjectProcess(
       for (const inherited of Object.keys(env)) if (inherited.toUpperCase() === key.toUpperCase()) delete env[inherited]
       if (value !== undefined) env[key] = value
     }
-    return { argv: confined.argv, env, enforcement: confined.enforcement }
+    return { argv: confined.argv, env, enforcement: confined.enforcement, windowsProcessCompat: { mode: process.platform === 'win32' ? mode : 'not-required', observedHooks: [] } }
   }
 }
