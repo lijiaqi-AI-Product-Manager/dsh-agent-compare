@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Synchronize composer and overlay state across separate host roots without losing settings updates. Disable mode entry until saved settings load, retain drafts on retry and restore history/tutorial focus to the actual trigger.
+- Measure restored preview width before paint and preserve usable desktop/phone layouts. Serialize settings reads with admitted writes for the same conversation without blocking unrelated conversations.
+
 - Add a Simplified Chinese/English interface with a persistent visible language selector and device-language default. Preserve drafts, references, model choices, live previews and comparison identity during switching; retain original application and diagnostic content.
 - Keep long English controls inside 320px layouts and use labeled history/tutorial icons in narrow headers. Extract shared interface copy and scoped styles, verify both languages and retain the existing package-size budget with repository-linked measurement/distribution notes.
 

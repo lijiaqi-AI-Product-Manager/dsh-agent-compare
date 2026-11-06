@@ -3,6 +3,8 @@
 // It loads the real lib/client.js through a stand-in __ModuleLoader__ and
 // answers agent-compare/api/* with fixed sample runs. Sample data only.
 import { createServer } from 'node:http'
+import assert from 'node:assert/strict'
+import { isIP } from 'node:net'
 import { randomBytes } from 'node:crypto'
 import { readFile, mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
@@ -82,6 +84,9 @@ ${theme === 'dark' ? ':root{--dsw-alias-bg-base:#1b1d22;--dsw-alias-bg-layer-1:#
 <div class="titlebar">Client harness · sample data</div><header class="header"><b>Conversation</b><span id="btn"></span><span data-conversation-header-corner style="position:fixed;right:12px;top:5px;width:28px;height:28px"><button aria-label="宿主侧栏" style="width:28px;height:28px" onclick="window.__cornerClicks=(window.__cornerClicks??0)+1">☰</button></span></header><div id="hero-options"></div>
 <main class="harness-main"><div id="chat" class="harness-chat"></div><div class="harness-composer"><div id="settings"></div><div class="harness-input"><label for="draft" class="harness-label">需求</label><textarea id="draft" aria-label="需求"></textarea><div class="harness-tools"><div id="mode"></div><button class="harness-send" id="send">发送</button></div><p id="notice" role="status"></p></div></div></main><div id="overlay"></div>
 <script>
+window.__harnessErrors = [];
+window.addEventListener('error', event => window.__harnessErrors.push(event.message));
+window.addEventListener('unhandledrejection', event => window.__harnessErrors.push(String(event.reason?.message ?? event.reason)));
 const runs = ${JSON.stringify((states[state] ?? []).map(record => ({ ...record, sessionId: 's1' })))};
 const history = ${JSON.stringify(retainedHistory(state))}, legacy = ${JSON.stringify(state === 'history-damaged' ? [...legacy, { runId: '33333333', task: '读取中断的比较记录', createdAt: 0, state: 'unavailable', legacy: true, unavailable: true, reason: 'JSON 内容不完整或格式错误' }] : legacy)};
 const templateRun = ${JSON.stringify({ ...base, state: 'judging', candidates: [A, B] })};
@@ -124,7 +129,10 @@ window.fetch = async (url, init) => {
     const delay=plan.delayMs??(${JSON.stringify(error)}==='shot-slow'&&!body.mobile?1200:0);if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
     return new Response(JSON.stringify({ok:true,value:{dataUrl}}),{headers:{'content-type':'application/json'}});
   }
-  if (m[1] === 'preferences') return realFetch('/harness/preferences',init);
+  if (m[1] === 'preferences') {
+    if (${JSON.stringify(error)} === 'preferences-pending' && body.value === undefined) await new Promise(resolve => { window.__releasePreferences=resolve });
+    return realFetch('/harness/preferences',init);
+  }
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
   let value = m[1] === 'latest' ? listHistory(body).runs[0] ?? null
     : m[1] === 'list' ? listHistory(body)
@@ -204,11 +212,19 @@ window.__ModuleLoader__ = {load:({factory})=>{
   window.__switchComposer=(sessionId,isBlank)=>{for(const [slot,id]of [['conversation.input.left','mode'],['conversation.input.dock','settings']]){const item=regs[slot];composerRoots[id].render(React.createElement(item.C,{...item.spec.inject(sessionId),session:{blank:isBlank}}))}};
   window.__switchComposer('s1',blank);
   if(${JSON.stringify(state==='inline')}) renderCommand({kind:'success',text:'A|B 比较已开始 · 运行 0a1b2c3d'});
-  else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) setTimeout(()=>{
-    document.querySelector('.ac-header-btn').focus();document.querySelector('.ac-header-btn').click();
-    if(${JSON.stringify(state==='guide')})setTimeout(()=>[...document.querySelectorAll('.ac-tab')].at(-1).click(),100);
-    else if(${JSON.stringify(!['history', 'history-many', 'history-old', 'history-damaged'].includes(state))})setTimeout(()=>document.querySelector('.ac-hrow')?.click(),200);
-  },50);
+  else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) {
+    const ready = selector => new Promise((resolve, reject) => {
+      const find=()=>document.querySelector(selector);if(find())return resolve(find());
+      const timer=setTimeout(()=>{observer.disconnect();reject(new Error('Harness element unavailable: '+selector))},10000);
+      const observer=new MutationObserver(()=>{const element=find();if(element){clearTimeout(timer);observer.disconnect();resolve(element)}});
+      observer.observe(document.body,{childList:true,subtree:true,attributes:true});
+    });
+    void (async()=>{
+      const button=await ready('.ac-header-btn');button.focus();button.click();
+      if(${JSON.stringify(state==='guide')}) (await ready('.ac-tab:last-child')).click();
+      else if(${JSON.stringify(!['history', 'history-many', 'history-old', 'history-damaged'].includes(state))}) (await ready('.ac-hrow')).click();
+    })().catch(error=>window.__harnessErrors.push(error.message));
+  }
 }};
 </script><script src="/lib/client.js"></script></body></html>`
 
@@ -222,7 +238,8 @@ const reactRuntime = (await build({
   bundle: true, platform: 'browser', format: 'iife', write: false,
   define: { 'process.env.NODE_ENV': '"development"' },
 })).outputFiles[0].text
-export async function createUiHarness({ port = 4317, demoPort = 4318 } = {}) {
+export async function createUiHarness({ port = 4317, demoPort = 4318, previewHosts = process.env.AGENT_COMPARE_UI_PREVIEW_HOSTS?.split(',') } = {}) {
+if (previewHosts) assert.ok(previewHosts.length === 2 && new Set(previewHosts).size === 2 && previewHosts.every(host => isIP(host) === 4 && host.startsWith('127.') && host !== '127.0.0.1'), 'Use two distinct preconfigured loopback addresses')
 const preferencesHome = await mkdtemp(path.join(os.tmpdir(), 'agent-compare-ui-preferences-'))
 const preferences = new PreferencesStore(new RunStore(preferencesHome))
 const server = createServer(async (req, res) => {
@@ -234,22 +251,27 @@ const server = createServer(async (req, res) => {
       const value = input.value === undefined ? await preferences.load(input.sessionId) : await preferences.save(input.sessionId, input.value)
       res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true, value }))
     }
-    if (u.pathname === '/') return res.end(page(u.searchParams.get('state') ?? 'judging', u.searchParams.get('theme') ?? 'light', u.searchParams.get('error') ?? ''))
-    if (u.pathname === '/vendor/react-runtime.js') { res.setHeader('content-type', 'application/javascript'); return res.end(reactRuntime) }
-    if (u.pathname === '/lib/client.js') return res.end(await readFile(path.join(root, 'lib/client.js')))
+    if (u.pathname === '/') { res.setHeader('content-type', 'text/html; charset=utf-8'); return res.end(page(u.searchParams.get('state') ?? 'judging', u.searchParams.get('theme') ?? 'light', u.searchParams.get('error') ?? '')) }
+    if (u.pathname === '/vendor/react-runtime.js') { res.setHeader('content-type', 'application/javascript; charset=utf-8'); return res.end(reactRuntime) }
+    if (u.pathname === '/lib/client.js') { res.setHeader('content-type', 'application/javascript; charset=utf-8'); return res.end(await readFile(path.join(root, 'lib/client.js'))) }
     res.statusCode = 404
     res.end()
   } catch (e) { res.statusCode = 500; res.end(String(e)) }
 })
-const demoServer = createServer((req, res) => { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A')) })
-const listen = (s, p) => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, '127.0.0.1', resolve) })
-await listen(demoServer, demoPort)
-try { await listen(server, port) } catch (error) { await new Promise(r => demoServer.close(r)); throw error }
-const demoHosts = { A: `ac-${randomBytes(16).toString('hex')}.localhost`, B: `ac-${randomBytes(16).toString('hex')}.localhost` }
+const previewRequests = []
+const demoServers = (previewHosts ?? ['127.0.0.1']).map(() => createServer((req, res) => {
+  // Retain names only, never cookie values. Browser tests use their own canary.
+  previewRequests.push({ host: req.headers.host, path: req.url, cookieNames: (req.headers.cookie ?? '').split(';').map(item => item.trim().split('=')[0]).filter(Boolean) })
+  res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A'))
+}))
+const listen = (s, p, host = '127.0.0.1') => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, host, resolve) })
+try { for (let i = 0; i < demoServers.length; i++) await listen(demoServers[i], demoPort, previewHosts?.[i]); await listen(server, port) }
+catch (error) { await Promise.all(demoServers.map(s => new Promise(resolve => s.close(() => resolve())))); throw error }
+const demoHosts = { A: previewHosts?.[0] ?? `ac-${randomBytes(16).toString('hex')}.localhost`, B: previewHosts?.[1] ?? `ac-${randomBytes(16).toString('hex')}.localhost` }
 for (const list of Object.values(states)) for (const run of list) for (const candidate of run.candidates) {
-  if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServer.address().port}/${candidate.label.toLowerCase()}`
+  if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServers[previewHosts && candidate.label === 'B' ? 1 : 0].address().port}/${candidate.label.toLowerCase()}`
 }
-return { url: `http://127.0.0.1:${server.address().port}`, close: async () => { await Promise.all([server, demoServer].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
+return { url: `http://127.0.0.1:${server.address().port}`, previewRequests, close: async () => { await Promise.all([server, ...demoServers].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const harness = await createUiHarness()
