@@ -43,6 +43,8 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 [完整视频（29 秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [演示条件与结果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
+[四步快速上手](docs/quickstart.md) · [运行中遇到问题](docs/runs-and-recovery.md)
+
 <a id="install"></a>
 
 ## 安装
