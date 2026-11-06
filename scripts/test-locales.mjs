@@ -23,6 +23,7 @@ try {
     await page.getByRole('combobox', { name: 'Interface language', exact: true }).first().waitFor()
     if (state === 'compose') {
       const toggle = page.getByRole('button', { name: 'A|B comparison mode', exact: true })
+      await toggle.waitFor()
       await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
       if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click()
       await page.getByRole('region', { name: 'A|B comparison settings', exact: true }).waitFor()

@@ -578,7 +578,7 @@ try {
   try {
     await cookieTab.goto(await page.locator('.ac-card iframe').nth(0).getAttribute('src'))
     const cookieA = await cookieTab.evaluate(() => { document.cookie='ac_top=only_a; Path=/; SameSite=Lax';document.cookie='ac_parent=shared; Domain=localhost; Path=/; SameSite=Lax';return { own:document.cookie.includes('ac_top=only_a'),parent:document.cookie.includes('ac_parent=') } })
-    check(cookieA.own && !cookieA.parent, 'the direct preview must store its own HTTP cookie and reject a shared localhost parent domain')
+    check(cookieA.own && !cookieA.parent, 'the direct preview must store its own HTTP cookie and reject a shared localhost parent domain: ' + JSON.stringify(cookieA))
     await cookieTab.goto(await page.locator('.ac-card iframe').nth(1).getAttribute('src'))
     check(await cookieTab.evaluate(() => !document.cookie.includes('ac_top=')), 'a direct-preview cookie must not cross to the other candidate')
   } finally { await cookieTab.close() }
