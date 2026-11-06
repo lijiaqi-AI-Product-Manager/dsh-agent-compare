@@ -1,49 +1,45 @@
 # 演示条件与结果 / Demo conditions and results
 
-[中文使用指南](../README.md#install) · [English guide](../README.en.md#install) · [完整视频 / Full video](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
+[中文指南](../README.md#install) · [English guide](../README.en.md#install) · [完整视频 / Full video](media/comparison-workflow.mp4)
 
 ## 中文
 
-这段演示使用固定的两份候选代码，展示从界面设置到采用完成的实际流程。它不发送外部模型请求，不用于评价模型或策略的生成质量与性能。界面揭晓的策略表示本次比较的配置；候选代码由样例预先确定。
+这段演示使用公开 npm `dsh-agent-compare@1.1.0` 的固定候选，运行真实的应用、共同验收、审查采用与撤销。没有发送外部模型请求，不能用它评价模型生成质量或估算模型耗时。内置示例按钮在正常使用时仍会调用用户已配置的模型，两版分别消耗用量。
 
-记录环境：AgentCompare `0.2.0-alpha.17`，源码提交 `9d036c5d53377c9da2878e226580a3caba0d9baa`；DSH `0.2.1-rc.5`，Node `26.13.0`，Chromium `156.0.8078.4`，Windows。使用独立的 DSH profile 和新建示例仓库。
+来源：发布源码 `8dd54760981823be252feb46ce4ebd8e67ba26cd`，npm 压缩包 SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`。独立 profile 内 81 个运行文件与公开包一致。环境为 Windows、DSH `0.2.2-rc.1`、Node `26.13.0`、Chromium `156.0.8078.4`。演示的 1.1.0 界面为中文；主分支未发布的界面改进另行记录。
 
-需求：给商品列表增加搜索、组合分类筛选、一次清空和手机适配。
+任务是基础示例中的商品搜索与清空，两个候选使用同一份已绑定验收。操作 A 的搜索时 B 保持原列表；操作 B 时 A 保持原列表。
 
 | 检查 | A | B |
-|---|---|---|
+| --- | --- | --- |
 | 类型检查 | 通过 | 通过 |
 | 构建 | 通过 | 通过 |
-| 同一套页面行为验收 | 通过 | 未通过：缺少「清空」按钮 |
-| 直接采用资格 | 允许，仍需审查和确认 | 阻止 |
+| 共同页面验收 | 通过 | 未通过：缺少清空按钮 |
+| 采用资格 | 审查和确认后允许 | 阻止 |
 
-演示中实际搜索、切换分类及手机尺寸，再选择 A、审查目标并确认采用。A 的两个文件写入示例仓库；HEAD 和暂存状态未变。完成后保留采用记录与验收截图，提供撤销和继续主对话入口，清理本次拥有的预览与副本。
+演示先隐藏模型／策略身份，实际体验后选择 A，再审查并确认采用。两个文件被写入独立示例项目，随后完成撤销；HEAD 和暂存内容保持不变。原始文件、选择与采用记录继续保留。
 
-原始录制约 118 秒，完整剪辑 28.16 秒，GIF 摘要 12.6 秒。等待部分被剪去；本地用户路径被隐藏，检查和采用结果未被改写。画面中的耗时来自固定候选的本地流程，不代表外部模型生成耗时。预览停止后展示的是明确标注的验收截图。
+原始视频 **52.76 秒**，实际操作记录约 **50.85 秒**。完整剪辑 **28.76 秒**，保留原始速度并剪去一段等待；GIF 摘取原始 `32.6–35.1` 秒，以 **0.5 倍速**回放为 5 秒。剪辑区间、文件哈希与记录条件见[素材清单](media/manifest.json)。本地路径已隐藏，画面增加了固定候选标签，执行结论未被改写。界面中的耗时属于这一次固定候选流程。
 
-固定候选仅用于这段流程演示。插件界面中的「试跑内置示例」会使用用户已配置的模型实际生成两份实现，并分别消耗用量；它只操作新建示例仓库。两份实现是否通过，取决于实际结果。
-
-[GIF 摘要](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif) · [分享封面](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/social-preview.png) · [素材 SHA-256 与记录条件](media/manifest.json)
+目录截图来自同一公开版本。采用完成后显示的是保留的验收截图；运行中的两格才是交互页面。[早期演示及原始条件](media/history/0.2.0-alpha.17/manifest.json)继续保留，真实模型的三轮测量仍单独见[首次体验记录](first-use.md)。
 
 ## English
 
-This recording uses two fixed candidate implementations to demonstrate the real workflow from graphical settings through completed adoption. It makes no external model requests and does not measure model or strategy generation quality or performance. Revealed strategies describe the comparison configuration; the sample code is predetermined.
+This recording uses controlled candidates with the public npm `dsh-agent-compare@1.1.0` artifact. Applications, shared checks, reviewed adoption and undo execute for real. No external model request is made; it measures neither model generation quality nor model latency. During normal use, the built-in example uses the configured model and each candidate consumes usage separately.
 
-Environment: AgentCompare `0.2.0-alpha.17`, source commit `9d036c5d53377c9da2878e226580a3caba0d9baa`, DSH `0.2.1-rc.5`, Node `26.13.0`, Chromium `156.0.8078.4`, Windows. It uses an independent DSH profile and a new example repository.
+Source: release commit `8dd54760981823be252feb46ce4ebd8e67ba26cd`; npm archive SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`. All 81 installed runtime files match the public archive in a fresh profile. Environment: Windows, DSH `0.2.2-rc.1`, Node `26.13.0`, Chromium `156.0.8078.4`. The recorded 1.1.0 interface is Chinese; unreleased interface changes on main are tracked separately.
 
-Task: add product search, combined category filtering, one-step clearing and mobile support.
+The task is the basic product-search-and-clear example with shared, bound acceptance. Searching in A leaves B unchanged, and searching in B leaves A unchanged.
 
 | Check | A | B |
-|---|---|---|
+| --- | --- | --- |
 | Typecheck | Passed | Passed |
 | Build | Passed | Passed |
-| Same browser acceptance | Passed | Failed: missing the clear button |
-| Direct adoption | Allowed after review and confirmation | Blocked |
+| Shared browser acceptance | Passed | Failed: missing clear button |
+| Adoption | Allowed after review and confirmation | Blocked |
 
-The recording interacts with search, categories and mobile view, chooses A, reviews the target and confirms adoption. Two files are written to the example repository while HEAD and staged content remain unchanged. The record and verification screenshots remain available, undo and continuation controls become usable, and owned previews and copies are cleaned up.
+Identity stays hidden until selection. The recording chooses A, reviews and confirms adoption, writes two files into the independent example project, then undoes the adoption. HEAD and staged content stay unchanged; retained originals and comparison/adoption records remain available.
 
-The original recording is about 118 seconds, the edited video 28.16 seconds and the GIF 12.6 seconds. Waiting periods are cut and local user paths are hidden; check and adoption outcomes are unchanged. Displayed durations belong to this fixed-candidate local workflow, not external model generation. After previews stop, retained images are explicitly labelled verification screenshots.
+The raw video is **52.76 seconds**, with an action log of about **50.85 seconds**. The edited workflow is **28.76 seconds**, at the original speed with one waiting interval removed. The GIF replays raw seconds `32.6–35.1` at **0.5×**, lasting 5 seconds. [The manifest](media/manifest.json) records editing intervals and hashes. Local paths are hidden and controlled-candidate captions are added; execution outcomes are unchanged. Displayed durations describe this controlled run.
 
-Fixed candidates are specific to this recording. The plugin's built-in example button uses the user's configured model to generate both implementations, consuming usage separately. It operates only on a new example repository. Actual results determine whether either candidate passes.
-
-[GIF preview](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif) · [Social preview](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/social-preview.png) · [Asset hashes and conditions](media/manifest.json)
+The directory screenshots identify the same released artifact. Images retained after adoption are verification screenshots; running panes are interactive applications. [Earlier demonstration evidence](media/history/0.2.0-alpha.17/manifest.json) and the separate [three real-provider measurements](first-use.md) remain identifiable.
