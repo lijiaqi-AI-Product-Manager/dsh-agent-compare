@@ -227,12 +227,15 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 | Linux，Ubuntu CI，DSH 0.2.1-rc.5 | 核心回归和真实宿主进程约束、环境清理、冻结安装、构建、预览重开、取消检查已通过；未测外部模型完整交付 |
 | DSH next 通道 | 独立 Windows／Linux／macOS 原生运行 canary，记录实际版本；状态见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)，不等同于完整模型交付验收 |
 | macOS / Safari | 原生项目和宿主 SDK、Firefox／WebKit 与真实 Safari 分别纳入 CI。Safari 的实时比较需要一次明确的本机地址配置；见[使用与授权范围](docs/safari-live-preview.md)。具体通过项以对应版本的完整 CI 为准 |
+| 当前源码验收基线（未发布） | Windows／Linux／macOS 固定 DSH 0.2.1-rc.5 与 0.2.2-rc.1；Playwright 1.65.0、Vite 8.3.6、pnpm 12.18.0，具体通过项与限制见执行矩阵及本次 CI |
 | Node | 26.13.0 为主开发基线；22／24 维护线的最新补丁版也纳入 CI 兼容检查 |
 | 项目类型 | 仓库根目录的 Vite 项目；至少有一次提交的 Git 仓库。包管理器的完整通过项与已知限制见[执行矩阵](docs/package-managers.md) |
 
 <a id="verified-maintained-through-current-ci-and-the-cases-below"></a>
 
 ## 已验证（持续更新，以当前 CI 和所列案例为准）
+
+以下案例保留各自的源码与工具版本。当前源码的测试脚本使用上方「未发布」基线，历史运行数字不作为新版重新测量的结果。
 
 最新结果见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)。可复现的原生运行检查还在 Windows 上实测了 DSH 0.2.1-rc.5、Node 26.13 和 Vite 8.3.5：相邻文件写入被拒绝、子进程环境被清理、冻结安装、类型检查和构建通过、预览两次启动、取消后停止写入。Windows 如实报告部分约束。
 

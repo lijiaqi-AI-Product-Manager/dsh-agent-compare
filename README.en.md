@@ -207,10 +207,13 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 | Linux, Ubuntu CI, DSH 0.2.1-rc.5 | Core regressions and real host confinement, environment scrub, frozen install, build, preview reopening and cancellation passed; no complete external-model delivery case yet |
 | DSH next channel | Separate Windows/Linux/macOS native runtime canaries print the resolved version; see [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). This is separate from full model-delivery acceptance |
 | macOS / Safari | Native project/host SDK, Firefox/WebKit and actual Safari have separate CI jobs. Safari live comparison requires explicit loopback-address setup; see [use and authorization scope](docs/safari-live-preview.en.md). Passed checks remain bound to the complete CI for that revision |
+| Current source baseline (unreleased) | Windows/Linux/macOS pin DSH 0.2.1-rc.5 and 0.2.2-rc.1; Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0. See the execution matrix and current CI for passing combinations and limits |
 | Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
 | Projects | Root-level Vite projects in a Git repository with at least one commit. See the [execution matrix](docs/package-managers.md) for complete package-manager checks and known limitations |
 
 ## Verified (maintained through current CI and the cases below)
+
+The cases below retain their original source and tool versions. Current-source scripts use the unreleased baseline above; historical run numbers are not presented as new-version measurements.
 
 Current results are available in [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). The reproducible runtime check also exercised DSH 0.2.1-rc.5 with Node 26.13 and Vite 8.3.5 on Windows: adjacent writes denied, child environment scrubbed, frozen installation, typecheck/build, two preview starts and cancelled writes stopped. Windows correctly reported partial enforcement.
 

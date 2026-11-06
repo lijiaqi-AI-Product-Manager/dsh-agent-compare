@@ -121,7 +121,7 @@ worktree は完全な安全サンドボックスではありません。DSH の�
 
 二つの実装にはそれぞれ生成コストがかかり、並列化が必ず安く、速くなるとは限りません。一方または両方を停止できます。上限時には、すでに書いた変更を検証します。使用量が返らない場合は「不明」であり、ゼロとは表示しません。
 
-CI は Windows/Linux/macOS のネイティブプロジェクトと SDK、ブラウザー、パッケージマネージャーを対象にします。通過結果は各リビジョンに対応し、Windows の pnpm 12 と TypeScript 7/PnP には既知の制限があります。Provider の組み合わせや外部モデルの性能には個別の実測が必要です。[互換性の詳細](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility)を参照してください。
+Windows・Linux・macOS のネイティブ検証を実行します。npm・pnpm・Yarn の検証済み構成と Windows／PnP の制約は[互換性一覧](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility)に分けて記載しています。ネイティブ Safari は別の検証対象です。固定応答によるテストは外部モデルの生成品質や所要時間の測定ではありません。
 
 ## フィードバックと開発
 

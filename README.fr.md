@@ -119,7 +119,7 @@ Les anciens enregistrements ou fichiers endommagés restent en lecture seule ave
 
 Un worktree n'est pas une frontière de sécurité complète. La politique d'écriture de DSH est utilisée ; Windows la signale comme **partial**. Lectures de fichiers et réseau ne sont pas isolés. Les cookies intégrés suivent les politiques du navigateur ; un onglet externe peut employer un autre contexte de stockage. Connexion à un compte, services backend externes et bases partagées sont hors périmètre.
 
-CI couvre projets et SDK natifs sur Windows/Linux/macOS, navigateurs et gestionnaires de paquets. Les résultats restent liés à leur révision ; Windows avec pnpm 12 et TypeScript 7/PnP conservent des limites connues. Les combinaisons de fournisseurs et les performances des modèles externes demandent leurs propres mesures. Consultez la [matrice détaillée](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
+Les tests natifs couvrent Windows, Linux et macOS. La [matrice détaillée](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility) distingue les configurations npm, pnpm et Yarn vérifiées et les limites Windows/PnP. Safari natif est validé séparément ; les réponses contrôlées des tests ne mesurent pas la qualité ni les performances de modèles externes.
 
 ## Durée, coût et preuves
 
