@@ -111,14 +111,9 @@ jobs:
       - run: npx playwright-core install ${{ matrix.engine }}
         timeout-minutes: 8
         if: runner.os != 'Linux'
-      - run: npm run test:ui
+      - name: Exercise browser-specific origins and interface behavior
         timeout-minutes: 8
-        if: runner.os != 'macOS' || matrix.engine != 'webkit'
-      - run: node scripts/test-preview-origins.mjs
-        if: runner.os != 'macOS' || matrix.engine != 'webkit'
-      - name: Exercise independent numeric origins on macOS WebKit
-        if: runner.os == 'macOS' && matrix.engine == 'webkit'
-        run: npm run build && node scripts/with-preview-network.mjs ui
+        run: npm run build && node scripts/test-browser-platform.mjs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

@@ -61,7 +61,9 @@ try {
   session = created.sessionId; capabilities = created.capabilities
   assert.ok(session); assert.equal(capabilities.browserName.toLowerCase(), 'safari')
   await command('POST', '/window/rect', { width: 1440, height: 1000 })
-  if (process.env.GITHUB_ACTIONS === 'true') execFileSync('/usr/bin/osascript', ['-e', 'tell application "Safari" to activate'])
+  // Stay within WebDriver. Apple Events would request a second, unrelated
+  // desktop-control permission and can obscure the actual page with a dialog.
+  await command('POST','/window',{handle:await command('GET','/window')})
   await command('POST', '/timeouts', { implicit: 0, pageLoad: 30000, script: 30000 })
   await command('POST', '/url', { url: harness.url + '/?state=judging' })
   await until(() => execute('return document.querySelectorAll(".ac-grid iframe").length === 2'), 'Two preview frames')
@@ -141,7 +143,7 @@ try {
   if (session) { await top().catch(() => {}); await screenshot('safari-failure', false).catch(() => {}) }
   // Capture only the disposable CI runner, never a maintainer's own desktop.
   if (process.env.GITHUB_ACTIONS === 'true') {
-    try { runnerState = execFileSync('/usr/bin/osascript', ['-e', 'tell application "Safari" to return {frontmost, id of every window}'], { encoding: 'utf8', timeout: 10000 }).trim() } catch (cause) { runnerState = cause.message }
+    runnerState = 'Native WebDriver evidence; no Apple Events desktop-control request'
     try { execFileSync('/usr/sbin/screencapture', ['-x', path.join(output, 'safari-runner-screen.png')], { timeout: 10000 }) } catch (cause) { runnerState += '\nScreen capture: ' + cause.message }
   }
   await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState }, null, 2))
