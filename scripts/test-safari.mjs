@@ -18,6 +18,9 @@ const port = await new Promise((resolve, reject) => {
   server.listen(0, '127.0.0.1', () => { const address = server.address(); server.close(() => address && typeof address === 'object' ? resolve(address.port) : reject(new Error('No driver port'))) })
 })
 const driver = spawn('/usr/bin/safaridriver', ['--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] })
+const awake=process.env.GITHUB_ACTIONS==='true'?spawn('/usr/bin/caffeinate',['-d','-i','-u','-t','600'],{stdio:'ignore'}):undefined
+let awakeError,wakeAssertionObserved=false
+awake?.once('error',error=>{awakeError=error})
 let driverLog = '', session, capabilities, result, nativeScreen, nativeWindow
 for (const stream of [driver.stdout, driver.stderr]) stream.setEncoding('utf8').on('data', chunk => { driverLog = (driverLog + chunk).slice(-12000) })
 const endpoint = `http://127.0.0.1:${port}`
@@ -53,9 +56,24 @@ const screenshot = async (name, verify = true) => {
   } while(Date.now()<end)
   await writeFile(path.join(output, name + '.png'), bytes)
   const layout=await execute('const view=e=>{if(!e)return null;const s=getComputedStyle(e);return {opacity:s.opacity,visibility:s.visibility,display:s.display,transform:s.transform,zIndex:s.zIndex,animationName:s.animationName,animationPlayState:s.animationPlayState,rect:e.getBoundingClientRect().toJSON()}};return {sheet:view(document.querySelector(".ac-sheet")),mask:view(document.querySelector(".ac-mask")),body:view(document.body),animations:document.getAnimations().map(a=>({state:a.playState,time:a.currentTime,name:a.animationName}))}').catch(()=>undefined)
-  imageEvidence.push({ name, attempts, usable:pixels.colors>=128&&pixels.distinctPixels>=1500, ...pixels, layout })
+  let elementSnapshot
+  if(verify&&(pixels.colors<128||pixels.distinctPixels<1500)){
+    const element=(await find('.ac-sheet'))[0]??(await find('body'))[0]
+    if(element){
+      const elementBytes=Buffer.from(await command('GET','/element/'+idOf(element)+'/screenshot'),'base64')
+      await writeFile(path.join(output,name+'-element-probe.png'),elementBytes)
+      elementSnapshot=inspectPngEvidence(elementBytes)
+    }
+  }
+  imageEvidence.push({ name, attempts, usable:pixels.colors>=128&&pixels.distinctPixels>=1500, ...pixels, layout, elementSnapshot })
 }
 try {
+  if(awake)await until(async()=>{
+    if(awakeError)throw awakeError
+    const assertions=execFileSync('/usr/bin/pmset',['-g','assertions'],{encoding:'utf8',timeout:5000})
+    wakeAssertionObserved=assertions.includes('pid '+awake.pid+'(')&&/PreventUserIdleDisplaySleep\s+1/.test(assertions)
+    return wakeAssertionObserved
+  },'Disposable display wake assertion',10000)
   await until(async () => (await request('GET', '/status'))?.ready === true, 'Safari driver readiness')
   const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari', 'safari:automaticInspection': false, 'safari:automaticProfiling': false } } })
   session = created.sessionId; capabilities = created.capabilities
@@ -139,6 +157,7 @@ try {
   result.imageEvidence = imageEvidence
   result.nativeScreen=nativeScreen
   result.nativeWindow=nativeWindow
+  result.displayWake={disposableCi:Boolean(awake),wakeAssertionObserved,permanentSettingsChanged:false}
   await writeFile(path.join(output,'native-safari-observations.json'),JSON.stringify({...result,visualAcceptance:imageEvidence.every(e=>e.usable)?'passed':'failed'},null,2))
   assert.ok(imageEvidence.every(e=>e.usable),'Safari returned blank or incomplete screenshot evidence: '+JSON.stringify(imageEvidence.map(({name,colors,distinctPixels,usable})=>({name,colors,distinctPixels,usable}))))
   await writeFile(path.join(output, 'native-safari.json'), JSON.stringify(result, null, 2))
@@ -152,7 +171,7 @@ try {
     runnerState = 'Native WebDriver evidence; no Apple Events desktop-control request'
     try { execFileSync('/usr/sbin/screencapture', ['-x', path.join(output, 'safari-runner-screen.png')], { timeout: 10000 }) } catch (cause) { runnerState += '\nScreen capture: ' + cause.message }
   }
-  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence }, null, 2))
+  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence, wakeAssertionObserved }, null, 2))
   throw error
 } finally {
   if (session) await command('DELETE', '').catch(() => {})
@@ -161,5 +180,6 @@ try {
     await Promise.race([new Promise(resolve => driver.once('exit', resolve)), new Promise(resolve => setTimeout(resolve, 2000))])
     if (driver.exitCode === null) driver.kill('SIGKILL')
   }
+  if(awake&&awake.exitCode===null){awake.kill('SIGTERM');await Promise.race([new Promise(resolve=>awake.once('exit',resolve)),new Promise(resolve=>setTimeout(resolve,2000))]);if(awake.exitCode===null)awake.kill('SIGKILL')}
   await harness.close()
 }

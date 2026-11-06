@@ -123,8 +123,12 @@ jobs:
           retention-days: 7
 
   safari:
-    name: native Safari (macos-latest)
-    runs-on: macos-latest
+    name: native Safari (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-26-intel]
     timeout-minutes: 30
     env:
       AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/safari-evidence
@@ -145,7 +149,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
-          name: native-safari
+          name: native-safari-${{ matrix.os }}
           path: .runtime-checks/safari-evidence
           include-hidden-files: true
           retention-days: 7
