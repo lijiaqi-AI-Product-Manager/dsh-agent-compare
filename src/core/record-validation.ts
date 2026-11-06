@@ -122,7 +122,7 @@ const record = shape({
   baseline: shape({ repoRoot: absolutePath, headCommit: optional(gitObject), snapshotCommit: gitObject, snapshotTree: gitObject, dirty: boolean }),
   acceptance: shape({
     checks: shape({ commands: array(command, 256), browser: optional(browser) }), scripts: dictionary(text()), bound: dictionary(gitObject, repositoryPath), lockfile: optional(repositoryPath),
-    runtime: shape({ node: text(200, false), packageManager: text(200, false), platform: text(200, false), yarnModern: optional(boolean), windowsProcessCompat: optional(oneOf('auto', 'off')) }), source: oneOf('defaults', 'repository'), sha256,
+    runtime: shape({ node: text(200, false), packageManager: text(200, false), platform: text(200, false), yarnModern: optional(boolean), windowsProcessCompat: optional(oneOf('auto', 'off')), previewOriginMode: optional(oneOf('named-loopback', 'dedicated-loopback')) }), source: oneOf('defaults', 'repository'), sha256,
   }),
   mode: oneOf('same-model', 'cross-model'), isolation: oneOf('own-root', 'shared-root'), budget: shape({ generationMs: count(1) }),
   state: oneOf('running', 'judging', 'revealed', 'adopting', 'adopted', 'recovery', 'abandoned', 'interrupted'), candidates: array(candidate, 2),

@@ -1,3 +1,4 @@
+import type { PreviewOriginMode } from '../core/types.ts';
 import type { RunStore } from '../core/run-store.ts';
 import { HttpError } from './request.ts';
 export interface PreviewNetworkStatus {
@@ -7,6 +8,7 @@ export interface PreviewNetworkStatus {
     configured: number;
     used: number;
     unconfirmed: number;
+    enabled?: boolean;
     diagnostic?: string;
 }
 export interface PreviewNetworkSystem {
@@ -31,9 +33,13 @@ export declare class PreviewNetwork {
     private read;
     private write;
     status(signal?: AbortSignal): Promise<PreviewNetworkStatus>;
+    /** An enabled shared pool must be usable before spending a generation budget. */
+    assertReady(signal?: AbortSignal): Promise<PreviewOriginMode>;
     enable(confirmed: boolean, signal?: AbortSignal): Promise<PreviewNetworkStatus>;
     allocate(owner: {
         runId: string;
         label: string;
+        mode?: PreviewOriginMode;
+        replace?: boolean;
     }, signal: AbortSignal): Promise<string | undefined>;
 }

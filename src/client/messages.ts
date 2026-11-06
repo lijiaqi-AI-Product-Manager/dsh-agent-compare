@@ -1,5 +1,13 @@
 /** Interface copy. Application content and original diagnostic evidence are not translated. */
 export const messages: Readonly<Record<string, string>> = {
+  "本机预览地址策略无效": "The local preview address policy is invalid.",
+  "宿主缺少独立预览地址分配接口": "The running host lacks the dedicated preview address interface.",
+  "本机预览地址类型与封存的验收条件不一致": "The local preview address type differs from the recorded verification conditions.",
+  "本机独立预览地址已失效或不足，请在比较设置中恢复；未开始生成。": "Dedicated local preview addresses are unavailable. Restore them in comparison settings; generation has not started.",
+  "恢复独立预览地址": "Restore dedicated preview addresses",
+  "本机预览地址设置": "Local preview address setup",
+  "独立预览地址已就绪": "Dedicated preview addresses are ready",
+  "此宿主已启用独立预览地址，系统重启后需要恢复。确认前不请求系统授权，也不开始生成。": "This host uses dedicated preview addresses, which need restoring after a system restart. System authorization and generation wait for your confirmation.",
   "已取消系统授权；未启动比较，需求和历史记录保留。": "System authorization was canceled. No comparison was started; your task and history are retained.",
   "系统授权或地址配置超时；请重新检查预览环境，确认后再试。": "System authorization or address setup timed out. Recheck the preview environment and confirm before retrying.",
   "本机预览地址配置失败；请重新检查预览环境。原记录已保留。": "Dedicated preview address setup failed. Recheck the preview environment; original records are retained.",

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import {execFileSync} from 'node:child_process'
 import {mkdir,writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import {launchHostedSafari} from './native-safari-launch.mjs'
 
 assert.equal(process.platform,'darwin');assert.equal(process.env.GITHUB_ACTIONS,'true')
 assert.equal(process.env.RUNNER_ENVIRONMENT,'github-hosted')
@@ -11,26 +10,19 @@ const readVersion=()=>execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBun
 const current=version=>{const match=/^(\d+)\.(\d+)(?:\.\d+)?$/.exec(version);return Boolean(match&&(Number(match[1])>27||(Number(match[1])===27&&Number(match[2])>=2)))}
 const before=readVersion(),output=path.resolve(process.env.AGENT_COMPARE_UI_ARTIFACTS??'.runtime-checks/safari-evidence')
 await mkdir(output,{recursive:true})
-let listing='',selected,after=before,initializedBeforeAuthorization=false
+let listing='',selected,after=before,selectedUpdate
 try {
   if(!current(before)){
     listing=execFileSync('/usr/sbin/softwareupdate',['--list'],{encoding:'utf8',timeout:240000,maxBuffer:2*1024*1024})
     const labels=[...listing.matchAll(/Label:\s*(Safari[\w.-]+)/g)].map(match=>match[1])
     selected=labels.find(label=>/^Safari27\.2[\w.-]*$/.test(label))
     assert.ok(selected,'The runner does not offer Safari 27.2; do not report its older bundled browser as current')
+    selectedUpdate=listing.split(/\r?\n/).filter((line,index,lines)=>line.includes('Label: '+selected)||index>0&&lines[index-1].includes('Label: '+selected)).join('\n')
     execFileSync('/usr/bin/sudo',['-n','/usr/sbin/softwareupdate','--install',selected],{stdio:'inherit',timeout:600000})
     after=readVersion()
-    // Refresh only the updated application's Launch Services registration.
-    // Do not reset the user's application database or permission settings.
-    execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister',['-f','/Applications/Safari.app'],{stdio:'inherit',timeout:30000})
-    // The updated application migrates its WebDriver preferences on first
-    // launch. Complete that launch before the next step's official --enable.
-    // AppKit observes readiness without requesting Apple Events control.
-    launchHostedSafari()
-    initializedBeforeAuthorization=true
   }
   assert.ok(current(after),'Safari is still older than the current stable acceptance baseline')
-  console.log(JSON.stringify({safariBefore:before,safariAfter:after,updated:Boolean(selected),initializedBeforeAuthorization,source:'Apple system software update',systemRebootRequested:false}))
+  console.log(JSON.stringify({safariBefore:before,safariAfter:after,updated:Boolean(selected),selectedUpdate,source:'Apple system software update',systemRebootRequested:false}))
 } finally {
-  await writeFile(path.join(output,'safari-version-setup.json'),JSON.stringify({before,after,selected,offeredLabels:[...listing.matchAll(/Label:\s*([\w.-]+)/g)].map(match=>match[1]),baseline:'27.2',initializedBeforeAuthorization,systemRebootRequested:false},null,2))
+  await writeFile(path.join(output,'safari-version-setup.json'),JSON.stringify({before,after,selected,selectedUpdate,offeredLabels:[...listing.matchAll(/Label:\s*([\w.-]+)/g)].map(match=>match[1]),baseline:'27.2',systemRebootRequested:false},null,2))
 }

@@ -8,6 +8,7 @@
  */
 export declare const RUN_SCHEMA = "agent-compare.run/v2";
 export declare const RUN_COORDINATION = "sqlite-run/v1";
+export type PreviewOriginMode = 'named-loopback' | 'dedicated-loopback';
 export declare const LEGACY_SCHEMAS: readonly string[];
 export type CandidateLabel = 'A' | 'B';
 export type CandidateStage = 'queued' | 'preparing' | 'generating' | 'sealing' | 'installing' | 'verifying' | 'previewing' | 'ready' | 'failed' | 'stopping' | 'cancelled' | 'interrupted';
@@ -106,6 +107,7 @@ export interface Acceptance {
         readonly platform: string;
         readonly yarnModern?: boolean;
         readonly windowsProcessCompat?: 'auto' | 'off';
+        readonly previewOriginMode?: PreviewOriginMode;
     };
     /** Where the checks came from: derived defaults, or the repository's `.agent-compare.json`. */
     readonly source: 'defaults' | 'repository';

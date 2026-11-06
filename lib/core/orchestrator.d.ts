@@ -2,7 +2,7 @@ import { type CopyCleanupPlan } from './copy-resources.ts';
 import { type PrepareProjectProcess } from './project-process.ts';
 import { type WindowsProcessCompatMode } from './windows-compat.ts';
 import { RunStore } from './run-store.ts';
-import { type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts';
+import { type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewOriginMode, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts';
 export interface AgentRunRequest {
     readonly label: CandidateLabel;
     readonly cwd: string;
@@ -79,7 +79,11 @@ export interface ComparerOptions {
     readonly preparePreviewHost?: (owner: {
         runId: string;
         label: string;
+        mode?: PreviewOriginMode;
+        replace?: boolean;
     }, signal: AbortSignal) => Promise<string | undefined>;
+    /** Check an opted-in host resource before admitting repository/model work. */
+    readonly assertPreviewReady?: (signal: AbortSignal) => Promise<PreviewOriginMode | void>;
 }
 export declare const DEFAULT_GENERATION_MS: number;
 export declare class Comparer {

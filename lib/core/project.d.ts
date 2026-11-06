@@ -1,4 +1,4 @@
-import type { Acceptance, ChecksSpec } from './types.ts';
+import type { Acceptance, ChecksSpec, PreviewOriginMode } from './types.ts';
 export type PackageManager = 'npm' | 'pnpm' | 'yarn';
 export interface ProjectInfo {
     readonly kind: 'vite' | 'unsupported';
@@ -35,7 +35,7 @@ export declare function defaultChecks(info: ProjectInfo): ChecksSpec;
 export declare const ACCEPTANCE_FILE = ".agent-compare.json";
 export declare const isBound: (p: string) => boolean;
 /** Build the acceptance for a baseline tree. `override` (tests, API) replaces the derived checks. */
-export declare function buildAcceptance(repo: string, tree: string, info: ProjectInfo, override?: ChecksSpec, windowsProcessCompat?: 'auto' | 'off'): Promise<Acceptance>;
+export declare function buildAcceptance(repo: string, tree: string, info: ProjectInfo, override?: ChecksSpec, windowsProcessCompat?: 'auto' | 'off', previewOriginMode?: PreviewOriginMode): Promise<Acceptance>;
 /**
  * What a candidate changed that the acceptance is bound to, and whether it
  * changed dependencies. Returned paths read like `tsconfig.json` or

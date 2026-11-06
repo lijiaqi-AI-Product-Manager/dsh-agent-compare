@@ -9,6 +9,7 @@
 
 export const RUN_SCHEMA = 'agent-compare.run/v2'
 export const RUN_COORDINATION = 'sqlite-run/v1'
+export type PreviewOriginMode = 'named-loopback' | 'dedicated-loopback'
 export const LEGACY_SCHEMAS: readonly string[] = ['agent-compare.run/v1']
 
 export type CandidateLabel = 'A' | 'B'
@@ -102,7 +103,7 @@ export interface Acceptance {
   /** Baseline path → blob sha of verification-defining files. */
   readonly bound: Readonly<Record<string, string>>
   readonly lockfile?: string
-  readonly runtime: { readonly node: string; readonly packageManager: string; readonly platform: string; readonly yarnModern?: boolean; readonly windowsProcessCompat?: 'auto' | 'off' }
+  readonly runtime: { readonly node: string; readonly packageManager: string; readonly platform: string; readonly yarnModern?: boolean; readonly windowsProcessCompat?: 'auto' | 'off'; readonly previewOriginMode?: PreviewOriginMode }
   /** Where the checks came from: derived defaults, or the repository's `.agent-compare.json`. */
   readonly source: 'defaults' | 'repository'
   readonly sha256: string

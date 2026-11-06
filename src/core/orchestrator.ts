@@ -18,7 +18,7 @@ import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
 import type { FileLease } from './file-lock.ts'
 import { isRunId } from './record-validation.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
-import { RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
+import { RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type PreviewOriginMode, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
 
 export interface AgentRunRequest {
   readonly label: CandidateLabel
@@ -95,7 +95,9 @@ export interface ComparerOptions {
   /** Required for executable project commands; the host supplies its write boundary. */
   readonly prepareProjectProcess?: PrepareProjectProcess
   /** Optional host-owned numeric origin allocation; never configures the OS. */
-  readonly preparePreviewHost?: (owner: { runId: string; label: string }, signal: AbortSignal) => Promise<string | undefined>
+  readonly preparePreviewHost?: (owner: { runId: string; label: string; mode?: PreviewOriginMode; replace?: boolean }, signal: AbortSignal) => Promise<string | undefined>
+  /** Check an opted-in host resource before admitting repository/model work. */
+  readonly assertPreviewReady?: (signal: AbortSignal) => Promise<PreviewOriginMode | void>
 }
 
 interface LiveRun {
@@ -165,6 +167,9 @@ export class Comparer {
   }
 
   private async prepareStart(input: StartInput, task: string, reservation: object): Promise<RunRecord> {
+    const previewOriginMode = await this.opts.assertPreviewReady?.(this.lifetime.signal)
+    if (previewOriginMode !== undefined && previewOriginMode !== 'named-loopback' && previewOriginMode !== 'dedicated-loopback') throw new Error('本机预览地址策略无效')
+    if (previewOriginMode === 'dedicated-loopback' && !this.opts.preparePreviewHost) throw new Error('宿主缺少独立预览地址分配接口')
     const root = await repoRoot(input.repo)
     this.assertOpen()
     const info = await inspectProject(root)
@@ -191,7 +196,7 @@ export class Comparer {
     const head = await headCommit(root)
     const tree = await snapshotTree(root, scratch, ALWAYS_EXCLUDED)
     const dirty = head === undefined ? true : tree !== (await treeOf(root, head))
-    const acceptance = await buildAcceptance(root, tree, info, input.checks, input.windowsProcessCompat ?? 'auto')
+    const acceptance = await buildAcceptance(root, tree, info, input.checks, input.windowsProcessCompat ?? 'auto', previewOriginMode || undefined)
     const snapshotCommit = await commitTree(root, tree, [head], `agent-compare baseline ${runId}`)
 
     const order: [number, number] = input.assignment === 'fixed' || Math.random() < 0.5 ? [0, 1] : [1, 0]
@@ -650,7 +655,9 @@ export class Comparer {
     let preview: { info: PreviewInfo; handle: Preview } | undefined
     try {
       const kind = buildOk ? 'build' : 'dev'
-      const loopbackHost = await this.opts.preparePreviewHost?.({ runId: copy.owner.runId, label: copy.owner.label }, signal)
+      const mode = acceptance.runtime.previewOriginMode
+      const loopbackHost = await this.opts.preparePreviewHost?.({ runId: copy.owner.runId, label: copy.owner.label, ...(mode ? { mode } : {}) }, signal)
+      if (mode === 'dedicated-loopback' && !loopbackHost || mode === 'named-loopback' && loopbackHost) throw new Error('本机预览地址类型与封存的验收条件不一致')
       const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal, prepareProjectProcess: prepare, ...(loopbackHost ? { loopbackHost } : {}) })
       preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) } }
     } catch (error) {
@@ -763,7 +770,8 @@ export class Comparer {
         await this.save(lr.record)
       }
       const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' ? 'build' : 'dev'
-      const loopbackHost = await this.opts.preparePreviewHost?.({ runId: r.runId, label: c.label }, this.lifetime.signal)
+      const mode = r.acceptance.runtime.previewOriginMode
+      const loopbackHost = await this.opts.preparePreviewHost?.({ runId: r.runId, label: c.label, ...(mode ? { mode } : {}), ...(replace ? { replace: true } : {}) }, this.lifetime.signal)
       const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: request => prepareProjectProcess({ ...request, windowsProcessCompat: lr.record.acceptance.runtime.windowsProcessCompat ?? 'auto' }, this.opts.prepareProjectProcess), ...(loopbackHost ? { loopbackHost } : {}) })
       lr.previews.set(label, handle)
       c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) }

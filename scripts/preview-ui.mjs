@@ -120,12 +120,12 @@ window.fetch = async (url, init) => {
   }
   if (m[1] === ${JSON.stringify(error)}) return new Response(JSON.stringify({ok:false,error:'请求失败，请重试'}),{status:503});
   if (m[1] === 'setup' && ${JSON.stringify(error === 'setup-slow')}) await new Promise(resolve=>setTimeout(resolve,5000));
-  window.__previewNetwork ??= {platform:'darwin',state:${JSON.stringify(error.startsWith('preview-network')?'needs-setup':'ready')},available:${error.startsWith('preview-network')?0:64},configured:${error.startsWith('preview-network')?0:64},used:0,unconfirmed:0};
+  window.__previewNetwork ??= {platform:'darwin',enabled:${JSON.stringify(error==='preview-network-reboot')},state:${JSON.stringify(error.startsWith('preview-network')?'needs-setup':'ready')},available:${error.startsWith('preview-network')?0:64},configured:${error.startsWith('preview-network')?0:64},used:0,unconfirmed:0};
   if (m[1] === 'previewNetworkStatus') return new Response(JSON.stringify({ok:true,value:window.__previewNetwork}),{headers:{'content-type':'application/json'}});
   if (m[1] === 'enablePreviewNetwork') {
     if (${JSON.stringify(error==='preview-network-cancel')} && !window.__setupCanceledOnce) {window.__setupCanceledOnce=true;window.__previewNetwork.unconfirmed=64;return new Response(JSON.stringify({ok:false,error:'已取消系统授权；未启动比较，需求和历史记录保留。',code:'preview-network-cancelled'}),{status:409})}
     if (body.confirmed !== true) return new Response(JSON.stringify({ok:false,error:'确认信息缺失'}),{status:400});
-    window.__previewNetwork={...window.__previewNetwork,state:'ready',available:64,configured:64};
+    window.__previewNetwork={...window.__previewNetwork,enabled:true,state:'ready',available:64,configured:64};
     return new Response(JSON.stringify({ok:true,value:window.__previewNetwork}),{headers:{'content-type':'application/json'}});
   }
   if (m[1] === 'shot') {

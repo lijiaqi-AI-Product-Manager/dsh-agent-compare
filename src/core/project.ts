@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { open, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { changedPaths, readBlob, treeBlobs } from './git.ts'
-import type { Acceptance, CheckCommand, ChecksSpec } from './types.ts'
+import type { Acceptance, CheckCommand, ChecksSpec, PreviewOriginMode } from './types.ts'
 import { parseAcceptanceConfig, parseBrowserCheck, type AcceptanceConfig } from './acceptance-config.ts'
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn'
@@ -159,7 +159,7 @@ const isConfig = (p: string): boolean => !isTest(p) && CONFIG_PATTERNS.some((re)
 export const isBound = (p: string): boolean => isConfig(p) || isTest(p)
 
 /** Build the acceptance for a baseline tree. `override` (tests, API) replaces the derived checks. */
-export async function buildAcceptance(repo: string, tree: string, info: ProjectInfo, override?: ChecksSpec, windowsProcessCompat?: 'auto' | 'off'): Promise<Acceptance> {
+export async function buildAcceptance(repo: string, tree: string, info: ProjectInfo, override?: ChecksSpec, windowsProcessCompat?: 'auto' | 'off', previewOriginMode?: PreviewOriginMode): Promise<Acceptance> {
   let checks = override ?? defaultChecks(info)
   if (checks.browser !== undefined) checks = { ...checks, browser: parseBrowserCheck(checks.browser) }
   let source: Acceptance['source'] = 'defaults'
@@ -183,7 +183,7 @@ export async function buildAcceptance(repo: string, tree: string, info: ProjectI
   const scripts = { ...info.scripts }
   const bound = await treeBlobs(repo, tree, p => isBound(p) || protectedFiles.includes(p))
   for (const file of protectedFiles) if (!Object.hasOwn(bound, file)) throw new Error(`${ACCEPTANCE_FILE} protectedFiles：基线中不存在 ${file}`)
-  const runtime = { node: process.version, packageManager: info.packageManagerSpec ?? info.packageManager, platform: `${process.platform}-${process.arch}`, ...(info.modernYarn ? { yarnModern: true } : {}), ...(windowsProcessCompat === undefined ? {} : { windowsProcessCompat }) }
+  const runtime = { node: process.version, packageManager: info.packageManagerSpec ?? info.packageManager, platform: `${process.platform}-${process.arch}`, ...(info.modernYarn ? { yarnModern: true } : {}), ...(windowsProcessCompat === undefined ? {} : { windowsProcessCompat }), ...(previewOriginMode === undefined ? {} : { previewOriginMode }) }
   const body = { checks, scripts, bound, runtime, ...(info.lockfile === undefined ? {} : { lockfile: info.lockfile }) }
   return {
     ...body,

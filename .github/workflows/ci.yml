@@ -74,6 +74,9 @@ jobs:
       - run: npx playwright-core install --only-shell chromium
         if: runner.os != 'Linux'
       - run: npm run smoke
+      - name: Check record compatibility with the published release
+        if: runner.os == 'Linux'
+        run: node scripts/check-record-compatibility.mjs
       - run: npm run test:ui
       - name: Verify UI in Microsoft Edge
         if: runner.os == 'Windows'
@@ -128,7 +131,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, macos-26-intel, xcode-27]
+        os: [macos-latest, macos-26-intel]
     timeout-minutes: 30
     env:
       AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/safari-evidence

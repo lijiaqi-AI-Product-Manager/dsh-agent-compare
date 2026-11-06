@@ -6,6 +6,8 @@ import { PreviewNetwork, previewAliasCommand, previewAliasScript, previewNetwork
 import { RunStore } from '../src/core/run-store.ts'
 import { isNumericPreviewHost } from '../src/core/preview-url.ts'
 import { tmp } from './fixture.ts'
+import { Comparer } from '../src/core/orchestrator.ts'
+import { prepareFixtureProcess } from './fixture.ts'
 
 async function fixture() {
   const store = new RunStore(await tmp('ac-preview-network'))
@@ -24,6 +26,32 @@ async function fixture() {
 }
 
 describe('explicit Safari preview network setup',()=>{
+  it('freezes the admitted origin mode and changes it only for an explicit preview replacement',async()=>{
+    const f=await fixture()
+    expect(await f.network.assertReady(f.signal)).toBe('named-loopback')
+    await f.network.enable(true)
+    expect(await f.network.assertReady(f.signal)).toBe('dedicated-loopback')
+    expect(await f.network.allocate({runId:'1234abcd',label:'A',mode:'named-loopback'},f.signal)).toBeUndefined()
+    expect(await f.network.allocate({runId:'1234abcd',label:'B',mode:'named-loopback'},f.signal)).toBeUndefined()
+    expect((await f.network.status()).used).toBe(0)
+    expect(isNumericPreviewHost((await f.network.allocate({runId:'1234abcd',label:'A',mode:'named-loopback',replace:true},f.signal))!)).toBe(true)
+    const other=await fixture()
+    await expect(other.network.allocate({runId:'aabbccdd',label:'A',mode:'dedicated-loopback'},other.signal)).rejects.toThrow(/本机预览地址/)
+    expect(other.system.provision).not.toHaveBeenCalled()
+  })
+  it('rejects an expired enabled pool before repository admission or model generation',async()=>{
+    const f=await fixture()
+    await f.network.enable(true)
+    f.present.clear()
+    const runner={isolation:'own-root' as const,run:vi.fn()}
+    const comparer=new Comparer({store:f.store,runner,version:'test',prepareProjectProcess:prepareFixtureProcess,assertPreviewReady:signal=>f.network.assertReady(signal)})
+    try {
+      await expect(comparer.start({repo:'not-a-repository',task:'keep this request'})).rejects.toThrow(/本机独立预览地址/)
+      expect(runner.run).not.toHaveBeenCalled()
+      expect(await f.store.list()).toEqual([])
+      expect(f.system.provision).toHaveBeenCalledTimes(1)
+    }finally{await comparer.dispose()}
+  })
   it('does not inspect or configure the network on other platforms',async()=>{
     const f=await fixture(), network=new PreviewNetwork(f.store,f.system,'win32')
     expect((await network.status()).state).toBe('not-required')
@@ -81,9 +109,11 @@ describe('explicit Safari preview network setup',()=>{
       return 'created:'+addresses[0]+'\nexisting:'+addresses[1]+'\ncreated:127.87.44.19'
     })
     await expect(f.network.enable(true)).rejects.toThrow(/足够/)
-    expect(await f.network.status()).toMatchObject({state:'needs-setup',available:1,configured:1,unconfirmed:63})
-    expect(await f.network.allocate({runId:'1234abcd',label:'A'},f.signal)).toBe(confirmed)
-    await expect(f.network.allocate({runId:'1234abcd',label:'B'},f.signal)).rejects.toThrow(/不足/)
+    expect(await f.network.status()).toMatchObject({state:'needs-setup',enabled:false,available:1,configured:1,unconfirmed:63})
+    expect(confirmed).toBeDefined()
+    expect(await f.network.assertReady(f.signal)).toBe('named-loopback')
+    expect(await f.network.allocate({runId:'1234abcd',label:'A'},f.signal)).toBeUndefined()
+    await expect(f.network.allocate({runId:'1234abcd',label:'B',mode:'dedicated-loopback'},f.signal)).rejects.toThrow(/不足/)
   })
   it('keeps damaged or redirected journals intact instead of resetting them',async()=>{
     const f=await fixture(), file=path.join(f.store.home,'preview-network.json')

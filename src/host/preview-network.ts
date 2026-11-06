@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import type { PreviewOriginMode } from '../core/types.ts'
 import { promisify } from 'node:util'
 import { isNumericPreviewHost } from '../core/preview-url.ts'
 import type { RunStore } from '../core/run-store.ts'
@@ -22,6 +23,7 @@ export interface PreviewNetworkStatus {
   configured: number
   used: number
   unconfirmed: number
+  enabled?: boolean
   diagnostic?: string
 }
 export interface PreviewNetworkSystem {
@@ -126,16 +128,27 @@ export class PreviewNetwork {
   }
 
   async status(signal?: AbortSignal): Promise<PreviewNetworkStatus> {
-    const empty = { platform: this.platform, available: 0, configured: 0, used: 0, unconfirmed: 0 }
+    const empty = { platform: this.platform, available: 0, configured: 0, used: 0, unconfirmed: 0, enabled: false }
     if (this.platform !== 'darwin') return { ...empty, state: 'not-required' }
     try {
       const ledger = await this.read(), present = await this.system.addresses(signal)
       const available = ledger.entries.filter(entry => entry.state === 'configured' && !entry.usedBy && present.has(entry.address)).length
-      return { ...empty, state: this.configuring ? 'configuring' : available >= 2 ? 'ready' : 'needs-setup', available,
+      return { ...empty, enabled: ledger.enabled, state: this.configuring ? 'configuring' : available >= 2 ? 'ready' : 'needs-setup', available,
         configured: ledger.entries.filter(entry => entry.state === 'configured' && present.has(entry.address)).length,
         used: ledger.entries.filter(entry => entry.usedBy).length,
         unconfirmed: ledger.entries.filter(entry => entry.state !== 'configured').length }
     } catch (error) { return { ...empty, state: 'unavailable', diagnostic: (error as Error).message } }
+  }
+
+  /** An enabled shared pool must be usable before spending a generation budget. */
+  async assertReady(signal?: AbortSignal): Promise<PreviewOriginMode> {
+    signal?.throwIfAborted()
+    const status = await this.status(signal)
+    signal?.throwIfAborted()
+    if (status.state === 'unavailable') throw new Error(status.diagnostic ?? '本机预览地址记录无法安全读取；原文件已保留')
+    if (status.state === 'configuring') throw new BusyError('本机预览地址正在配置，请稍后重新检查')
+    if (status.enabled && status.available < 2) throw new HttpError(409, '本机独立预览地址已失效或不足，请在比较设置中恢复；未开始生成。', 'preview-network-not-ready')
+    return status.enabled ? 'dedicated-loopback' : 'named-loopback'
   }
 
   async enable(confirmed: boolean, signal?: AbortSignal): Promise<PreviewNetworkStatus> {
@@ -164,7 +177,7 @@ export class PreviewNetwork {
           const created = new Set(output.split(/[\r\n]+/).map(line => /^created:(127\.[\d.]+)$/.exec(line.trim())?.[1]).filter((address): address is string => address !== undefined && addresses.includes(address)))
           const after = await this.system.addresses().catch(() => new Set<string>())
           for (const entry of entries) entry.state = created.has(entry.address) && after.has(entry.address) ? 'configured' : 'unconfirmed'
-          if (entries.some(entry => entry.state === 'configured')) ledger.enabled = true
+          if (entries.filter(entry => entry.state === 'configured').length >= 2) ledger.enabled = true
           await this.write(ledger)
         }
         signal?.throwIfAborted()
@@ -174,14 +187,18 @@ export class PreviewNetwork {
     return this.status(signal)
   }
 
-  async allocate(owner: { runId: string; label: string }, signal: AbortSignal): Promise<string | undefined> {
+  async allocate(owner: { runId: string; label: string; mode?: PreviewOriginMode; replace?: boolean }, signal: AbortSignal): Promise<string | undefined> {
     signal.throwIfAborted()
     if (this.platform !== 'darwin') return undefined
     if (!/^[a-f0-9]{8}$/.test(owner.runId) || !/^[ABR]$/.test(owner.label)) throw new Error('本机预览地址缺少有效的运行归属')
+    if (owner.mode === 'named-loopback' && !owner.replace) return undefined
     return this.store.withLock('preview-network', async () => {
       signal.throwIfAborted()
       const ledger = await this.read()
-      if (!ledger.enabled) return undefined
+      if (!ledger.enabled) {
+        if (owner.mode === 'dedicated-loopback') throw new Error('可用的本机预览地址不足或已随系统重启释放，请重新启用 Safari 实时比较')
+        return undefined
+      }
       const present = await this.system.addresses(signal)
       const entry = ledger.entries.find(entry => entry.state === 'configured' && !entry.usedBy && present.has(entry.address))
       if (!entry) throw new Error('可用的本机预览地址不足或已随系统重启释放，请重新启用 Safari 实时比较')

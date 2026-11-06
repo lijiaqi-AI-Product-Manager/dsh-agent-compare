@@ -199,7 +199,14 @@ try {
       catch { diagnostics.remotePreferences[key] = 'not explicitly configured' }
     }
     await writeFile(path.join(output, 'native-startup-diagnostics.json'), JSON.stringify(diagnostics, null, 2))
-    if (!session) await writeFile(path.join(output, 'native-protocol-capabilities.json'), JSON.stringify(await probeNativeSafariProtocol(), null, 2))
+    if (!session) {
+      if (driver.exitCode === null) {
+        driver.kill('SIGTERM')
+        await Promise.race([new Promise(resolve => driver.once('exit', resolve)), new Promise(resolve => setTimeout(resolve, 2000))])
+        if (driver.exitCode === null) driver.kill('SIGKILL')
+      }
+      await writeFile(path.join(output, 'native-protocol-capabilities.json'), JSON.stringify(await probeNativeSafariProtocol({url:harness.url+'/?state=judging',output}), null, 2))
+    }
   }
   await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence, wakeAssertionObserved, driverVersion }, null, 2))
   throw error

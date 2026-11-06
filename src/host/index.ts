@@ -381,6 +381,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     version: VERSION,
     prepareProjectProcess: createProjectProcess(() => ctx.get('sandbox') as ProjectSandbox | undefined, undefined, undefined, bundledPnpm),
     preparePreviewHost: (owner, signal) => previewNetwork.allocate(owner, signal),
+    assertPreviewReady: signal => previewNetwork.assertReady(signal),
     generationMs: (config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000) * 60_000,
     maxActiveRuns: config.maxActiveRuns ?? 1,
     onUpdate: remember,

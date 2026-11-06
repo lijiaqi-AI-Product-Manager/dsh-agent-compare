@@ -35,6 +35,17 @@ describe('acceptance integrity', () => {
     expect(automatic.sha256).not.toBe(disabled.sha256)
     expect((await buildAcceptance(repo, tree, info, undefined, 'off')).sha256).toBe(disabled.sha256)
   })
+  it('binds the admitted preview origin mode without changing older acceptance records', async () => {
+    const repo = await fixtureRepo(), tree = (await git(repo, ['rev-parse', 'HEAD^{tree}'])).trim(), info = await inspectProject(repo)
+    const older = await buildAcceptance(repo, tree, info, undefined, 'auto')
+    const named = await buildAcceptance(repo, tree, info, undefined, 'auto', 'named-loopback')
+    const dedicated = await buildAcceptance(repo, tree, info, undefined, 'auto', 'dedicated-loopback')
+    expect(older.runtime).not.toHaveProperty('previewOriginMode')
+    expect(named.runtime.previewOriginMode).toBe('named-loopback')
+    expect(dedicated.runtime.previewOriginMode).toBe('dedicated-loopback')
+    expect(new Set([older.sha256, named.sha256, dedicated.sha256]).size).toBe(3)
+    expect((await buildAcceptance(repo, tree, info, undefined, 'auto', 'dedicated-loopback')).sha256).toBe(dedicated.sha256)
+  })
   it('binds root verification helpers and detects new configuration and lifecycle scripts', async () => {
     const repo = await fixtureRepo()
     const base = (await git(repo, ['rev-parse', 'HEAD^{tree}'])).trim()
