@@ -31,7 +31,7 @@ import { createProjectProcess, projectCommandArgv, type ManagedPnpm, type Projec
 import { conversationResolver, SessionAccessError, type SessionController } from './session.ts'
 import { readComparisonStatus } from './status.ts'
 import { withCurrentComparisonState, type ComparisonAssembly } from './current-state.ts'
-import { authorizeComparisonAction, CONVERSATION_ACTIONS } from './action-access.ts'
+import { assertComparisonActionRoutes, dispatchComparisonAction } from './action-access.ts'
 import { startToolComparison, type StartToolArgs } from './start-tool.ts'
 import { hostCapabilities } from './capabilities.ts'
 import { HttpError, readBody } from './request.ts'
@@ -656,6 +656,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     },
   }
 
+  assertComparisonActionRoutes(api)
+
   ctx.inject(['webServer', 'connection'], (web) => web.effect(() => web.webServer.register({
     kind: 'prefix',
     path: ROUTE,
@@ -669,8 +671,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       res.once('close', () => { if (!res.writableEnded) ctl.abort() })
       try {
         const body = await readBody(req)
-        if (CONVERSATION_ACTIONS.has(method)) await authorizeComparisonAction(comparer, await agentFor(body, ctl.signal), runIdOf(body), body.confirmOtherSession, ctl.signal)
-        json(res, 200, { ok: true, value: await handler(body, ctl.signal) })
+        const value = await dispatchComparisonAction({ method, comparer, caller: () => agentFor(body, ctl.signal), runId: () => runIdOf(body), confirmation: body.confirmOtherSession, signal: ctl.signal }, () => handler(body, ctl.signal))
+        json(res, 200, { ok: true, value })
       } catch (error) {
         const status = error instanceof HttpError || error instanceof SessionAccessError ? error.status : error instanceof HistoryQueryError ? 400 : error instanceof RecordUnavailableError || (error as Error).name === 'BusyError' ? 409 : 500
         json(res, status, { ok: false, error: (error as Error).message, ...(error instanceof HttpError && error.code ? { code: error.code } : {}) })
