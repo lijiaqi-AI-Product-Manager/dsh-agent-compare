@@ -10,6 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const canonical = ['README.md', 'README.en.md', 'README.ja.md', 'README.ko.md', 'README.es.md', 'README.pt-BR.md', 'README.fr.md', 'README.de.md']
 const guides = [...canonical, 'README.zh.md']
 const referenceDocs = ['docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md', 'docs/distribution.md', 'docs/distribution.en.md', 'docs/first-use.md']
+const repositoryOnlyDocs = new Set(['docs/demo.md', 'docs/first-use.md', 'docs/distribution.md', 'docs/distribution.en.md'])
 const mediaFiles = ['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json', 'assets/icon.png', 'assets/icon.svg', 'screenshots.json', 'docs/media/screenshots/manifest.json', ...JSON.parse(await readFile(path.join(root, 'screenshots.json'), 'utf8'))]
 const repositoryOnlyMedia = new Set(['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json'])
 const packagedMedia = mediaFiles.filter(file => !repositoryOnlyMedia.has(file))
@@ -91,7 +92,8 @@ const result = JSON.parse(execFileSync(process.execPath, [process.env.npm_execpa
 const packages = Array.isArray(result) ? result : Object.values(result)
 assert.equal(packages.length, 1, 'Expected one package')
 const files = new Set(packages[0].files.map(file => file.path))
-for (const file of [...guides, ...referenceDocs, ...packagedMedia, 'CONTRIBUTING.md', 'LICENSE']) assert.ok(files.has(file), `Package omits ${file}`)
+for (const file of [...guides, ...referenceDocs.filter(file => !repositoryOnlyDocs.has(file)), ...packagedMedia, 'CONTRIBUTING.md', 'LICENSE']) assert.ok(files.has(file), `Package omits ${file}`)
+for (const file of repositoryOnlyDocs) assert.ok(!files.has(file), `Package repeats repository-only evidence or distribution notes: ${file}`)
 for (const file of files) assert.ok(!repositoryOnlyMedia.has(file) && !file.startsWith('assets/readme/') && !file.startsWith('docs/measurements/'), 'Presentation-only media and research evidence must stay out of the runtime package')
 assert.ok(packages[0].size <= 650_000, 'Compressed runtime package exceeds the 650 kB distribution budget')
 console.log(JSON.stringify({ languages: canonical.length, guides: guides.length, referenceDocs: referenceDocs.length, localLinks, version: manifest.version, sourceInstallArchivesCurrent: true, packagedGuides: guides.length, recordedAssetsVerified: recorded.files.length, packageBytes: packages[0].size }))

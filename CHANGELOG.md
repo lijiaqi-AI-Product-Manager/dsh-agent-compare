@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a Simplified Chinese/English interface with a persistent visible language selector and device-language default. Preserve drafts, references, model choices, live previews and comparison identity during switching; retain original application and diagnostic content.
+- Keep long English controls inside 320px layouts and use labeled history/tutorial icons in narrow headers. Extract shared interface copy and scoped styles, verify both languages and retain the existing package-size budget with repository-linked measurement/distribution notes.
+
 ## 1.1.0
 
 - Check tracked source inside build directories instead of ignoring every path named dist. Use baseline-bound Git exclusions for generated output, exercise a custom Vite output directory in smoke acceptance, and explain unsealed output without skipping source checks.

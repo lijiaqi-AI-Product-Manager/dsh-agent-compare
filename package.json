@@ -41,7 +41,10 @@
     "!docs/media/social-preview.png",
     "!assets/readme",
     "!docs/measurements",
-    "!docs/media/manifest.json"
+    "!docs/media/manifest.json",
+    "!docs/demo.md",
+    "!docs/first-use.md",
+    "!docs/distribution*.md"
   ],
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
@@ -53,7 +56,7 @@
     "check:docs": "node scripts/check-docs.mjs",
     "test": "npm run build && vitest run",
     "test:coverage": "npm run build && vitest run --coverage",
-    "test:ui": "npm run build && node scripts/test-ui.mjs",
+    "test:ui": "npm run build && node scripts/test-ui.mjs && node scripts/test-locales.mjs",
     "test:runtime": "npm run build && node scripts/test-runtime.mjs",
     "smoke": "npm run build && node scripts/smoke.mjs",
     "prepack": "npm run build",
