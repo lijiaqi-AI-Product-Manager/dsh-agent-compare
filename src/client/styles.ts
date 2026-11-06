@@ -11,8 +11,10 @@ font-family:var(--dsw-font-family,inherit);color:var(--ac-fg);font-size:13px;lin
 .ac-root *{box-sizing:border-box}
 .ac-mask{position:fixed;inset:0;z-index:1000;background:var(--dsw-alias-bg-mask-1,rgba(15,17,21,.28));animation:ac-fade .15s ease-out}
 .ac-sheet{position:fixed;z-index:1001;top:max(52px,calc(env(titlebar-area-height,0px) + 12px));left:16px;right:16px;bottom:16px;
+margin:0;padding:0;width:auto;height:auto;max-width:none;max-height:none;color:var(--ac-fg);
 background:var(--ac-bg);border:1px solid var(--ac-border);border-radius:var(--dsw-radius-panel,16px);box-shadow:var(--dsw-shadow-lv3,0 24px 64px rgba(15,17,21,.18));
 display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-out}
+.ac-sheet::backdrop{background:var(--dsw-alias-bg-mask-1,rgba(15,17,21,.28))}.ac-root:has(>.ac-sheet:modal)>.ac-mask{display:none}
 @keyframes ac-fade{from{opacity:0}}@keyframes ac-rise{from{opacity:0;transform:translateY(8px)}}
 @keyframes ac-spin{to{transform:rotate(360deg)}}@keyframes ac-pulse{50%{opacity:.45}}
 .ac-head{display:flex;align-items:center;gap:12px;padding:12px 16px 12px 20px;border-bottom:1px solid var(--ac-border)}

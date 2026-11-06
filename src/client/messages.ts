@@ -1,5 +1,6 @@
 /** Interface copy. Application content and original diagnostic evidence are not translated. */
 export const messages: Readonly<Record<string, string>> = {
+  "比较窗口暂时无法进入前景层。请关闭其他弹窗后重新打开。": "The comparison could not enter the foreground layer. Close other dialogs and reopen it.",
   "Windows 高级设置": "Advanced Windows settings",
   "进程兼容方式 ": "Process compatibility ",
   "Windows 进程兼容方式": "Windows process compatibility",
