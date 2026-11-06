@@ -279,6 +279,7 @@ try {
   check(await page.getByRole('button', { name: '撤销采用', exact: true }).isVisible(), 'resource cleanup must leave the adoption record available')
 
   await open('judging')
+  check(await page.locator('.ac-compare-tools').innerText().then(text => text.includes('直接在对话中操作真实页面')), 'two live candidates must describe an interactive comparison')
   await page.getByRole('button', { name: '选 A', exact: true }).click()
   await page.getByRole('button', { name: '审查并采用 A', exact: true }).waitFor()
   const space = page.getByRole('region', { name: '副本空间', exact: true })
@@ -617,12 +618,15 @@ try {
   await page.getByText('预览环境与限制', { exact: true }).click()
   check(await page.getByText(/嵌入页面仍受浏览器的 Cookie 与存储策略限制/).isVisible(), 'the comparison must expose embedded storage and external-tab limits')
   await open('interrupted-peer')
+  check(await page.locator('.ac-compare-tools').innerText().then(text => text.includes('部分候选可交互') && !text.includes('直接在对话中操作真实页面')), 'a partial result must not imply that both candidates are interactive')
   check(await page.locator('.ac-action-dock').innerText().then(text => text.includes('仅 A 已可体验') && !text.includes('两边都试一下')), 'a partial result must describe the single available candidate')
   check(await page.locator('.ac-fail b').innerText().then(text => text.includes('中断') && !text.includes('失败')), 'an interrupted generation must not be presented as a generation failure')
   check(await page.getByRole('button', { name: '验收已写的改动', exact: true }).isVisible(), 'interruption must retain the written-change verification action')
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport)
     await open('retained')
+    check(await page.locator('.ac-compare-tools').innerText().then(text => text.includes('验收截图 · 静态记录') && !text.includes('直接在对话中操作真实页面')), 'screenshot-only history must not claim interactive pages')
+    check(await page.locator('.ac-shotbar').allTextContents().then(texts => texts.every(text => text.includes('预览当前不可用') && !text.includes('副本已清理'))), 'an unavailable reopen action must not be presented as proof of deletion')
     const image = page.getByRole('img', { name: '候选 A 桌面验收截图', exact: true })
     await expectImage(image, 1280)
     check(await page.getByRole('region', { name: '候选 A', exact: true }).getByText('截图记录 · 检查通过', { exact: true }).isVisible(), 'a retained screenshot must not claim a currently running preview')
@@ -634,11 +638,17 @@ try {
     check(await image.locator('..').evaluate(el => el.scrollWidth > el.clientWidth), 'original-size overflow must be scrollable within the screenshot region')
     await page.getByRole('region', { name: '候选 A', exact: true }).getByRole('button', { name: '适应宽度', exact: true }).click()
     await page.getByRole('button', { name: '手机 390', exact: true }).click()
+    check(await page.locator('.ac-compare-tools').innerText().then(text => text.includes('验收截图 · 静态记录')), 'changing device must preserve the historical screenshot status')
     await expectImage(page.getByRole('img', { name: '候选 A 手机验收截图', exact: true }), 390)
     check(await page.getByRole('img', { name: '候选 A 桌面验收截图', exact: true }).count() === 0, 'the global phone control must switch retained screenshots too')
     await page.screenshot({ path: path.join(output, `retained-${viewport.width}.png`) })
   }
   await page.setViewportSize({ width: 1440, height: 900 })
+  await open('mixed-preview')
+  check(await page.locator('iframe').count() === 1, 'a mixed result must retain its real live preview')
+  await expectImage(page.getByRole('img', { name: '候选 B 桌面验收截图', exact: true }), 1280)
+  check(await page.locator('.ac-compare-tools').innerText().then(text => text.includes('实时预览与验收截图') && !text.includes('直接在对话中操作真实页面')), 'mixed live/image results must be identified in the shared toolbar')
+  check(await page.getByRole('button', { name: '重新打开预览', exact: true }).isVisible(), 'the available restore action must remain usable for the stopped peer')
   await open('retained', '&error=shot-once')
   await page.getByRole('alert').filter({ hasText: '截图请求暂不可用' }).waitFor()
   await page.getByRole('button', { name: '重试读取截图', exact: true }).click()
@@ -790,7 +800,7 @@ try {
   check(await page.locator('.ac-header-tools-hero button').count() === 0, 'blank-session navigation must not overlay other controls when the anchor is absent')
   check(await mode.isVisible(), 'a missing header anchor must not remove the input mode')
 
-  for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'install-failure', 'retrying', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'old-owner', 'retained', 'interrupted-peer']) {
+  for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'install-failure', 'retrying', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'old-owner', 'retained', 'mixed-preview', 'interrupted-peer']) {
     await open(state, `&theme=${theme}`)
     await page.addScriptTag({ path: 'node_modules/axe-core/axe.min.js' })
     const result = await page.evaluate(async () => window.axe.run(document.querySelector('[role="dialog"]') ?? document.querySelector('.ac-composer-settings'), { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] } }))

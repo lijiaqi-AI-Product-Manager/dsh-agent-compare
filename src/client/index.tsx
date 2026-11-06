@@ -219,10 +219,10 @@ function Screenshots({ runId, c, busy, act, device }: { runId: string; c: Cand; 
   return (
     <div className="ac-shotwrap">
       <div className="ac-shotbar">
-        <span>{c.canReopenPreview ? t("预览已停止（DSH 重启或已结束），可以重新打开。下面是验收时的截图：") : t("副本已清理，下面是验收时的截图：")}</span>
+        <span>{c.canReopenPreview ? t("预览已停止（DSH 重启或已结束），可以重新打开。下面是验收时的截图：") : t("预览当前不可用，下面是验收时的静态截图：")}</span>
         {reopen}
       </div>
-      <div className="ac-shottools"><span>{mobile ? t("手机") : t("桌面")}{t("验收截图 · 静态记录")}</span>{current.url && <button className="ac-text-btn" aria-pressed={natural} onClick={() => setOriginal({ key, value: !natural })}>{natural ? t("适应宽度") : t("原始尺寸")}</button>}</div>
+      <div className="ac-shottools"><span>{mobile ? t("手机验收截图 · 静态记录") : t("桌面验收截图 · 静态记录")}</span>{current.url && <button className="ac-text-btn" aria-pressed={natural} onClick={() => setOriginal({ key, value: !natural })}>{natural ? t("适应宽度") : t("原始尺寸")}</button>}</div>
       {current.loading ? <div className="ac-empty" role="status">{t("正在读取")}{description}…</div>
         : current.error ? <div className="ac-empty" role="alert">{t("截图读取失败：")}{current.error}<button className="ac-btn sm" onClick={() => setRetry(n => n + 1)}>{t("重试读取截图")}</button></div>
         : current.url ? <div className={`ac-shot${natural ? ' natural' : ''}`} tabIndex={0} role="region" aria-label={description}>
@@ -516,7 +516,7 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
     case 'adopted':
       return (
         <div className="ac-bar" {...(busy && pending ? { role: 'status', 'aria-label': t("采用操作状态") } : {})}>
-          <span className="ac-bar-text">{busy && pending ? <><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{pending === 'adopt' ? t("改动已写入，正在整理记录、预览与副本；完成后可撤销或继续。") : pending === 'revert' ? t("正在撤销采用并核对项目，请稍候…") : t("正在处理这次比较，请稍候…")}</> : <>{t("采用记录已保存。")}<span className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的仓库")}</span> <StarNudge /></>}</span>
+          <span className="ac-bar-text">{busy && pending ? <><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{pending === 'adopt' ? t("改动已写入，正在整理记录、预览与副本；完成后可撤销或继续。") : pending === 'revert' ? t("正在撤销采用并核对项目，请稍候…") : t("正在处理这次比较，请稍候…")}</> : <>{t("采用记录已保存。")}{' '}<span className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的仓库")}</span> <StarNudge /></>}</span>
           {run.adoption?.mode === 'worktree' && <button className="ac-btn" disabled={busy} onClick={() => act('revert')}>{t("撤销采用")}</button>}
           {onContinue && <button className="ac-btn primary" disabled={busy} onClick={onContinue} title={t("退出比较模式，在原输入框中继续。比较记录仍然保留。")}>{t("继续主对话")}</button>}
           {onDone && <button className="ac-btn" disabled={busy} onClick={onDone}>{t("完成")}</button>}
@@ -734,8 +734,15 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
     returnToComposer(sessionId)
   } : undefined
   const previewHosts = run.candidates.filter(c => c.previewUrl).map(c => { try { return new URL(c.previewUrl!).hostname } catch { return '' } })
+  const usablePreviews = run.candidates.filter(c => c.previewUrl && !safariPreviewBlocked(c.previewUrl))
+  const savedOnly = run.candidates.some(c => (!c.previewUrl || safariPreviewBlocked(c.previewUrl)) && (c.hasScreenshot || c.hasMobileScreenshot))
+  const previewHint = usablePreviews.length === run.candidates.length && usablePreviews.length > 0
+    ? device === 'adaptive' ? t("直接在对话中操作真实页面") : t("相同视口 · 按可用宽度缩放")
+    : usablePreviews.length > 0
+      ? savedOnly ? t("实时预览与验收截图 · 查看各候选状态") : t("部分候选可交互 · 查看各候选状态")
+      : savedOnly ? t("验收截图 · 静态记录，不可交互") : t("预览尚不可用 · 查看各候选状态")
   const independentHosts = previewHosts.length > 0 && previewHosts.every(host => numericPreviewHost(host) || (!macWebKit() && /^ac-[0-9a-f]{32}\.localhost$/.test(host))) && new Set(previewHosts).size === previewHosts.length
-  const hasUsablePreview = run.candidates.some(candidate=>candidate.previewUrl&&!safariPreviewBlocked(candidate.previewUrl))
+  const hasUsablePreview = usablePreviews.length > 0
   const showPreviewSetup = !!network.error || network.status?.state==='unavailable' || run.candidates.some(candidate=>safariPreviewBlocked(candidate.previewUrl)) || (!hasUsablePreview&&network.status?.state!=='ready')
   const body = (
     <>
@@ -747,7 +754,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       {preflight && <section className="ac-review" aria-label={t("采用前审查")} role="region"><div><b>{preflight.ok ? t("目标核验通过，请确认采用") : t("当前无法采用")}</b><p className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的项目")}</p><p>{preflight.ok ? preflight.rehearsal ? t("项目有新改动，将先合并到临时副本中重新验收。") : t("将写入选中版本；不自动提交，保留暂存状态。") : preflight.reasons.join('；')}</p>{preflight.ok && <p>{t("先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。")}</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>{t("返回审查")}</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>{t("确认采用 ")}{run.choice?.pick}</button></div></section>}
       <Banners run={run} />
       {revealed && <CopySpace key={runId} run={run} sessionId={sessionId} blocked={busy || !!confirmation || run.control?.allowed === false} requestKey={copyRequest?.runId === runId ? copyRequest.id : 0} publish={next => publish(next, runId)} onReleaseBusy={value => { if (activeId.current === runId) setCopyBusy(value) }} />}
-      <div className="ac-compare-tools"><div className="ac-seg" aria-label={t("比较布局")}>{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: t("并排比较"), A: t("专注 A"), B: t("专注 B") }[v]}</button>)}</div><div className="ac-seg" aria-label={t("预览尺寸")}><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>{t("适应窗口")}</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t("桌面 1280")}</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>{t("手机 390")}</button></div><span className="ac-meta">{device === 'adaptive' ? t("直接在对话中操作真实页面") : t("相同视口 · 按可用宽度缩放")}</span></div>
+      <div className="ac-compare-tools"><div className="ac-seg" aria-label={t("比较布局")}>{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: t("并排比较"), A: t("专注 A"), B: t("专注 B") }[v]}</button>)}</div><div className="ac-seg" aria-label={t("预览尺寸")}><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>{t("适应窗口")}</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t("桌面 1280")}</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>{t("手机 390")}</button></div><span className="ac-meta">{previewHint}</span></div>
       {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>{t("预览环境与限制")}</summary><p>{independentHosts ? t("候选使用独立本地地址，避免同名 Cookie 相互影响。") : macWebKit() ? t("Safari 预览需要独立本机地址；启用后可重新打开原候选，无需重新生成。") : t("这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。")}{t("嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。")}</p></details>}
       {macWebKit() && independentHosts && <p className="ac-meta">{t("Safari 可能限制嵌入页面的 Cookie。需要第一方存储时，点候选右上角的打开按钮，在真实标签页继续体验；两版地址保持独立。")}</p>}
       <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
