@@ -14,7 +14,7 @@ Search terms include AgentCompare, dsh-agent-compare, A|B, live previews, blind 
 
 `engines.dsh` is `>=0.2.1-rc.3 <0.3.0-0`. DSH's `@deepseek-ai/dsh-app-boot` evaluates it with `includePrerelease: true`, so 0.2.2 alpha/rc versions participate. Default npm semver options do not establish a DSH installation rejection. The `-0` upper boundary excludes 0.3.0 prereleases.
 
-Admission is separate from executed acceptance. Required Windows/Linux native runtime checks pin DSH 0.2.1-rc.5. Separately named, non-blocking `next host canary` jobs track the next channel. Each run prints the resolved host version and exercises that host's actual compatibility evaluator at the boundaries. Canary failures require investigation and are not passes; these jobs do not establish external-model or final Desktop-shell acceptance. See [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) for the latest results.
+Admission is separate from executed acceptance. Required Windows/Linux/macOS native runtime checks pin DSH 0.2.1-rc.5 and 0.2.2-rc.1. Separately named, non-blocking `next host canary` jobs track the next channel. Each run prints the resolved host version and exercises that host's actual compatibility evaluator at the boundaries. Canary failures require investigation and are not passes; these jobs do not establish external-model or final Desktop-shell acceptance. See [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml) for the latest results.
 
 ## Directory sources
 

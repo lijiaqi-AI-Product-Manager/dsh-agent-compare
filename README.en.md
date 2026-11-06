@@ -205,8 +205,9 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 | DSH 0.2.1-rc.3 desktop, Windows 11 | Historical compatibility case: real-model generation, verification, choice and adoption completed; candidate sessions requested their own copy's write boundary and shell commands ran |
 | DSH 0.2.1-rc.5, Web UI, Windows 11 | Production command, real child sessions, live previews, adoption, refreshed history, and adopted-result context in the next main-session request; local scripted adapter |
 | Linux, Ubuntu CI, DSH 0.2.1-rc.5 | Core regressions and real host confinement, environment scrub, frozen install, build, preview reopening and cancellation passed; no complete external-model delivery case yet |
-| DSH next channel | Separate Windows/Linux native runtime canaries print the resolved version; see [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). This is separate from full model-delivery acceptance |
-| macOS | Not tested yet |
+| DSH next channel | Separate Windows/Linux/macOS native runtime canaries print the resolved version; see [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). This is separate from full model-delivery acceptance |
+| macOS | Current source adds native full regression, Chromium interface, actual DSH and package-manager checks. Safari live comparison remains separate in [#115](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/115); Chromium results do not replace it |
+| Current source baseline (unreleased) | Windows/Linux/macOS pin DSH 0.2.1-rc.5 and 0.2.2-rc.1; Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0. See the execution matrix and current CI for passing combinations and limits |
 | Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
 | Projects | Root-level Vite projects in a Git repository with at least one commit. See the [execution matrix](docs/package-managers.md) for complete package-manager checks and known limitations |
 

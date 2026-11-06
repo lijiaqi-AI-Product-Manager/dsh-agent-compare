@@ -119,7 +119,7 @@ Alte oder beschädigte Aufzeichnungen bleiben mit Begründung schreibgeschützt 
 
 Ein Worktree ist keine vollständige Sicherheitsgrenze. Das Plugin nutzt die DSH-Schreibrichtlinie; unter Windows wird sie als **partial** gemeldet. Dateilesen und Netzwerk sind nicht isoliert. Eingebettete Cookies folgen den Browserrichtlinien; ein externer Tab kann einen anderen Speicherkontext verwenden. Anmeldung, externe Backends und gemeinsam genutzte Datenbanken liegen außerhalb des aktuellen Umfangs.
 
-Installation und Prüfungen mit npm wurden ausgeführt. macOS und der vollständige Ablauf mit pnpm/yarn sind noch nicht verifiziert. Auch Kombinationen verschiedener Modellanbieter und aktuelle Leistungswerte eines vollständigen Ablaufs mit externem Modell benötigen weitere Prüfung. Siehe die [ausführliche Kompatibilitätsmatrix](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility).
+Native Prüfungen decken Windows, Linux und macOS ab. Die [Kompatibilitätsmatrix](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.en.md#compatibility) nennt geprüfte Kombinationen von npm, pnpm und Yarn sowie die Grenzen unter Windows/PnP. Natives Safari wird getrennt geprüft; kontrollierte Testantworten messen weder Qualität noch Laufzeit externer Modelle.
 
 ## Laufzeit, Kosten und Nachweise
 
