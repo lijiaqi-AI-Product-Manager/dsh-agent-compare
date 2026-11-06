@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { readFile, realpath, writeFile } from 'node:fs/promises'
+import { access, readFile, realpath, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { prepareProjectProcess, runProjectProcess } from '../src/core/project-process.ts'
@@ -13,13 +13,23 @@ import { git } from '../src/core/git.ts'
 
 describe('project command boundary', () => {
   it('prepares a private manager runtime without accepting an outside directory', async () => {
-    const root = await tmp('ac-manager-runtime'), runtime = path.join(root, '.cache', 'runtime')
+    // Native macOS temporary roots can themselves be symlink aliases. Match
+    // the canonical root supplied by createProjectProcess before confinement.
+    const root = await realpath(await tmp('ac-manager-runtime')), runtime = path.join(root, '.cache', 'runtime')
     const worker = fileURLToPath(new URL('../lib/core/project-command-worker.js', import.meta.url))
     const invoke = (directory: string) => run([process.execPath, worker, process.execPath, '-e', "process.stdout.write(require('node:fs').existsSync(process.env.XDG_RUNTIME_DIR)?'ready':'missing')"], { cwd: root, env: { ...process.env, AGENT_COMPARE_PACKAGE_RUNTIME: '1', XDG_RUNTIME_DIR: directory }, timeoutMs: 30_000 })
     const result = await invoke(runtime)
     expect(result.code, result.stderr).toBe(0)
     expect(result.stdout).toBe('ready')
     expect(await invoke(path.join(root, '..', 'must-not-create-' + path.basename(root)))).toMatchObject({ code: 1, stderr: expect.stringContaining('离开了候选副本') })
+  })
+  it('rejects a private manager runtime whose existing parent links outside the copy', async () => {
+    const root = await realpath(await tmp('ac-manager-link')), outside = await realpath(await tmp('ac-manager-outside'))
+    await symlink(outside, path.join(root, '.cache'), process.platform === 'win32' ? 'junction' : 'dir')
+    const worker = fileURLToPath(new URL('../lib/core/project-command-worker.js', import.meta.url))
+    const result = await run([process.execPath, worker, process.execPath, '-e', "process.stdout.write('must-not-run')"], { cwd: root, env: { ...process.env, AGENT_COMPARE_PACKAGE_RUNTIME: '1', XDG_RUNTIME_DIR: path.join(root, '.cache', 'runtime') }, timeoutMs: 30_000 })
+    expect(result).toMatchObject({ code: 1, stdout: '', stderr: expect.stringContaining('父路径不可信') })
+    await expect(access(path.join(outside, 'runtime'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
   it('starts neither candidate when the declared common manager version is unavailable', async () => {
     const repo = await fixtureRepo()

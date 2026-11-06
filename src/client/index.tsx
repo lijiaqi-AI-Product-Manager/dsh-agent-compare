@@ -9,7 +9,7 @@
  * Colours, radii and shadows come from DSH's own `--dsw-*` tokens (with
  * fallbacks for other hosts), so the sheet follows the active theme.
  */
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { CSS } from './styles.js'
 import { t, currentLocale, localeSnapshot, subscribeLocale } from './i18n.js'
 import { LanguageControl, Diagnostic } from './language.js'
@@ -99,13 +99,7 @@ function setOpen(sessionId: string | undefined, runId?: string, tab?: Tab, trigg
   for (const l of listeners) l()
 }
 function useOpen(): typeof openSession {
-  const [, force] = useState(0)
-  useEffect(() => {
-    const l = (): void => force((n) => n + 1)
-    listeners.add(l)
-    return () => { listeners.delete(l) }
-  }, [])
-  return openSession
+  return useSyncExternalStore(useCallback(listener => { listeners.add(listener); return () => { listeners.delete(listener) } }, []), () => openSession, () => undefined)
 }
 // ---- the session's composer, reached through DSH's conversation service ----
 interface InputShell {
@@ -147,15 +141,15 @@ function returnToComposer(sessionId: string): void {
   else inputShell(sessionId)?.focus?.()
 }
 interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route]; exampleKind?: 'quick' | 'full' }
-interface AbMode { preferences: AbPreferences; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
+interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
 const registeredShells = new WeakSet<InputShell>()
 function modeFor(sessionId: string): AbMode {
   let mode = modes.get(sessionId)
-  if (!mode) { mode = { preferences: { enabled: false, mode: 'same-model', generationMinutes: 30, models: [{}, {}] }, loaded: false, loading: false, collapsed: false, saving: 0, pending: Promise.resolve(), listeners: new Set() }; modes.set(sessionId, mode) }
+  if (!mode) { mode = { preferences: { enabled: false, mode: 'same-model', generationMinutes: 30, models: [{}, {}] }, version: 0, loaded: false, loading: false, collapsed: false, saving: 0, pending: Promise.resolve(), listeners: new Set() }; modes.set(sessionId, mode) }
   return mode
 }
-function publishMode(mode: AbMode): void { for (const update of mode.listeners) update() }
+function publishMode(mode: AbMode): void { mode.version++; for (const update of mode.listeners) update() }
 async function loadMode(sessionId: string): Promise<void> {
   const mode = modeFor(sessionId)
   if (mode.loading) return
@@ -171,16 +165,21 @@ function saveMode(sessionId: string, next: AbPreferences): void {
   void mode.pending.catch(() => {})
 }
 function useAbMode(sessionId: string): AbMode {
-  const [, force] = useState(0)
   const mode = modeFor(sessionId)
-  useEffect(() => {
-    const update = (): void => force((n) => n + 1)
+  const subscribe = useCallback((update: () => void) => {
     mode.listeners.add(update)
     const state = inputShell(sessionId)?.state
     const unsubscribe = typeof state?.subscribe === 'function' ? state.subscribe(update) : undefined
-    if (!mode.loaded && !mode.loading) void loadMode(sessionId)
     return () => { mode.listeners.delete(update); unsubscribe?.() }
   }, [mode, sessionId])
+  const snapshot = useCallback(() => {
+    const state = inputSnapshot(sessionId)
+    return JSON.stringify([mode.version, state?.draftRev, state?.phase, state?.claim?.name])
+  }, [mode, sessionId])
+  // Separate host slots use separate React roots. Recheck after subscribing so
+  // a settings read between render and subscription cannot leave one root stale.
+  useSyncExternalStore(subscribe, snapshot, snapshot)
+  useEffect(() => { if (!mode.loaded && !mode.loading) void loadMode(sessionId) }, [mode, sessionId])
   return mode
 }
 async function executeComparison(sessionId: string, task: string, example = false): Promise<{ kind: 'success' | 'error'; text?: string }> {
@@ -402,14 +401,16 @@ function LivePreview({ c, device, compact }: { c: Cand; device: PreviewDevice; c
   const holder = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: compact ? 320 : 480 } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = holder.current
     if (!el) return
-    const observer = new ResizeObserver(() => { if (el.clientWidth > 0) setWidth(el.clientWidth) })
+    const measure = (): void => { if (el.clientWidth > 0) setWidth(el.clientWidth) }
+    measure()
+    const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
-  const scale = Math.min(1, Math.max(1, width - 24) / size.width)
+  const scale = width === 0 ? 1 : Math.min(1, Math.max(1, width - 24) / size.width)
   return <div ref={holder} className="ac-preview-stage"><div className="ac-preview-surface" style={{ width: size.width * scale, height: size.height * scale }}>
     <iframe className="ac-frame" title={t("候选 {0} 的运行页面", { 0: c.label })} src={c.previewUrl} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
   </div></div>

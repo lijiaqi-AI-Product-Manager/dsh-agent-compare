@@ -7,6 +7,7 @@ import { createServer } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { createUiHarness } from './preview-ui.mjs'
+import { inspectPngEvidence } from './png-evidence.mjs'
 
 assert.equal(process.platform, 'darwin', 'Native Safari acceptance requires macOS')
 const output = path.resolve(process.env.AGENT_COMPARE_UI_ARTIFACTS ?? '.runtime-checks/safari-evidence')
@@ -41,12 +42,22 @@ const find = async selector => (await command('POST', '/elements', { using: 'css
 const idOf = element => element['element-6066-11e4-a52e-4f735466cecf'] ?? element.ELEMENT
 const top = () => command('POST', '/frame', { id: null })
 const frame = element => command('POST', '/frame', { id: element })
-const screenshot = async name => writeFile(path.join(output, name + '.png'), Buffer.from(await command('GET', '/screenshot'), 'base64'))
+const imageEvidence = []
+const screenshot = async (name, verify = true) => {
+  if (verify) await command('POST', '/execute/async', { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(document.visibilityState)))', args: [] })
+  const bytes = Buffer.from(await command('GET', '/screenshot'), 'base64')
+  await writeFile(path.join(output, name + '.png'), bytes)
+  const pixels = inspectPngEvidence(bytes)
+  if (verify) assert.ok(pixels.colors >= 128 && pixels.distinctPixels >= 1500, 'Safari returned blank or incomplete screenshot evidence: ' + JSON.stringify(pixels))
+  imageEvidence.push({ name, ...pixels })
+}
 try {
   await until(async () => (await request('GET', '/status'))?.ready === true, 'Safari driver readiness')
   const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari', 'safari:automaticInspection': false, 'safari:automaticProfiling': false } } })
   session = created.sessionId; capabilities = created.capabilities
   assert.ok(session); assert.equal(capabilities.browserName.toLowerCase(), 'safari')
+  await command('POST', '/window/rect', { width: 1440, height: 1000 })
+  if (process.env.GITHUB_ACTIONS === 'true') execFileSync('/usr/bin/osascript', ['-e', 'tell application "Safari" to activate'])
   await command('POST', '/timeouts', { implicit: 0, pageLoad: 30000, script: 30000 })
   await command('POST', '/url', { url: harness.url + '/?state=judging' })
   await until(() => execute('return document.querySelectorAll(".ac-grid iframe").length === 2'), 'Two preview frames')
@@ -89,12 +100,13 @@ try {
   await screenshot('safari-direct-preview')
   await command('DELETE', '/window'); await command('POST', '/window', { handle: originalWindow })
   result = { browser: capabilities.browserName, browserVersion: capabilities.browserVersion, macOS: execFileSync('/usr/bin/sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim(), kernel: os.release(), architecture: process.arch, node: process.version, scenario: 'native Safari driver; host-independent UI and live HTTP preview fixtures', independentHosts: true, independentInput: true, cookieIsolation: first.cookie ? 'verified' : 'blocked-by-browser', storageIsolation: first.storage ? 'verified' : 'blocked-by-browser', parentHttpOnlyCookieForwarded: false, directTabReachable: true, bothInterfaceLanguages: true, iframeIdentityPreserved: true }
+  result.imageEvidence = imageEvidence
   await writeFile(path.join(output, 'native-safari.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))
 } catch (error) {
   let documentState
   if (session) { await top().catch(() => {}); documentState = await execute('return {url:location.href,ready:document.readyState,encoding:document.characterSet,text:document.body.innerText.slice(0,12000),errors:window.__harnessErrors,frames:Array.from(document.querySelectorAll("iframe"),f=>f.src)}').catch(() => undefined) }
-  if (session) { await top().catch(() => {}); await screenshot('safari-failure').catch(() => {}) }
+  if (session) { await top().catch(() => {}); await screenshot('safari-failure', false).catch(() => {}) }
   await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState }, null, 2))
   throw error
 } finally {

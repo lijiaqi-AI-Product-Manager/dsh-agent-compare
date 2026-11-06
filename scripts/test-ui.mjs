@@ -9,8 +9,9 @@ import { createUiHarness } from './preview-ui.mjs'
 const harness = await createUiHarness({ port: 0, demoPort: 0 })
 const output = process.env.AGENT_COMPARE_UI_ARTIFACTS ?? await mkdtemp(path.join(os.tmpdir(), 'agent-compare-ui-'))
 await mkdir(output, { recursive: true })
-let browser, page
+let browser, page, embeddedCookies
 const errors = []
+const expectedBrowserDenials = []
 let assertions = 0
 const check = (value, message) => { assert.ok(value, message); assertions++ }
 try {
@@ -37,6 +38,10 @@ try {
     else if (state !== 'guide') await page.getByRole('region', { name: '候选 A', exact: true }).waitFor()
   }
   const requests = (method) => page.evaluate(m => window.__requests.filter(r => r.method === m), method)
+  const switchHeader = async (sessionId, blank) => {
+    await page.evaluate(({sessionId,blank}) => window.__switchHeader(sessionId, blank), {sessionId,blank})
+    await page.waitForFunction(blank => document.querySelectorAll('[data-ac-history]').length === 1 && Boolean(document.querySelector(blank ? '#hero-options [data-ac-history]' : '#btn [data-ac-history]')), blank)
+  }
   const expectImage = async (image, width) => { await image.waitFor(); await page.waitForFunction(({ name, width }) => [...document.images].some(img => img.alt === name && img.complete && img.naturalWidth === width), { name: await image.getAttribute('alt'), width }); check(await image.evaluate(img => img.complete && img.naturalWidth > 0), 'the retained screenshot must decode successfully') }
 
   await open('start')
@@ -148,6 +153,7 @@ try {
   check(await page.locator('.ac-conversation-run').count() === 0, 'a new conversation must not display an unrelated history record')
   const records = page.getByRole('button', { name: '打开 AgentCompare 比较记录', exact: true })
   const guide = page.getByRole('button', { name: '打开 AgentCompare 使用教程', exact: true })
+  await records.waitFor(); await guide.waitFor()
   check(await page.locator('#btn button').count() === 0, 'blank sessions must reproduce the host omission of ordinary header utilities')
   check(await records.count() === 1 && await guide.count() === 1, 'a new conversation must expose both navigation controls exactly once')
   await records.click()
@@ -157,11 +163,12 @@ try {
   check(await records.evaluate(el => el === document.activeElement), 'closing blank-session history must restore its trigger focus')
   await records.click()
   await page.getByRole('dialog', { name: 'AgentCompare', exact: true }).waitFor()
-  await page.evaluate(() => window.__switchHeader('s3', false))
+  await switchHeader('s3', false)
   await page.locator('#btn .ac-header-tools').waitFor()
+  await page.waitForFunction(() => document.querySelectorAll('[data-ac-history]').length === 1)
   await page.keyboard.press('Escape')
   check(await records.evaluate(el => el === document.activeElement), 'closing after the original header unmounts must focus the current navigation control')
-  await page.evaluate(() => window.__switchHeader('s1', true))
+  await switchHeader('s1', true)
   await page.locator('.ac-header-tools-hero').waitFor()
   await editor.focus()
   await guide.click()
@@ -178,18 +185,19 @@ try {
   const cornerBounds = await page.getByRole('button', { name: '宿主侧栏', exact: true }).boundingBox()
   check(navBounds && cornerBounds && navBounds.x >= 0 && navBounds.y < 60 && navBounds.x + navBounds.width <= cornerBounds.x - 7, 'new-session navigation must fit the upper-right header without overlapping its corner at phone width')
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.evaluate(() => window.__switchHeader('s2', false))
+  await switchHeader('s2', false)
   await page.locator('#btn .ac-header-tools').waitFor()
   await records.click()
   await page.getByRole('dialog', { name: 'AgentCompare', exact: true }).waitFor()
   check((await requests('list')).at(-1).body.sessionId === 's2', 'switching to an existing session must update the history target')
   check(await records.count() === 1 && await guide.count() === 1, 'switching presentation must not duplicate controls')
   await page.keyboard.press('Escape')
-  await page.evaluate(() => window.__switchHeader('s1', true))
+  await switchHeader('s1', true)
   await page.locator('.ac-header-tools-hero').waitFor()
   await page.reload()
   await records.waitFor()
   check(await records.count() === 1 && await guide.count() === 1, 'blank-session navigation must survive refresh')
+  await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
   if (await mode.getAttribute('aria-pressed') !== 'true') await mode.click()
   await page.getByRole('button', { name: '试跑内置示例', exact: true }).click()
   await page.locator('.ac-conversation-run iframe').nth(1).waitFor()
@@ -560,8 +568,20 @@ try {
   const originB = new URL(await page.locator('.ac-card iframe').nth(1).getAttribute('src')).hostname
   check(originA !== originB && [originA,originB].every(host => /^ac-[0-9a-f]{32}\.localhost$/.test(host)), 'candidate browser hosts must be separate local names')
   await storageA.locator('body').evaluate(() => { document.cookie='ac_storage=only_a; Path=/; SameSite=None; Secure';document.cookie='ac_parent=shared; Domain=localhost; Path=/; SameSite=None; Secure';localStorage.setItem('ac_storage','only_a');sessionStorage.setItem('ac_storage','only_a') })
-  check(await storageA.locator('body').evaluate(() => document.cookie.includes('ac_storage=only_a') && !document.cookie.includes('ac_parent=')), 'the first candidate must store its own compatible cookie and reject a shared localhost parent domain')
+  const embeddedCookie = await storageA.locator('body').evaluate(() => ({ available: document.cookie.includes('ac_storage=only_a'), parent: document.cookie.includes('ac_parent=') }))
+  embeddedCookies = embeddedCookie.available ? 'available' : 'blocked-by-browser'
+  check(!embeddedCookie.parent, 'an embedded candidate must not accept a shared localhost parent cookie')
   check(await storageB.locator('body').evaluate(() => !document.cookie.includes('ac_storage=') && localStorage.getItem('ac_storage') === null && sessionStorage.getItem('ac_storage') === null), 'cookies, local storage and session storage must not cross to the other candidate')
+  // Third-party policy may deny embedded cookies entirely. A direct tab must
+  // still prove usable first-party cookies and reject a shared parent domain.
+  const [cookieTab] = await Promise.all([page.context().waitForEvent('page'), page.locator('.ac-card').nth(0).locator('a.ac-preview-open').click()])
+  try {
+    await cookieTab.goto(await page.locator('.ac-card iframe').nth(0).getAttribute('src'))
+    const cookieA = await cookieTab.evaluate(() => { document.cookie='ac_top=only_a; Path=/; SameSite=Lax';document.cookie='ac_parent=shared; Domain=localhost; Path=/; SameSite=Lax';return { own:document.cookie.includes('ac_top=only_a'),parent:document.cookie.includes('ac_parent=') } })
+    check(cookieA.own && !cookieA.parent, 'the direct preview must store its own HTTP cookie and reject a shared localhost parent domain')
+    await cookieTab.goto(await page.locator('.ac-card iframe').nth(1).getAttribute('src'))
+    check(await cookieTab.evaluate(() => !document.cookie.includes('ac_top=')), 'a direct-preview cookie must not cross to the other candidate')
+  } finally { await cookieTab.close() }
   await storageA.locator('body').evaluate(async () => {
     const db = await new Promise((resolve,reject) => {const request=indexedDB.open('ac_candidate_state',1);request.onupgradeneeded=()=>request.result.createObjectStore('values');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})
     await new Promise((resolve,reject)=>{const transaction=db.transaction('values','readwrite');transaction.objectStore('values').put('only_a','key');transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error)})
@@ -569,9 +589,15 @@ try {
   })
   check(await storageB.locator('body').evaluate(async () => !(await indexedDB.databases()).some(db=>db.name==='ac_candidate_state') && !(await caches.keys()).includes('ac_candidate_cache')), 'IndexedDB and CacheStorage must remain specific to each candidate')
   const initialUrl = page.url()
+  const denialStart = errors.length
   await storageA.locator('body').evaluate(target => { const button=document.createElement('button');button.textContent='Controlled navigation probe';button.onclick=()=>{try{window.top.location.href=target}catch{document.body.dataset.topBlocked='true'}};document.body.append(button) }, harness.url + '/controlled-escape')
   await storageA.getByRole('button', { name: 'Controlled navigation probe', exact: true }).click()
   check(page.url() === initialUrl && await storageA.locator('body').getAttribute('data-top-blocked') === 'true', 'an activated preview must not navigate the comparison host')
+  // WebKit emits this browser-owned error even when the deliberate denial is
+  // caught by the fixture. Admit only the exact controlled frame and flag.
+  const denied = errors.splice(denialStart)
+  check(denied.every(message => engine === 'webkit' && message.includes(originA) && message.includes('is sandboxed') && message.includes("'allow-top-navigation-by-user-activation'")), 'the controlled denial must not conceal unrelated script errors')
+  if (denied.length) expectedBrowserDenials.push({ kind: 'top-navigation', count: denied.length })
   check(await page.locator('.ac-card iframe').nth(0).getAttribute('sandbox').then(value => value.includes('allow-scripts') && value.includes('allow-forms') && !value.includes('allow-top-navigation')), 'embedded pages must retain script/form support without top-level navigation permission')
   await page.getByText('预览环境与限制', { exact: true }).click()
   check(await page.getByText(/嵌入页面仍受浏览器的 Cookie 与存储策略限制/).isVisible(), 'the comparison must expose embedded storage and external-tab limits')
@@ -766,10 +792,11 @@ try {
   check(await page.getByRole('dialog').count() === 0, 'Escape must close the workspace')
   check(await page.evaluate(() => document.activeElement.classList.contains('ac-header-btn')), 'closing must restore entry-button focus')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
-  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, react: await page.evaluate(() => React.version), node: process.version }))
+  console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, embeddedCookies, directCookieIsolation: true, expectedBrowserDenials, react: await page.evaluate(() => React.version), node: process.version }))
 } catch (error) {
   await page?.screenshot({ path: path.join(output, 'interface-failure.png') }).catch(() => {})
-  await writeFile(path.join(output, 'interface-failure.json'), JSON.stringify({ assertions, message: error.message, browser: browser?.version(), pageErrors: errors }, null, 2))
+  const documentState = await page?.evaluate(() => ({ errors: window.__harnessErrors, settings: document.querySelector('.ac-composer-settings')?.innerText, mode: document.querySelector('.ac-mode-btn')?.outerHTML, input: window.__input?.(), requests: window.__requests?.slice(-8) })).catch(() => undefined)
+  await writeFile(path.join(output, 'interface-failure.json'), JSON.stringify({ assertions, message: error.message, browser: browser?.version(), pageErrors: errors, documentState }, null, 2))
   throw error
 } finally {
   await browser?.close()
