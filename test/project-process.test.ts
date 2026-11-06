@@ -68,6 +68,19 @@ describe('project command boundary', () => {
     expect(other.env.npm_config_foreground_scripts).toBeUndefined()
   })
 
+  it('removes compatibility activation in off mode while retaining confinement and deliberate script settings', async () => {
+    const root = await tmp('ac-compat-off'), confine = vi.fn(async (argv: readonly string[]) => ({ argv: [...argv], enforcement: 'partial' as const }))
+    const prepare = createProjectProcess(() => ({ confine }), async () => ({ NODE_OPTIONS: '--no-deprecation', agent_compare_windows_pipe_compat: '1', AGENT_COMPARE_WIN32_PROCESS_MODULE: 'inherited-module' }))
+    const result = await prepare({ argv: ['node', '--version'], cwd: root, windowsProcessCompat: 'off', env: { AGENT_COMPARE_WINDOWS_PIPE_COMPAT: '1', npm_config_ignore_scripts: 'true' } })
+    expect(confine).toHaveBeenCalledOnce()
+    expect(result.enforcement).toBe('partial')
+    expect(result.env.NODE_OPTIONS).toBe('--no-deprecation')
+    expect(Object.keys(result.env).some(key => /AGENT_COMPARE_(WINDOWS_PIPE_COMPAT|WIN32_PROCESS_MODULE)/i.test(key))).toBe(false)
+    expect(result.env.npm_config_ignore_scripts).toBe('true')
+    expect(result.windowsProcessCompat).toEqual({ mode: process.platform === 'win32' ? 'off' : 'not-required', observedHooks: [] })
+    await expect(prepare({ argv: ['node'], cwd: root, windowsProcessCompat: 'invalid' as any })).rejects.toThrow(/兼容设置/)
+  })
+
   it('retains a failure heading and its final detail within a bounded diagnostic', () => {
     const text = 'ROOT FAILURE\n' + 'stack detail\n'.repeat(500) + 'FINAL DETAIL'
     expect(diagnosticText(text, 200)).toHaveLength(200)

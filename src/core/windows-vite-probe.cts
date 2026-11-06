@@ -18,6 +18,7 @@ function captureNetworkDrives(
   options: cp.ExecOptions,
   callback: (error: cp.ExecException | null, stdout: string | Buffer, stderr: string | Buffer) => void,
 ): cp.ChildProcess {
+  reportCompatibility()
   const encoding = options.encoding === 'buffer' ? 'buffer' : options.encoding ?? 'utf8'
   if (encoding !== 'buffer' && !Buffer.isEncoding(encoding)) throw new TypeError('invalid network-drive probe output encoding')
   if (options.maxBuffer !== undefined && (!Number.isFinite(options.maxBuffer) || options.maxBuffer < 0)) throw new RangeError('invalid network-drive probe output limit')
@@ -96,6 +97,13 @@ function installViteProbeCompatibility(): () => void {
   return () => { if (cp.exec === wrapped) { cp.exec = original; moduleApi.syncBuiltinESMExports() } }
 }
 
-if (process.platform === 'win32' && isViteEntry(process.argv[1])) installViteProbeCompatibility()
+let reported = false
+function reportCompatibility(): void {
+  if (reported || process.env.AGENT_COMPARE_WINDOWS_PIPE_COMPAT !== '1') return
+  reported = true
+  try { fs.writeSync(2, '\n[agent-compare/windows-compat] vite-net-use\n') } catch { /* Diagnostics never change the command result. */ }
+}
+
+if (process.platform === 'win32' && process.env.AGENT_COMPARE_WINDOWS_PIPE_COMPAT === '1' && isViteEntry(process.argv[1])) installViteProbeCompatibility()
 
 export = { isViteEntry, captureNetworkDrives, installViteProbeCompatibility }

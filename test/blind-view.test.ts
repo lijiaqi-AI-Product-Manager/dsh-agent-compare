@@ -24,6 +24,14 @@ function record() {
 }
 
 describe('blind public evidence', () => {
+  it('withholds compatibility fingerprints until reveal without changing the durable record', () => {
+    const r = record(), c = r.candidates[0]!
+    c.install!.runtime = { hostNode: process.version, platform: 'win32-x64', packageManager: 'npm', windowsProcessCompat: { mode: 'auto', observedHooks: ['esbuild-service'] } }
+    expect(JSON.stringify(publicView(r))).not.toContain('esbuild-service')
+    expect(c.install!.runtime.windowsProcessCompat?.observedHooks).toEqual(['esbuild-service'])
+    r.revealedAt = Date.now()
+    expect(JSON.stringify(publicView(r))).toContain('esbuild-service')
+  })
   it.each(['running', 'judging', 'interrupted', 'abandoned'] as const)('withholds usage, scale, tools and candidate prose in %s', state => {
     const r = record(); r.state = state
     const before = structuredClone(r), view = publicView(r), candidate = view.candidates[0]!

@@ -5,6 +5,7 @@ export interface AbPreferences {
     readonly mode: 'same-model' | 'cross-model';
     readonly generationMinutes: number;
     readonly exampleKind?: 'quick' | 'full';
+    readonly windowsProcessCompat?: 'auto' | 'off';
     readonly models: readonly [AgentRoute, AgentRoute];
 }
 export declare function defaultPreferences(minutes?: number): AbPreferences;

@@ -1,5 +1,6 @@
 import { type CopyCleanupPlan } from './copy-resources.ts';
 import { type PrepareProjectProcess } from './project-process.ts';
+import { type WindowsProcessCompatMode } from './windows-compat.ts';
 import { RunStore } from './run-store.ts';
 import { type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts';
 export interface AgentRunRequest {
@@ -50,6 +51,7 @@ export interface StartInput {
     readonly follows?: string;
     readonly origin?: RunRecord['origin'];
     readonly generationMs?: number;
+    readonly windowsProcessCompat?: WindowsProcessCompatMode;
     /** Fixed A/B assignment for tests; production shuffles. */
     readonly assignment?: 'fixed' | 'shuffle';
     /** Handed to every AgentRunner call; never persisted. */

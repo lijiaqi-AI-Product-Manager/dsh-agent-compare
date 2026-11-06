@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createProjectProcess } from '../lib/host/project-process.js'
 import { runProjectProcess } from '../lib/core/project-process.js'
+import { WindowsCompatObserver } from '../lib/core/windows-compat.js'
 import { runCommandChecks } from '../lib/core/checks.js'
 import { inspectProject, installArgv } from '../lib/core/project.js'
 import { startVitePreview } from '../lib/core/preview.js'
@@ -58,6 +59,19 @@ try {
   assert.equal(await readFile(outside, 'utf8'), 'original')
   assert.equal(await readFile(path.join(repo, '.vite-canary'), 'utf8'), 'inside')
   await rm(path.join(repo, '.vite-canary'))
+  if (process.platform === 'win32') {
+    const off = createProjectProcess(() => ctx.get('sandbox'), async () => scrubbedParentEnv(), undefined, undefined, 'off')
+    const plain = await off({ argv: ['node', '--version'], cwd: repo })
+    assert.equal(plain.windowsProcessCompat.mode, 'off')
+    assert.ok(!String(plain.env.NODE_OPTIONS ?? '').includes('windows-project-pipes'))
+    assert.ok(!String(plain.env.NODE_OPTIONS ?? '').includes('windows-vite-probe'))
+    assert.equal(plain.env.AGENT_COMPARE_WINDOWS_PIPE_COMPAT, undefined)
+    const stillConfined = await runProjectProcess(['node', '-e', code], { cwd: repo, timeoutMs: 30000 }, off)
+    assert.equal(stillConfined.code, 0, stillConfined.stderr)
+    assert.equal(JSON.parse(stillConfined.stdout.trim()).denied, true)
+    assert.equal(await readFile(outside, 'utf8'), 'original')
+    await rm(path.join(repo, '.vite-canary'))
+  }
 
   // A permitted dependency lifecycle must work inside the same boundary.
   // npm 12's default script policy hid this npm 11 desktop failure path.
@@ -97,16 +111,22 @@ try {
   // same nested-process path as older package managers instead of skipping it.
   const esbuildProject = path.join(root, 'esbuild')
   await mkdir(esbuildProject)
+  const observedCompatibility = new WindowsCompatObserver()
+  const instrumented = async request => {
+    const prepared = await prepare(request)
+    return { ...prepared, observeStderr: observedCompatibility.prepare(prepared.windowsProcessCompat) }
+  }
   await writeFile(path.join(esbuildProject, 'package.json'), JSON.stringify({ name: 'agent-compare-esbuild-runtime', private: true, dependencies: { esbuild: '0.28.2' }, allowScripts: { esbuild: true } }))
   for (const argv of [
     ['npm', 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'],
     ['npm', 'ci', '--no-audit', '--no-fund'],
     ['node', '-e', "const e=require('esbuild');Promise.all(Array.from({length:16},(_,i)=>e.transform('const n: number = '+i,{loader:'ts'}))).then(r=>{if(r.length!==16||r.some(x=>!x.code.includes('const n')))process.exitCode=1;return e.transformSync('let n: number=1',{loader:'ts'})}).then(r=>{if(!r.code.includes('let n'))process.exitCode=1})"],
   ]) {
-    const result = await runProjectProcess(argv, { cwd: esbuildProject, timeoutMs: 120000, env: { CI: '1' } }, prepare)
+    const result = await runProjectProcess(argv, { cwd: esbuildProject, timeoutMs: 120000, env: { CI: '1' } }, instrumented)
     assert.equal(result.code, 0, result.stderr || result.stdout)
   }
   if (process.platform === 'win32') {
+    assert.deepEqual(observedCompatibility.snapshot(), { mode: 'auto', observedHooks: ['esbuild-service', 'esbuild-version'] })
     const pipes = await runProjectProcess(['node', path.resolve('scripts/check-windows-pipes.cjs'), outside], { cwd: esbuildProject, timeoutMs: 30000 }, prepare)
     assert.equal(pipes.code, 0, pipes.stderr || pipes.stdout)
     assert.equal(JSON.parse(pipes.stdout.trim()).restrictedGrandchild, true)
@@ -124,7 +144,7 @@ try {
   assert.ok(checks.every(check => check.outcome === 'passed'), JSON.stringify(checks))
   const viteVersion = JSON.parse(await readFile(path.join(repo, 'node_modules/vite/package.json'), 'utf8')).version
   for (let i = 0; i < 2; i++) {
-    preview = await startVitePreview(repo, { prepareProjectProcess: prepare, timeoutMs: 60000, ...(numericHosts?{loopbackHost:numericHosts[i]}:{}) })
+    preview = await startVitePreview(repo, { prepareProjectProcess: instrumented, timeoutMs: 60000, ...(numericHosts?{loopbackHost:numericHosts[i]}:{}) })
     if(numericHosts)assert.equal(new URL(preview.url).hostname,numericHosts[i])
     const response = await fetchPreview(preview.url)
     assert.equal(response.status, 200)
@@ -146,7 +166,7 @@ try {
   const stopped = await readFile(heartbeat, 'utf8')
   await new Promise(resolve => setTimeout(resolve, 200))
   assert.equal(await readFile(heartbeat, 'utf8'), stopped, 'cancelled process must stop writing')
-  console.log(JSON.stringify({ host: hostVersion, node: process.version, vite: viteVersion, enforcement: prepared.enforcement, adjacentWriteDenied: true, environmentScrubbed: true, permittedLifecycleCompleted: true, ignoredLifecycleSkipped: true, deniedLifecycleSkipped: true, lifecycleLockUnchanged: true, nativeEsbuildLifecycle: true, asyncAndSyncTransforms: true, frozenInstall: true, checks: checks.map(check => `${check.name}:${check.outcome}`), previewStarts: 2, cancelledHeartbeatStopped: true }))
+  console.log(JSON.stringify({ host: hostVersion, node: process.version, vite: viteVersion, enforcement: prepared.enforcement, windowsProcessCompatibility: { observed: observedCompatibility.snapshot(), ...(process.platform === 'win32' ? { offModePreloadsAbsent: true, offModeAdjacentWriteDenied: true } : {}) }, adjacentWriteDenied: true, environmentScrubbed: true, permittedLifecycleCompleted: true, ignoredLifecycleSkipped: true, deniedLifecycleSkipped: true, lifecycleLockUnchanged: true, nativeEsbuildLifecycle: true, asyncAndSyncTransforms: true, frozenInstall: true, checks: checks.map(check => `${check.name}:${check.outcome}`), previewStarts: 2, cancelledHeartbeatStopped: true }))
 } finally {
   if (oldToken === undefined) delete process.env.AGENT_COMPARE_TEST_TOKEN; else process.env.AGENT_COMPARE_TEST_TOKEN = oldToken
   if (oldIdentity === undefined) delete process.env.DSH_RUNTIME_CHECK; else process.env.DSH_RUNTIME_CHECK = oldIdentity

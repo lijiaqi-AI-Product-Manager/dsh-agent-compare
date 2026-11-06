@@ -89,6 +89,8 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.1.0.tgz
 
 [运行记录、重启与恢复](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/runs-and-recovery.md) · [支持范围](#兼容范围) · [自定义验收](#repository-acceptance-agent-comparejson)
 
+主分支另有[Windows 进程兼容设置](docs/windows-process-compat.md)：提供自动与关闭选项，保留原有宿主约束，并在揭晓后显示实际观察到的钩子。该设置尚未进入 npm 1.1.0。
+
 <a id="what-it-is-for"></a>
 
 ## 适合什么任务

@@ -13,6 +13,7 @@ import { acceptanceChanges, buildAcceptance, inspectProject, installArgv, manage
 import { isPreviewProcess, startVitePreview, PreviewError, type Preview } from './preview.ts'
 import { diagnosticText, killTree, observeProcess, ProcessStopError, waitGone } from './proc.ts'
 import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
+import { WindowsCompatObserver, type WindowsProcessCompatMode } from './windows-compat.ts'
 import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
 import type { FileLease } from './file-lock.ts'
 import { isRunId } from './record-validation.ts'
@@ -71,6 +72,7 @@ export interface StartInput {
   readonly follows?: string
   readonly origin?: RunRecord['origin']
   readonly generationMs?: number
+  readonly windowsProcessCompat?: WindowsProcessCompatMode
   /** Fixed A/B assignment for tests; production shuffles. */
   readonly assignment?: 'fixed' | 'shuffle'
   /** Handed to every AgentRunner call; never persisted. */
@@ -153,6 +155,7 @@ export class Comparer {
     if (this.opts.prepareProjectProcess === undefined) throw new Error('项目命令没有可用的写入边界；请由宿主提供进程沙箱后开始比较')
     const task = input.task.trim()
     if (task === '') throw new Error('任务描述为空')
+    if (input.windowsProcessCompat !== undefined && !['auto', 'off'].includes(input.windowsProcessCompat)) throw new Error('Windows 进程兼容设置无效')
     const active = [...this.live.values()].filter((l) => l.record.state === 'running').length
     if (active + this.startReservations.size >= (this.opts.maxActiveRuns ?? 1)) throw new BusyError('已有一轮比较正在准备或生成，请等它结束或停止后再开始新的一轮')
     const reservation = {}
@@ -188,7 +191,7 @@ export class Comparer {
     const head = await headCommit(root)
     const tree = await snapshotTree(root, scratch, ALWAYS_EXCLUDED)
     const dirty = head === undefined ? true : tree !== (await treeOf(root, head))
-    const acceptance = await buildAcceptance(root, tree, info, input.checks)
+    const acceptance = await buildAcceptance(root, tree, info, input.checks, input.windowsProcessCompat ?? 'auto')
     const snapshotCommit = await commitTree(root, tree, [head], `agent-compare baseline ${runId}`)
 
     const order: [number, number] = input.assignment === 'fixed' || Math.random() < 0.5 ? [0, 1] : [1, 0]
@@ -334,7 +337,7 @@ export class Comparer {
       const project = await inspectProject(dir)
       if (project.packageManagerVersion || project.packageManager !== 'npm') {
         try {
-          const version = await runProjectProcess([project.packageManager, '--version'], { cwd: dir, timeoutMs: 30_000, signal, env: { CI: '1' } }, this.opts.prepareProjectProcess)
+          const version = await runProjectProcess([project.packageManager, '--version'], { cwd: dir, timeoutMs: 30_000, signal, env: { CI: '1' } }, request => prepareProjectProcess({ ...request, windowsProcessCompat: record.acceptance.runtime.windowsProcessCompat ?? 'auto' }, this.opts.prepareProjectProcess))
           signal.throwIfAborted()
           const issue = managerVersionIssue(project, version.code === 0 && !version.truncated ? version.stdout.trim() : undefined)
           if (issue) throw new StageFailure('preparing', issue)
@@ -592,12 +595,14 @@ export class Comparer {
     mobileScreenshot?: string
   }> {
     let enforcement: 'full' | 'partial' | 'unknown' = 'full'
+    const compatibility = new WindowsCompatObserver()
     const prepare: PrepareProjectProcess = async request => {
-      const prepared = await prepareProjectProcess(request, this.opts.prepareProjectProcess)
+      const prepared = await prepareProjectProcess({ ...request, windowsProcessCompat: acceptance.runtime.windowsProcessCompat ?? 'auto' }, this.opts.prepareProjectProcess)
+      const observe = compatibility.prepare(prepared.windowsProcessCompat)
       if (prepared.enforcement === undefined) enforcement = 'unknown'
       else if (prepared.enforcement === 'partial' && enforcement !== 'unknown') enforcement = 'partial'
       await onEvidence?.({ execution: { enforcement } })
-      return prepared
+      return { ...prepared, observeStderr: chunk => { prepared.observeStderr?.(chunk); observe(chunk) } }
     }
     await enter?.('installing')
     const checkedTree = await ownedCopyTree(dir, copy, sealedTree)
@@ -627,7 +632,8 @@ export class Comparer {
     const r = await runProjectProcess(inst.argv, { cwd: dir, timeoutMs: 600_000, signal, env: { CI: '1' } }, prepare)
     const failure = r.code !== 0 || r.aborted || r.timedOut ? installFailure(r) : undefined
     const install: NonNullable<Candidate['install']> = { argv: inst.argv, frozen: inst.frozen, durationMs: Date.now() - t0, outcome: r.timedOut ? 'timeout' : r.aborted ? 'cancelled' : r.code === 0 ? 'passed' : 'failed', runtime, ...(failure ? { failure } : {}) }
-    await onEvidence?.({ install })
+    const currentInstall = (): NonNullable<Candidate['install']> => ({ ...install, runtime: { ...runtime, windowsProcessCompat: compatibility.snapshot() } })
+    await onEvidence?.({ install: currentInstall() })
     signal.throwIfAborted()
     if (r.code !== 0 || r.timedOut) {
       const reason = failure!
@@ -636,7 +642,7 @@ export class Comparer {
 
     await enter?.('verifying')
     const checks = await runCommandChecks(dir, acceptance.checks, signal, prepare)
-    await onEvidence?.({ checks })
+    await onEvidence?.({ checks, install: currentInstall() })
     signal.throwIfAborted()
     const buildOk = checks.find((k) => k.name === 'build')?.outcome === 'passed'
 
@@ -650,6 +656,7 @@ export class Comparer {
     } catch (error) {
       if (error instanceof ProcessStopError) throw error
       if (signal.aborted) throw error
+      await onEvidence?.({ install: currentInstall() })
       const log = error instanceof PreviewError ? `\n${diagnosticText(error.log, 1500)}` : ''
       throw new StageFailure('previewing', `${(error as Error).message}${log}`)
     }
@@ -668,7 +675,7 @@ export class Comparer {
       // inside ignored folders. The baseline .gitignore is bound acceptance;
       // folder names alone never justify skipping source changes.
       const drift = await changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy, sealedTree))
-      return { install, execution: { enforcement }, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
+      return { install: currentInstall(), execution: { enforcement }, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
     } catch (error) {
       await preview.handle.stop()
       throw error
@@ -757,7 +764,7 @@ export class Comparer {
       }
       const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' ? 'build' : 'dev'
       const loopbackHost = await this.opts.preparePreviewHost?.({ runId: r.runId, label: c.label }, this.lifetime.signal)
-      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: this.opts.prepareProjectProcess, ...(loopbackHost ? { loopbackHost } : {}) })
+      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: request => prepareProjectProcess({ ...request, windowsProcessCompat: lr.record.acceptance.runtime.windowsProcessCompat ?? 'auto' }, this.opts.prepareProjectProcess), ...(loopbackHost ? { loopbackHost } : {}) })
       lr.previews.set(label, handle)
       c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) }
       await this.save(lr.record)

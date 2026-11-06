@@ -6,6 +6,13 @@ import path = require('node:path')
 import streams = require('node:stream')
 import moduleApi = require('node:module')
 
+const reported = new Set<string>()
+function reportCompatibility(hook: 'esbuild-service' | 'esbuild-version'): void {
+  if (reported.has(hook) || process.env.AGENT_COMPARE_WINDOWS_PIPE_COMPAT !== '1') return
+  reported.add(hook)
+  try { fs.writeSync(2, `\n[agent-compare/windows-compat] ${hook}\n`) } catch { /* Diagnostics never change the command result. */ }
+}
+
 function isEsbuildService(file: string, args: readonly string[]): boolean {
   return /(?:^|[\\/])esbuild(?:\.exe)?$/i.test(file) && args.some(arg => /^--service=\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(arg))
 }
@@ -268,12 +275,16 @@ function installEsbuildCompatibility(): () => void {
   const spawn = cp.spawn, execFileSync = cp.execFileSync
   const wrappedSpawn = (function (file: string, args: readonly string[], options?: cp.SpawnOptions) {
     if (Array.isArray(args) && isEsbuildService(file, args) && !options?.shell && !options?.detached && options?.timeout === undefined && options?.argv0 === undefined && !options?.windowsVerbatimArguments && Array.isArray(options?.stdio) && options.stdio.length === 3 && options.stdio[0] === 'pipe' && options.stdio[1] === 'pipe' && (options.stdio[2] === 'inherit' || options.stdio[2] === 'pipe')) {
+      reportCompatibility('esbuild-service')
       return spawnEsbuildService(file, args, options)
     }
     return Reflect.apply(spawn, cp, Array.prototype.slice.call(arguments))
   }) as typeof cp.spawn
   const wrappedExecFileSync = (function (file: string, args: readonly string[], options?: cp.ExecFileSyncOptions) {
-    if (Array.isArray(args) && (isEsbuildVersion(file, args) || isEsbuildService(file, args)) && (!options?.stdio || options.stdio === 'pipe')) return captureSync(file, args, options)
+    if (Array.isArray(args) && (isEsbuildVersion(file, args) || isEsbuildService(file, args)) && (!options?.stdio || options.stdio === 'pipe')) {
+      reportCompatibility(isEsbuildVersion(file, args) ? 'esbuild-version' : 'esbuild-service')
+      return captureSync(file, args, options)
+    }
     return Reflect.apply(execFileSync, cp, Array.prototype.slice.call(arguments))
   }) as typeof cp.execFileSync
   cp.spawn = wrappedSpawn; cp.execFileSync = wrappedExecFileSync

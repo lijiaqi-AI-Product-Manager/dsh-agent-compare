@@ -95,7 +95,7 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
     let closed = false
     const exit = new Promise<void>((resolve) => child.once('close', () => { closed = true; resolve() }))
     child.stdout?.setEncoding('utf8').on('data', (d: string) => log.push(d))
-    child.stderr?.setEncoding('utf8').on('data', (d: string) => log.push(d))
+    child.stderr?.setEncoding('utf8').on('data', (d: string) => { log.push(d); prepared.observeStderr?.(d) })
     const entry = (): string => {
       const printed = log.toString().match(/http:\/\/127\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+\/[^\s\u001b]*/g)?.find(value => {
         try { const url = new URL(value); return url.hostname === bindHost && url.port === String(port) } catch { return false }

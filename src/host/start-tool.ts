@@ -36,6 +36,7 @@ export async function startToolComparison<A extends { session: { id: string } }>
     sessionId: exec.agent.session.id,
     origin: { kind: 'tool', ...(exec.callId ? { id: exec.callId } : {}) },
     generationMs: minutes * 60_000,
+    windowsProcessCompat: saved.windowsProcessCompat ?? 'auto',
   })
   // No listener on the short-lived tool signal: the admitted run has explicit
   // comparison cancellation and the host-lifetime cleanup already owns it.

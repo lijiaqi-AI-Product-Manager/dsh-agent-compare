@@ -470,10 +470,12 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         if (isDelegated(agent)) return { kind: 'error', text: '候选或子 Agent 不能再发起比较' }
         let input: ReturnType<typeof parseAbInput>
         let exampleKind: 'quick' | 'full' = 'quick'
+        let windowsProcessCompat: 'auto' | 'off' = 'auto'
         try {
           const ui = parseUiSubmission(rawInput)
           const saved = ui?.preferences ?? await preferences.load(agent.session.id)
           exampleKind = saved.exampleKind ?? 'quick'
+          windowsProcessCompat = saved.windowsProcessCompat ?? 'auto'
           input = ui ? { task: ui.task, example: ui.example } : parseAbInput(rawInput)
           input = { ...input, minutes: input.minutes ?? saved.generationMinutes, ...(input.models === undefined && saved.mode === 'cross-model' ? { models: saved.models } : {}) }
           if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请在输入框上方选择两个完整的模型配置')
@@ -489,6 +491,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
             hostContext: agent,
             sessionId: agent.session.id,
             origin: { kind: 'command', id: commandId },
+            windowsProcessCompat,
             ...(input.minutes === undefined ? {} : { generationMs: input.minutes * 60_000 }),
           })
           return { kind: 'success', text: commandResultText(r.runId) }
@@ -543,7 +546,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
         }
       }
-      return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, features: { currentComparisonContext: 'scoped-assembly-v1' }, capabilities: await capabilities(), previewNetwork: await previewNetwork.status(signal), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
+      return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, projectProcess: { platform: process.platform, windowsCompatControl: true }, features: { currentComparisonContext: 'scoped-assembly-v1' }, capabilities: await capabilities(), previewNetwork: await previewNetwork.status(signal), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
     },
     async previewNetworkStatus(b, signal) {
       await agentFor(b, signal)
@@ -589,6 +592,9 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const follows = typeof b.follows === 'string' && /^[0-9a-f]{8}$/.test(b.follows) ? b.follows : undefined
       if (b.generationMinutes !== undefined && (typeof b.generationMinutes !== 'number' || !Number.isFinite(b.generationMinutes) || b.generationMinutes < 5 || b.generationMinutes > 120)) throw new HttpError(400, '每版生成上限需要在 5 到 120 分钟之间')
       const minutes = b.generationMinutes as number | undefined
+      const saved = await preferences.load(agent.session.id)
+      const windowsProcessCompat = b.windowsProcessCompat ?? saved.windowsProcessCompat ?? 'auto'
+      if (windowsProcessCompat !== 'auto' && windowsProcessCompat !== 'off') throw new HttpError(400, 'Windows 进程兼容设置无效')
       if (b.exampleKind !== undefined && b.exampleKind !== 'quick' && b.exampleKind !== 'full') throw new HttpError(400, '示例类型无效')
       const exampleKind = b.exampleKind === 'full' ? 'full' : 'quick'
       const repo = b.example === true ? await createExampleRepo(store.examplesDir, undefined, exampleKind) : await repoFor(agent, signal)
@@ -601,6 +607,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         sessionId: agent.session.id,
         ...(follows === undefined ? {} : { follows }),
         origin: { kind: 'panel' },
+        windowsProcessCompat,
         ...(minutes === undefined ? {} : { generationMs: minutes * 60_000 }),
       })
       return present(r)
