@@ -109,10 +109,15 @@ try {
   await writeFile(path.join(output, 'native-safari.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))
 } catch (error) {
-  let documentState
-  if (session) { await top().catch(() => {}); documentState = await execute('return {url:location.href,ready:document.readyState,encoding:document.characterSet,text:document.body.innerText.slice(0,12000),errors:window.__harnessErrors,frames:Array.from(document.querySelectorAll("iframe"),f=>f.src)}').catch(() => undefined) }
+  let documentState, runnerState
+  if (session) { await top().catch(() => {}); documentState = await execute('return {url:location.href,ready:document.readyState,visibility:document.visibilityState,focused:document.hasFocus(),encoding:document.characterSet,text:document.body.innerText.slice(0,12000),errors:window.__harnessErrors,frames:Array.from(document.querySelectorAll("iframe"),f=>({src:f.src,rect:f.getBoundingClientRect().toJSON()})),dialog:document.querySelector("[role=dialog]")?.getBoundingClientRect().toJSON()}').catch(() => undefined) }
   if (session) { await top().catch(() => {}); await screenshot('safari-failure', false).catch(() => {}) }
-  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState }, null, 2))
+  // Capture only the disposable CI runner, never a maintainer's own desktop.
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    try { runnerState = execFileSync('/usr/bin/osascript', ['-e', 'tell application "Safari" to return {frontmost, id of every window}'], { encoding: 'utf8', timeout: 10000 }).trim() } catch (cause) { runnerState = cause.message }
+    try { execFileSync('/usr/sbin/screencapture', ['-x', path.join(output, 'safari-runner-screen.png')], { timeout: 10000 }) } catch (cause) { runnerState += '\nScreen capture: ' + cause.message }
+  }
+  await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState }, null, 2))
   throw error
 } finally {
   if (session) await command('DELETE', '').catch(() => {})
