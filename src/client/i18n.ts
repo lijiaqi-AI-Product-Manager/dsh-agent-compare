@@ -47,10 +47,12 @@ export function t(value: string | undefined, parameters?: Parameters): string | 
 export function t(value: string | undefined, parameters?: Parameters): string | undefined {
   if (value === undefined) return undefined
   const trimmed = value.trim()
-  const source = Object.hasOwn(messages, trimmed) ? trimmed : reverse.get(value) ?? reverse.get(trimmed)
+  const exact = Object.hasOwn(messages, value)
+  const source = exact ? value : Object.hasOwn(messages, trimmed) ? trimmed : reverse.get(value) ?? reverse.get(trimmed)
   if (source === undefined) return fill(value, parameters)
-  if (currentLocale() === 'zh-CN') return fill(source === trimmed ? value : source, parameters)
+  if (currentLocale() === 'zh-CN') return fill(exact || source === trimmed ? value : source, parameters)
   const translated = messages[source]!
+  if (exact) return fill(translated, parameters)
   const leading = /^\s*/.exec(value)![0], trailing = /\s*$/.exec(value)![0]
   return fill(`${leading}${translated}${trailing}`, parameters)
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Translate exact interface-copy keys with intentional whitespace, including advanced Windows labels and hook evidence. Let the longer process selector wrap on small screens. Check literal copy in every client module and the visible English label at narrow and wide widths.
+
 - Refresh the acceptance baseline to Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0, regenerate manager fixture locks with their exact tools, and add native macOS regression/runtime jobs with pinned minimum and current DSH versions. Keep native Safari and known Windows/PnP limits separately identified.
 
 - Add an advanced Windows auto/off control bound to each comparison. Preserve confinement and frozen checks when disabled; record observed compatibility hooks separately from the configured mode and withhold hook fingerprints until reveal.

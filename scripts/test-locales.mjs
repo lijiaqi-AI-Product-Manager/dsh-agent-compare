@@ -86,7 +86,12 @@ try {
     await page.setViewportSize({ width, height: 1000 })
     for (const state of ['compose', 'judging', 'history', 'recovery']) {
       await open(state)
-      if (state === 'compose') await page.locator('.ac-composer-settings details > summary').filter({ hasText: 'Advanced Windows settings' }).click()
+      if (state === 'compose') {
+        await page.locator('.ac-composer-settings details > summary').filter({ hasText: 'Advanced Windows settings' }).click()
+        const control = page.getByRole('combobox', { name: 'Windows process compatibility', exact: true })
+        const label = await control.locator('..').evaluate(element => [...element.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join('').trim())
+        check(label === 'Process compatibility', `visible advanced-setting label must be English at ${width}px: ${label}`)
+      }
       const surface = page.locator(state === 'compose' ? '.ac-composer-settings' : '.ac-sheet')
       await page.screenshot({ path: path.join(output, `english-${state}-${width}.png`) })
       const overflow = await surface.evaluate(element => { const root = element.getBoundingClientRect(); return [...element.querySelectorAll('*')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.height && (r.left < root.left - 1 || r.right > root.right + 1) }).slice(0, 5).map(e => ({ tag: e.tagName, class: e.className, text: e.textContent.slice(0, 100), width: e.getBoundingClientRect().width })) })

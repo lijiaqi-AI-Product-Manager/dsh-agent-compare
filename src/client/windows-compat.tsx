@@ -8,7 +8,7 @@ export interface WindowsCompatEvidence {
 
 export function WindowsProcessControl({ mode = 'auto', disabled, onChange }: { mode?: WindowsProcessCompatMode; disabled: boolean; onChange(mode: WindowsProcessCompatMode): void }): React.ReactElement {
   return <details className="ac-details"><summary>{t('Windows 高级设置')}</summary>
-    <label className="ac-budget">{t('进程兼容方式 ')}<select aria-label={t('Windows 进程兼容方式')} disabled={disabled} value={mode} onChange={event => onChange(event.target.value as WindowsProcessCompatMode)}>
+    <label className="ac-budget ac-process-control">{t('进程兼容方式 ')}<select aria-label={t('Windows 进程兼容方式')} disabled={disabled} value={mode} onChange={event => onChange(event.target.value as WindowsProcessCompatMode)}>
       <option value="auto">{t('自动（推荐）')}</option><option value="off">{t('关闭兼容层')}</option>
     </select></label>
     <p className="ac-meta">{t('为 Windows 受限进程适配 esbuild 管道和 Vite 探测。关闭后保留宿主约束、锁文件和全部检查；部分项目可能无法启动。设置仅用于之后开始的比较，已开始的比较和历史记录保留原设置。')}</p>
