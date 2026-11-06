@@ -213,6 +213,8 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 
 ## Verified (maintained through current CI and the cases below)
 
+The cases below retain their original source and tool versions. Current-source scripts use the unreleased baseline above; historical run numbers are not presented as new-version measurements.
+
 Current results are available in [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). The reproducible runtime check also exercised DSH 0.2.1-rc.5 with Node 26.13 and Vite 8.3.5 on Windows: adjacent writes denied, child environment scrubbed, frozen installation, typecheck/build, two preview starts and cancelled writes stopped. Windows correctly reported partial enforcement.
 
 To repeat that check using the official current host in a separate dependency directory:

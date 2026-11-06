@@ -235,6 +235,8 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 
 ## 已验证（持续更新，以当前 CI 和所列案例为准）
 
+以下案例保留各自的源码与工具版本。当前源码的测试脚本使用上方「未发布」基线，历史运行数字不作为新版重新测量的结果。
+
 最新结果见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)。可复现的原生运行检查还在 Windows 上实测了 DSH 0.2.1-rc.5、Node 26.13 和 Vite 8.3.5：相邻文件写入被拒绝、子进程环境被清理、冻结安装、类型检查和构建通过、预览两次启动、取消后停止写入。Windows 如实报告部分约束。
 
 用单独的依赖目录安装官方当前宿主后，可以重复这项检查：
