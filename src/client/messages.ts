@@ -1,5 +1,6 @@
 /** Interface copy. Application content and original diagnostic evidence are not translated. */
 export const messages: Readonly<Record<string, string>> = {
+  "采用与恢复记录": "Adoption and recovery record",
   "比较窗口暂时无法进入前景层。请关闭其他弹窗后重新打开。": "The comparison could not enter the foreground layer. Close other dialogs and reopen it.",
   "Windows 高级设置": "Advanced Windows settings",
   "进程兼容方式 ": "Process compatibility ",
@@ -229,7 +230,7 @@ export const messages: Readonly<Record<string, string>> = {
   "这次两版都没选。可以换个描述再来一次。": "You chose neither version. Try a different brief in a new comparison.",
   "先核对目标与改动，必要时在副本中预演；确认后才写入。": "Review the target and changes. Rehearse in a copy when needed; nothing is written until you confirm.",
   "这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。": "This version failed shared acceptance and cannot be written to the workspace. Save a branch to inspect it.",
-  "整理工作副本": "Manage working copies",
+  "整理工作副本": "Manage copies",
   "只新建分支（含一个提交），不切换、不改当前文件": "Create a new branch with one commit; keep the current branch and files unchanged.",
   "另存为分支": "Save as branch",
   "审查并采用": "Review and adopt ",
