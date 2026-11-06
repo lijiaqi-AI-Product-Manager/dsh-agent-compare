@@ -20,10 +20,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, macos-26-intel]
+        include:
+          - os: macos-latest
+            architecture: arm64
+            kernelArchitecture: arm64
+          - os: macos-15-intel
+            architecture: x64
+            kernelArchitecture: x86_64
+          - os: macos-26-intel
+            architecture: x64
+            kernelArchitecture: x86_64
     timeout-minutes: 30
     env:
       AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/safari-evidence
+      AGENT_COMPARE_NATIVE_ARCH: ${{ matrix.architecture }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -31,6 +41,10 @@ jobs:
           node-version: 26
           check-latest: true
           cache: npm
+      - name: Verify native runner architecture
+        run: |
+          test "$(uname -m)" = "${{ matrix.kernelArchitecture }}"
+          node -e "require('node:assert/strict').equal(process.arch, process.env.AGENT_COMPARE_NATIVE_ARCH)"
       - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
       - run: npm run build

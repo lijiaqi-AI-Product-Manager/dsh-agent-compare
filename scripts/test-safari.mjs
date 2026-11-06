@@ -95,6 +95,8 @@ try {
   // it only if the origin boundary is wrong. The fixture retains names only.
   await command('POST', '/url', { url: harness.url + '/?state=judging' })
   await until(() => execute('return document.querySelectorAll(".ac-grid iframe").length === 2'), 'Preview frames after parent cookie')
+  const foregroundLayer = await execute('const sheet=document.querySelector(".ac-sheet"),container=sheet.parentElement.parentElement,previous=container.getAttribute("style"),panel=document.createElement("button");panel.textContent="Host navigation fixture";panel.style.cssText="position:fixed;left:0;top:0;width:200px;height:100vh;z-index:2147483646;background:#fa0dab";try{container.style.transform="translateZ(0)";container.style.isolation="isolate";document.body.append(panel);const r=sheet.querySelector(".ac-title").getBoundingClientRect();return sheet.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}finally{panel.remove();if(previous===null)container.removeAttribute("style");else container.setAttribute("style",previous)}')
+  assert.equal(foregroundLayer,true,'Host navigation obscures the native Safari comparison dialog')
   const frames = await find('.ac-grid iframe')
   const urls = await execute('return Array.from(document.querySelectorAll(".ac-grid iframe"), frame => frame.src)')
   assert.equal(new Set(urls.map(url => new URL(url).hostname)).size, 2)
@@ -153,6 +155,7 @@ try {
   await command('DELETE', '/window'); await command('POST', '/window', { handle: originalWindow })
   result = { browser: capabilities.browserName, browserVersion: capabilities.browserVersion, macOS: execFileSync('/usr/bin/sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim(), kernel: os.release(), architecture: process.arch, node: process.version, scenario: 'native Safari driver; host-independent UI and live HTTP preview fixtures', independentHosts: true, independentInput: true, cookieIsolation: first.cookie ? 'verified' : 'blocked-by-browser', storageIsolation: first.storage ? 'verified' : 'blocked-by-browser', parentHttpOnlyCookieForwarded: false, directTabReachable: true, bothInterfaceLanguages: true, iframeIdentityPreserved: true }
   result.firstPartyCookieIsolation=true
+  result.foregroundLayer=foregroundLayer
   result.firstPartyStorageIsolation=true
   result.numericSecureContext=true
   result.driverReportedVersion=capabilities.browserVersion

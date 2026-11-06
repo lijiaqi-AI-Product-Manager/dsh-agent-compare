@@ -44,6 +44,37 @@ try {
   }
   const expectImage = async (image, width) => { await image.waitFor(); await page.waitForFunction(({ name, width }) => [...document.images].some(img => img.alt === name && img.complete && img.naturalWidth === width), { name: await image.getAttribute('alt'), width }); check(await image.evaluate(img => img.complete && img.naturalWidth > 0), 'the retained screenshot must decode successfully') }
 
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open('history')
+  await page.evaluate(() => {
+    const sheet = document.querySelector('.ac-sheet'), container = sheet.parentElement.parentElement
+    container.style.transform = 'translateZ(0)'; container.style.isolation = 'isolate'
+    const panel = document.createElement('button')
+    panel.id = 'late-host-navigation'; panel.textContent = 'Host navigation fixture'
+    panel.style.cssText = 'position:fixed;left:0;top:0;width:200px;height:100vh;z-index:2147483646;background:#fa0dab'
+    document.body.append(panel)
+  })
+  const foreground = () => page.locator('.ac-sheet').evaluate(sheet => {
+    const title = sheet.querySelector('.ac-title').getBoundingClientRect()
+    return sheet.contains(document.elementFromPoint(title.x + title.width / 2, title.y + title.height / 2))
+  })
+  check(await foreground(), 'late host navigation must not obscure the comparison dialog inside a transformed host layer')
+  check(await page.locator('.ac-sheet').evaluate(sheet => sheet.getBoundingClientRect().width >= innerWidth - 2), 'the foreground dialog must retain the full narrow viewport')
+  await page.screenshot({ path: path.join(output, 'foreground-host-navigation-phone.png') })
+  await page.keyboard.press('Tab')
+  check(await page.locator('.ac-sheet').evaluate(sheet => sheet.contains(document.activeElement)), 'new host navigation must not take modal keyboard focus')
+  await page.evaluate(() => document.getElementById('late-host-navigation').remove())
+  await page.keyboard.press('Escape')
+  check(await page.getByRole('dialog', { name: 'AgentCompare' }).count() === 0, 'Escape must close the foreground dialog')
+  check(await page.evaluate(() => document.activeElement.matches('[data-ac-history]')), 'foreground dismissal must restore its actual trigger')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await open('history')
+  const title = await page.locator('.ac-title').boundingBox()
+  await page.mouse.move(title.x + title.width / 2, title.y + title.height / 2)
+  await page.mouse.down(); await page.mouse.move(2, 2); await page.mouse.up()
+  check(await page.getByRole('dialog', { name: 'AgentCompare' }).count() === 1, 'dragging from inside the dialog must not be mistaken for a backdrop click')
+  await page.mouse.click(2, 2)
+  check(await page.getByRole('dialog', { name: 'AgentCompare' }).count() === 0, 'clicking outside the native dialog must retain backdrop dismissal')
   await open('start')
   const mode = page.getByRole('button', { name: 'A|B 对比模式', exact: true })
   const editor = page.getByRole('textbox', { name: '需求', exact: true })

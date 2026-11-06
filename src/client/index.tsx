@@ -915,7 +915,8 @@ function Sheet({ sessionId, runId, tab, trigger }: { sessionId: string; runId?: 
   const [problemSupported, setProblemSupported] = useState(false)
   const historyRequest = useRef(0)
   const historyAbort = useRef<AbortController | undefined>(undefined)
-  const sheet = useRef<HTMLDivElement>(null)
+  const sheet = useRef<HTMLDialogElement>(null)
+  const backdropPointer = useRef(false)
   const refreshList = useCallback(async (signal?: AbortSignal) => {
     const request = ++historyRequest.current
     historyAbort.current?.abort()
@@ -932,13 +933,17 @@ function Sheet({ sessionId, runId, tab, trigger }: { sessionId: string; runId?: 
   useEffect(() => { const controller = new AbortController(); void refreshList(controller.signal); return () => controller.abort() }, [refreshList])
   useEffect(() => () => { historyAbort.current?.abort() }, [])
   useEffect(() => { setSelected(runId); setView(runId ? 'history' : tab ?? 'history') }, [runId, tab])
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Safari does not necessarily focus a button when it is clicked.
     const previous = trigger ?? document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const element = sheet.current
     if (!element) return
+    if (typeof element.showModal === 'function' && !element.open) {
+      try { element.showModal() }
+      catch { setErr(t("比较窗口暂时无法进入前景层。请关闭其他弹窗后重新打开。")) }
+    }
     const siblings: Array<{ el: HTMLElement; inert: boolean }> = []
     let node: HTMLElement = element.parentElement!
     while (node.parentElement) {
@@ -966,6 +971,7 @@ function Sheet({ sessionId, runId, tab, trigger }: { sessionId: string; runId?: 
       document.removeEventListener('keydown', onKey); document.removeEventListener('focusin', onFocus)
       for (const item of siblings) item.el.inert = item.inert
       document.body.style.overflow = previousOverflow
+      if (element.open) element.close()
       const composer = focusComposerOnClose
       focusComposerOnClose = undefined
       if (composer) inputShell(composer)?.focus?.()
@@ -978,7 +984,18 @@ function Sheet({ sessionId, runId, tab, trigger }: { sessionId: string; runId?: 
   return (
     <div lang={currentLocale()} className="ac-root">
       <Styles /><div className="ac-mask" onClick={() => setOpen(undefined)} />
-      <div ref={sheet} className="ac-sheet" role="dialog" aria-modal="true" aria-label="AgentCompare" tabIndex={-1}>
+      <dialog ref={sheet} className="ac-sheet" role="dialog" aria-modal="true" aria-label="AgentCompare" tabIndex={-1}
+        onCancel={event => { event.preventDefault(); setOpen(undefined) }}
+        onPointerDown={event => {
+          const r = event.currentTarget.getBoundingClientRect()
+          backdropPointer.current = event.target === event.currentTarget && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom)
+        }}
+        onClick={event => {
+          const r = event.currentTarget.getBoundingClientRect()
+          const outside = event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom
+          if (backdropPointer.current && event.target === event.currentTarget && outside) setOpen(undefined)
+          backdropPointer.current = false
+        }}>
         <header className="ac-head"><span className="ac-logo">A|B</span><span className="ac-title">AgentCompare</span><span className="ac-header-caption">{t("跑过再选")}</span><span className="ac-spacer" /><LanguageControl compact />
           <nav className="ac-tabs" aria-label={t("比较工作区")}>{(['history', 'guide'] as const).map((item) => <button key={item} className={`ac-tab${view === item && !selected ? ' on' : ''}`} aria-current={view === item && !selected ? 'page' : undefined} onClick={() => navigate(item)}>{{ history: t("历史记录"), guide: t("使用教程") }[item]}</button>)}</nav>
           <button className="ac-icon-btn" onClick={() => setOpen(undefined)} aria-label={t("关闭（Esc）")} title={t("关闭（Esc）")}><IconClose /></button>
@@ -988,7 +1005,7 @@ function Sheet({ sessionId, runId, tab, trigger }: { sessionId: string; runId?: 
           <div className="ac-run-heading"><button className="ac-text-btn" onClick={() => navigate('history')}>{t("← 比较记录")}</button><span className="ac-task" title={current?.task}>{current?.task ?? t("比较结果")}</span><span className="ac-meta">{selected}</span></div>
           <RunView key={selected} runId={selected} sessionId={sessionId} {...(current ? { initial: current } : {})} onDone={() => navigate('history')} />
         </> : view === 'guide' ? <Guide sessionId={sessionId} /> : <History data={list} open={(r) => setSelected(r.runId)} busy={historyBusy} failed={err} scope={historyScope} query={historyQuery} onScope={scope => { setHistoryScope(scope); setHistoryOffset(0) }} onSearch={query => { const trimmed = query.trim(); if (trimmed === historyQuery && historyOffset === 0) void refreshList(); else { setHistoryQuery(trimmed); setHistoryOffset(0) } }} onPage={setHistoryOffset} onlyUnavailable={onlyUnavailable} problemSupported={problemSupported} onUnavailable={only => { setOnlyUnavailable(only); setHistoryOffset(0) }} />}</div>
-      </div>
+      </dialog>
     </div>
   )
 }

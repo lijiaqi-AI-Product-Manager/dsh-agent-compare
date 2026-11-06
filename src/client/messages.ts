@@ -46,6 +46,7 @@ export const messages: Readonly<Record<string, string>> = {
   "此预览需要切换到 Safari 独立地址，原候选和检查记录保留。": "Reopen this preview at a dedicated Safari address. The candidate and check records are retained.",
   "用独立地址打开 {0}": "Open {0} at a dedicated address",
   "Safari 预览需要独立本机地址；启用后可重新打开原候选，无需重新生成。": "Safari previews require distinct loopback addresses. Enable them and reopen the existing candidates without generating again.",
+  "比较窗口暂时无法进入前景层。请关闭其他弹窗后重新打开。": "The comparison could not enter the foreground layer. Close other dialogs and reopen it.",
   "Windows 高级设置": "Advanced Windows settings",
   "进程兼容方式 ": "Process compatibility ",
   "Windows 进程兼容方式": "Windows process compatibility",
