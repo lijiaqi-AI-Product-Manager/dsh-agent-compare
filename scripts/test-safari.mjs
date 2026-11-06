@@ -8,10 +8,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { createUiHarness } from './preview-ui.mjs'
 import { inspectPngEvidence } from './png-evidence.mjs'
+import { prepareNativeSafariSession } from './prepare-native-safari-session.mjs'
 
 assert.equal(process.platform, 'darwin', 'Native Safari acceptance requires macOS')
 const output = path.resolve(process.env.AGENT_COMPARE_UI_ARTIFACTS ?? '.runtime-checks/safari-evidence')
 await mkdir(output, { recursive: true })
+const startup=await prepareNativeSafariSession()
+await writeFile(path.join(output,'native-browser-startup.json'),JSON.stringify(startup,null,2))
 const harness = await createUiHarness({ port: 0, demoPort: 0 })
 const port = await new Promise((resolve, reject) => {
   const server = createServer(); server.once('error', reject)
@@ -71,9 +74,6 @@ try {
     return wakeAssertionObserved
   },'Disposable display wake assertion',10000)
   driverVersion=execFileSync('/usr/bin/safaridriver',['--version'],{encoding:'utf8',timeout:10000}).trim()
-  // LaunchServices prepares the updated app without requesting Apple Events
-  // control of Safari. This is confined to the disposable test runner.
-  if(process.env.GITHUB_ACTIONS==='true')execFileSync('/usr/bin/open',['-a','/Applications/Safari.app','about:blank'],{stdio:'pipe',timeout:15000})
   await until(async () => (await request('GET', '/status'))?.ready === true, 'Safari driver readiness')
   const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari', 'safari:automaticInspection': false, 'safari:automaticProfiling': false } } })
   session = created.sessionId; capabilities = created.capabilities
@@ -155,6 +155,7 @@ try {
   result.numericSecureContext=true
   result.driverReportedVersion=capabilities.browserVersion
   result.driverExecutableVersion=driverVersion
+  result.browserStartup=startup
   result.browserVersion=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleShortVersionString','/Applications/Safari.app/Contents/Info.plist'],{encoding:'utf8',timeout:10000}).trim()
   result.userAgent=await execute('return navigator.userAgent')
   result.imageEvidence = imageEvidence
