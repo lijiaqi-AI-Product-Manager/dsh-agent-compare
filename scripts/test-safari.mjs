@@ -9,6 +9,7 @@ import path from 'node:path'
 import { createUiHarness } from './preview-ui.mjs'
 import { inspectPngEvidence } from './png-evidence.mjs'
 import { prepareNativeSafariSession } from './prepare-native-safari-session.mjs'
+import { probeNativeSafariProtocol } from './safari-protocol-probe.mjs'
 
 assert.equal(process.platform, 'darwin', 'Native Safari acceptance requires macOS')
 const output = path.resolve(process.env.AGENT_COMPARE_UI_ARTIFACTS ?? '.runtime-checks/safari-evidence')
@@ -198,6 +199,7 @@ try {
       catch { diagnostics.remotePreferences[key] = 'not explicitly configured' }
     }
     await writeFile(path.join(output, 'native-startup-diagnostics.json'), JSON.stringify(diagnostics, null, 2))
+    if (!session) await writeFile(path.join(output, 'native-protocol-capabilities.json'), JSON.stringify(await probeNativeSafariProtocol(), null, 2))
   }
   await writeFile(path.join(output, 'native-safari-failure.json'), JSON.stringify({ capabilities, platform: process.platform, kernel: os.release(), message: error.message, driverLog, documentState, runnerState, nativeScreen, nativeWindow, imageEvidence, wakeAssertionObserved, driverVersion }, null, 2))
   throw error
