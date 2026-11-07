@@ -29,7 +29,9 @@ export interface ConversationContextRequest {
 }
 
 export function contextRequestOf(preferences: AbPreferences, ids?: readonly number[]): ConversationContextRequest {
-  const mode = preferences.contextMode ?? 'recent'
+  const saved = preferences.contextMode ?? 'recent'
+  // A typed command or the model's tool call has no ticked entries: a manual selection falls back to the recent exchanges.
+  const mode = saved === 'selected' && ids === undefined ? 'recent' : saved
   return { mode, turns: preferences.contextTurns ?? DEFAULT_CONTEXT_TURNS, ...(mode === 'selected' && ids ? { ids } : {}) }
 }
 

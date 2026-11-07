@@ -28,7 +28,9 @@ export declare function listedEntries(events: readonly ContextSourceEvent[]): Ar
 }>;
 /**
  * Build the text for one submission. `recent` takes the last `turns` user
- * messages and everything after the earliest of them; `selected` takes exactly
- * the listed entries. Newest content is kept when the bound is reached.
+ * messages and everything after the earliest of them, including the results
+ * delivered with that message and `pending` results the log does not hold
+ * yet; `selected` takes exactly the listed entries. Newest content is kept
+ * when the bound is reached.
  */
-export declare function buildConversationContext(events: readonly ContextSourceEvent[], request: ConversationContextRequest): ConversationContext | undefined;
+export declare function buildConversationContext(events: readonly ContextSourceEvent[], request: ConversationContextRequest, pending?: readonly string[]): ConversationContext | undefined;

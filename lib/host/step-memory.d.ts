@@ -39,3 +39,27 @@ export declare class StepMemory {
     /** Read only the log entries appended since the previous scan of this session. */
     private scan;
 }
+export interface StepPayload<A> {
+    readonly agent?: A;
+    readonly step?: number;
+    readonly signal?: AbortSignal;
+}
+export type StepDecision = {
+    readonly kind: 'reject';
+} | {
+    readonly kind: 'enter';
+    readonly messages: readonly unknown[];
+};
+/**
+ * The `agent/pre-step` waterfall: pending comparison facts go ahead of the
+ * step's own messages, so the user's message stays the latest input. Only an
+ * admitted step of a top-level conversation is changed; an unexpected payload
+ * or a failure leaves the step exactly as the host decided.
+ */
+export declare function withComparisonNotes<A extends {
+    readonly session?: MemorySession;
+}>(payload: StepPayload<A> | undefined, next: () => Promise<StepDecision>, deps: {
+    memory: Pick<StepMemory, 'messages'>;
+    delegated(agent: A): boolean;
+    warn(message: string): void;
+}): Promise<StepDecision>;

@@ -69,7 +69,9 @@ export class StepMemory {
     let state = this.scans.get(session.id)
     if (!state || session.seq < state.seq) { state = { seq: 0, keys: new Set() }; this.scans.set(session.id, state) }
     if (session.seq !== state.seq) {
-      for (const event of session.snapshotEvents(state.seq)) {
+      // Overlap the last scanned position: re-reading it is harmless for a set,
+      // and no entry is skipped whether the host's `seq` counts entries or names the last one.
+      for (const event of session.snapshotEvents(Math.max(0, state.seq - 1))) {
         if (event.type !== 'user/message') continue
         const source = agentCompareSource(event.data)
         if (source) state.keys.add(`${source.runId}:${source.milestone}`)
@@ -77,6 +79,34 @@ export class StepMemory {
       state.seq = session.seq
     }
     return state.keys
+  }
+}
+
+export interface StepPayload<A> { readonly agent?: A; readonly step?: number; readonly signal?: AbortSignal }
+export type StepDecision = { readonly kind: 'reject' } | { readonly kind: 'enter'; readonly messages: readonly unknown[] }
+
+/**
+ * The `agent/pre-step` waterfall: pending comparison facts go ahead of the
+ * step's own messages, so the user's message stays the latest input. Only an
+ * admitted step of a top-level conversation is changed; an unexpected payload
+ * or a failure leaves the step exactly as the host decided.
+ */
+export async function withComparisonNotes<A extends { readonly session?: MemorySession }>(
+  payload: StepPayload<A> | undefined,
+  next: () => Promise<StepDecision>,
+  deps: { memory: Pick<StepMemory, 'messages'>; delegated(agent: A): boolean; warn(message: string): void },
+): Promise<StepDecision> {
+  const decision = await next()
+  try {
+    const agent = payload?.agent
+    if (decision?.kind !== 'enter' || !Array.isArray(decision.messages) || payload?.signal?.aborted || !agent?.session || deps.delegated(agent)) return decision
+    const notes = await deps.memory.messages(agent.session)
+    if (notes.length === 0 || payload?.signal?.aborted) return decision
+    return { ...decision, messages: [...notes, ...decision.messages] }
+  } catch (error) {
+    // Memory is supplementary: a failure must never block the user's own request.
+    deps.warn(`agent-compare: comparison notes unavailable for this step: ${(error as Error).message}`)
+    return decision
   }
 }
 

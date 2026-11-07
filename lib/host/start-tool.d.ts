@@ -23,7 +23,7 @@ export declare function startToolComparison<A extends {
         state: string;
     }>;
     /** The saved main-conversation context for both candidates, if any. */
-    conversationContext?(agent: A, saved: AbPreferences): StartInput['conversationContext'];
+    conversationContext?(agent: A, saved: AbPreferences): Promise<StartInput['conversationContext']>;
 }): Promise<{
     runId: string;
     state: string;
