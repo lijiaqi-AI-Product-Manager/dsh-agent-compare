@@ -7,7 +7,9 @@
 - 已写入的事实按会话记录去重，不会重复出现；请求如果在提交前被取消，下一次请求会补上。
 - 对话不在打开状态时什么也不做，你回到这条对话、发出下一条消息时再写入。
 - 每次请求的系统提示里还附带最新一次比较的当前状态：需求、选择、采用状态、写入的文件和目标仓库。这份状态以记录为准，覆盖之前的旧说法。
-- 卡片底部会显示「结果已写入主对话记忆」或「结果会在你下一条消息时写入主对话记忆」。
+- 写入的文件只在仍然留在工作区时列出；撤销、拒绝或回滚之后不再列出。
+- 对话打开时，卡片底部会显示「结果已写入主对话记忆」或「结果会在你下一条消息时写入主对话记忆」。
+- 读取记录失败或宿主传来的数据不完整时，这一步照常发送，不会因为记忆而被阻塞。
 - 这些消息只给模型看，不会作为聊天气泡显示；会话的「轨迹」里可以查到。
 - 候选会话和子 Agent 不会收到这些事实，也不能借此发起新的比较。
 
@@ -22,19 +24,22 @@ A|B 设置条里的「主对话上下文」决定两版候选能看到主对话�
 | 手动选择 | 你勾选的那几条消息 |
 
 - 设置条会实时显示「两版都会看到同样的 N 条主对话内容，约 M 字」，展开后可以查看完整内容。
+- 「最近对话」会带上随这些消息一起写入的比较结果。还没写入主对话的最新比较结果也会带上，所以连续发起的两次比较可以接着上一次的结果。
 - 两版收到的内容完全相同，并且注明这只是背景、以需求为准；工具调用、推理过程和其他插件注入的内容都不会带入。
+- 比较结果里的项目路径不会带给两版，以免它们去改原项目。
 - 单条消息最多 2,000 字，合计最多 12,000 字；超过时保留最新的部分，并标注“已截取”。
 - 带入的原文随比较记录一起保存，卡片底部可以展开核对。
 - 内置示例使用独立的示例仓库，不带入主对话内容。
-- 模型通过工具发起比较时，沿用这条对话保存的选项。“手动选择”因为没有勾选的消息，会改用最近对话。
+- 直接输入 `/ab`，或者模型通过工具发起比较时，沿用这条对话保存的选项。这时没有勾选的消息，所以“手动选择”会改用最近对话。
 
 ## English
 
 **Results back in the conversation.**
 - Each comparison's key facts become the conversation's own messages in its next request, ahead of your message, and stay in the session log. The facts are: the shared check outcome, your pick (and the blind pick, if you changed it after the reveal), the files written or undone, and any saved branch.
 - They are added at DSH's `agent/pre-step` and deduplicated against the log. A request cancelled before admission receives them on the next request.
-- Every request's system prompt also carries the latest comparison's current state: task, pick, adoption state, written files and target repository.
-- The card shows whether the result is already in the conversation's memory or will enter it with your next message.
+- Every request's system prompt also carries the latest comparison's current state: task, pick, adoption state, target repository, and the written files while they are still in the working tree.
+- While the conversation is open, the card shows whether the result is already in the conversation's memory or will enter it with your next message.
+- A failed record read or an incomplete host payload never holds up the request.
 - Candidate and delegated sessions never receive these facts.
 
 **What both versions see.** Under **Main-conversation context** in the A|B settings:
@@ -42,6 +47,10 @@ A|B 设置条里的「主对话上下文」决定两版候选能看到主对话�
 - **Recent** (default, last 3 exchanges): your messages, replies, summaries and earlier comparison results from the last 1, 3, 6 or 10 exchanges.
 - **Choose**: only the messages you tick.
 
-The settings show exactly how many entries and characters both versions will receive, and the complete excerpt is available before sending. Both versions receive the identical excerpt, marked as background with the requirement taking precedence. Tools, reasoning and other injected context are excluded. Each message is limited to 2,000 characters and the excerpt to 12,000; the newest part is kept and marked as shortened.
+The settings show exactly how many entries and characters both versions will receive, and the complete excerpt is available before sending.
 
-The excerpt is stored with the comparison and can be reviewed on its card. Built-in examples include no conversation content. A comparison started by the model through its tool uses the saved setting, with **Choose** falling back to the recent exchanges.
+**Recent** also includes the comparison results delivered with those messages, plus any result the conversation has not received yet, so back-to-back comparisons build on each other.
+
+Both versions receive the identical excerpt, marked as background with the requirement taking precedence. Tools, reasoning and other injected context are excluded. Project paths in comparison results are left out, so the versions do not reach for the original project. Each message is limited to 2,000 characters and the excerpt to 12,000; the newest part is kept and marked as shortened.
+
+The excerpt is stored with the comparison and can be reviewed on its card. Built-in examples include no conversation content. A typed `/ab` command, or a comparison the model starts through its tool, uses the saved setting, with **Choose** falling back to the recent exchanges.

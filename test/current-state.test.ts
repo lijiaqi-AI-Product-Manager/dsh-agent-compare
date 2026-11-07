@@ -68,6 +68,13 @@ describe('current comparison prompt context', () => {
     expect(note.interpolate).toBe(false); expect(note.text).toContain('{{private_variable}}')
     for (const field of ['hidden-model', 'hidden-strategy', 'inputTokens']) expect(note.text).not.toContain(field)
   })
+  it.each([['adopted', true], ['needs-attention', true], ['reverted', false], ['rolled-back', false], ['blocked', false]] as const)('lists written files only while a %s adoption has them in the working tree', async (state, listed) => {
+    const f = fixture(); f.record.choice = { pick: 'A', at: 1, initialPick: 'B' }
+    f.record.adoption = { label: 'A', mode: 'worktree', state, startedAt: 3, writtenPaths: ['src/App.tsx'] }
+    const result = await withCurrentComparisonState(f.context, f.next, f), facts = JSON.parse(result.contexts.at(-1)!.text.split('\n')[1]!)
+    expect(facts).toMatchObject({ adoptionState: state, blindPick: 'B', task: f.record.task })
+    expect(facts.writtenFiles).toEqual(listed ? ['src/App.tsx'] : undefined)
+  })
   it.each(['adopted', 'reverted', 'blocked', 'needs-recovery'] as const)('reports exact %s state and branch/worktree distinction', async state => {
     const f = fixture(); f.record.choice = { pick: 'A', at: 1 }; f.record.adoption = { label: 'A', mode: 'branch', state, startedAt: 3 }
     const result = await withCurrentComparisonState(f.context, f.next, f), facts = JSON.parse(result.contexts.at(-1)!.text.split('\n')[1]!)

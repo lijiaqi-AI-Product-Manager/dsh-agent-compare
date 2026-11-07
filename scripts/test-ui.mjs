@@ -99,6 +99,12 @@ try {
   await mode.click()
   await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
   check(await mode.getAttribute('aria-pressed') === 'true', 'comparison mode must be visible in the composer')
+  // Reduced motion also stills pseudo-element motion and the composer button outside the plugin root.
+  check(await page.evaluate(() => {
+    const still = (element, pseudo) => { const style = getComputedStyle(element, pseudo); return style.animationName === 'none' && /^0s(, 0s)*$/.test(style.transitionDuration) }
+    const logo = document.querySelector('.ac-logo'), button = document.querySelector('.ac-mode-btn.on')
+    return !!logo && !!button && still(logo, '::after') && still(button)
+  }), 'reduced motion must stop the logo spark and the active mode button animation')
   check(await editor.inputValue() === 'Improve search and category navigation --minutes stays literal', 'entering mode must preserve the task')
   check(await page.evaluate(() => JSON.stringify(window.__input().occurrences)) === references, 'entering mode must preserve structured references')
   check(await page.evaluate(() => window.__edits.at(-1).span.end) === 0, 'mode entry must insert a token rather than replace the draft')

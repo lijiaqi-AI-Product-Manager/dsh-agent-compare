@@ -6,7 +6,7 @@
 
 这段演示使用公开 npm `dsh-agent-compare@1.1.0` 的固定候选，运行真实的应用、共同验收、审查采用与撤销。没有发送外部模型请求，不能用它评价模型生成质量或估算模型耗时。内置示例按钮在正常使用时仍会调用用户已配置的模型，两版分别消耗用量。
 
-来源：发布源码 `8dd54760981823be252feb46ce4ebd8e67ba26cd`，npm 压缩包 SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`。独立 profile 内 81 个运行文件与公开包一致。环境为 Windows、DSH `0.2.2-rc.1`、Node `26.13.0`、Chromium `156.0.8078.4`。演示的 1.1.0 界面为中文；主分支未发布的界面改进另行记录。
+来源：发布源码 `8dd54760981823be252feb46ce4ebd8e67ba26cd`，npm 压缩包 SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`。独立 profile 内 81 个运行文件与公开包一致。环境为 Windows、DSH `0.2.2-rc.1`、Node `26.13.0`、Chromium `156.0.8078.4`。演示的 1.1.0 界面为中文；1.2.0 的界面更新（包括英文界面）不在这段录制中。
 
 任务是基础示例中的商品搜索与清空，两个候选使用同一份已绑定验收。操作 A 的搜索时 B 保持原列表；操作 B 时 A 保持原列表。
 
@@ -27,7 +27,7 @@
 
 This recording uses controlled candidates with the public npm `dsh-agent-compare@1.1.0` artifact. Applications, shared checks, reviewed adoption and undo execute for real. No external model request is made; it measures neither model generation quality nor model latency. During normal use, the built-in example uses the configured model and each candidate consumes usage separately.
 
-Source: release commit `8dd54760981823be252feb46ce4ebd8e67ba26cd`; npm archive SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`. All 81 installed runtime files match the public archive in a fresh profile. Environment: Windows, DSH `0.2.2-rc.1`, Node `26.13.0`, Chromium `156.0.8078.4`. The recorded 1.1.0 interface is Chinese; unreleased interface changes on main are tracked separately.
+Source: release commit `8dd54760981823be252feb46ce4ebd8e67ba26cd`; npm archive SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`. All 81 installed runtime files match the public archive in a fresh profile. Environment: Windows, DSH `0.2.2-rc.1`, Node `26.13.0`, Chromium `156.0.8078.4`. The recorded 1.1.0 interface is Chinese; the 1.2.0 interface update, including English, is not part of this recording.
 
 The task is the basic product-search-and-clear example with shared, bound acceptance. Searching in A leaves B unchanged, and searching in B leaves A unchanged.
 

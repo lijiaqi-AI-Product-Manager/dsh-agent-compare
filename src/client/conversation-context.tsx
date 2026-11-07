@@ -46,7 +46,8 @@ export function ConversationContextControl({ sessionId, mode, turns, selected, d
     setEntriesError(undefined)
     call<{ entries: ContextEntry[] }>('contextEntries', { sessionId }).then(value => setEntries(value.entries), (error: Error) => setEntriesError(error.message))
   }
-  useEffect(() => { if (picking && entries === undefined) loadEntries() }, [picking])
+  // Read the conversation again each time the list opens: new messages may have arrived since.
+  useEffect(() => { if (picking) loadEntries() }, [picking])
   useEffect(() => { setEntries(undefined); setPicking(false) }, [sessionId])
   const toggle = (id: number): void => onSelected(selected.includes(id) ? selected.filter(value => value !== id) : [...selected, id].sort((a, b) => a - b))
   const summary = mode === 'none' ? t("两版只看到你写的需求，不带入主对话内容。")

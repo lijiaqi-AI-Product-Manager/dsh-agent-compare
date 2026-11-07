@@ -26,7 +26,7 @@ import { inspectProject } from '../core/project.ts'
 import { repoRoot } from '../core/git.ts'
 import { contextRequestOf, defaultPreferences, parsePreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
 import { buildConversationContext, CONTEXT_CHARS, listedEntries, MESSAGE_CHARS, type ConversationContext } from './conversation-context.ts'
-import { StepMemory } from './step-memory.ts'
+import { StepMemory, withComparisonNotes, type StepDecision, type StepPayload } from './step-memory.ts'
 import { historyPage, HistoryQueryError } from './history.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, projectCommandArgv, type ManagedPnpm, type ProjectSandbox } from './project-process.ts'
@@ -56,7 +56,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '1.1.0'
+const VERSION = '1.2.0'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -110,8 +110,10 @@ interface LlmService { listProviders(): Array<{ id: string; name?: string }>; li
 const DELEGATION_TEXT = 'You are a delegated candidate agent for AgentCompare: your permission scope was fixed when you were started and cannot be widened from inside this session — operations that require approval are rejected automatically. Work only in your working directory under the host write policy. When the task needs access beyond that scope, do not retry the denied operation; state the limitation in your reply.'
 
 /** A session started by AgentCompare (or any delegated child) must not start another comparison. */
+/** Candidates and other delegated agents: they never receive or start the main conversation's comparisons. */
 function isDelegated(agent: AgentLike): boolean {
-  return agent.session.header.origin === 'subagent'
+  const header = agent.session.header as SessionLike['header'] | undefined
+  return header?.origin === 'subagent' || (header?.delegationDepth ?? 0) > 0
 }
 
 /** Aggregate only complete provider-reported counters. Cache counters are disjoint input. */
@@ -373,20 +375,9 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       try { return ((await import('@deepseek-ai/dsh-llm' as string)) as { createUserMessage: (m: unknown) => unknown }).createUserMessage } catch { return undefined }
     },
   })
-  ctx.effect(() => ctx.on('agent/pre-step', async (payload: { agent: AgentLike; step: number; signal: AbortSignal }, next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>) => {
-    const decision = await next()
-    if (decision.kind !== 'enter' || payload.signal.aborted || isDelegated(payload.agent)) return decision
-    try {
-      const notes = await memory.messages(payload.agent.session)
-      if (notes.length === 0 || payload.signal.aborted) return decision
-      // Facts come first so the user's own message stays the latest input of the step.
-      return { ...decision, messages: [...notes, ...decision.messages] }
-    } catch (error) {
-      // Memory is supplementary: a failure must never block the user's own request.
-      ctx.logger.warn(`agent-compare: comparison notes unavailable for this step: ${(error as Error).message}`)
-      return decision
-    }
-  }), 'agent-compare: comparison notes in conversation steps')
+  ctx.effect(() => ctx.on('agent/pre-step', (payload: StepPayload<AgentLike> | undefined, next: () => Promise<StepDecision>) => withComparisonNotes(payload, next, {
+    memory, delegated: isDelegated, warn: message => ctx.logger.warn(message),
+  })), 'agent-compare: comparison notes in conversation steps')
   const bundledPnpm = (): ManagedPnpm | undefined => (ctx.get('profileContext') as { packageManager?: ManagedPnpm } | undefined)?.packageManager
   const comparer = new Comparer({
     store,
@@ -398,12 +389,20 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     onRecoveryIssue: issue => ctx.logger.warn(`agent-compare: ${issue.runId}: ${issue.message}`),
   })
   // `example` lets the card offer a repeat that creates a fresh example repository instead of using the conversation's project.
-  /** `synced`: the owning conversation's log holds the current fact; `next-message`: it enters the next request. */
+  /**
+   * `synced`: the owning conversation's log holds the current fact; `next-message`: it enters the next request.
+   * A conversation that is not open has no log to read here, so its state is not claimed either way.
+   */
   const memoryState = (record: RunRecord): 'synced' | 'next-message' | undefined => {
     if (!record.sessionId) return undefined
     const agent = agents?.list().find(candidate => candidate.session.id === record.sessionId)
-    const delivered = agent ? memory.delivered(agent.session, record) : false
+    const delivered = agent ? memory.delivered(agent.session, record) : undefined
     return delivered === undefined ? undefined : delivered ? 'synced' : 'next-message'
+  }
+  /** Results the conversation's log does not hold yet; the next comparison should still know them. */
+  const pendingNotes = async (session: SessionLike): Promise<string[]> => {
+    try { return (await memory.pending(session)).map(note => note.text) }
+    catch (error) { ctx.logger.warn(`agent-compare: pending comparison notes unavailable: ${(error as Error).message}`); return [] }
   }
   const present = async (record: RunRecord): Promise<unknown> => {
     const conversationMemory = memoryState(record)
@@ -448,7 +447,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         preferences: sessionId => preferences.load(sessionId), currentRoute, repoFor,
         start: input => comparer.start(input),
         // A tool call has no ticked messages; a saved manual selection falls back to the recent exchanges.
-        conversationContext: (agent, saved) => buildConversationContext(agent.session.snapshotEvents(0), { ...contextRequestOf(saved), ...(saved.contextMode === 'selected' ? { mode: 'recent' as const } : {}) }),
+        conversationContext: async (agent, saved) => buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved), await pendingNotes(agent.session)),
       })
     },
   })), 'agent-compare: agent_compare_start tool')
@@ -491,7 +490,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请在输入框上方选择两个完整的模型配置')
           if (!input.models && !currentRoute(agent).model) throw new Error('当前对话尚未选择模型，请先在输入框右下角选择模型。')
           // The built-in example is a separate repository; this conversation's history does not describe it.
-          if (!input.example) conversationContext = buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ui?.contextIds))
+          if (!input.example) conversationContext = buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ui?.contextIds), await pendingNotes(agent.session))
         } catch (error) { return { kind: 'error', text: (error as Error).message } }
         if (!input.example && input.task === '') return { kind: 'error', text: '请在输入框中写下要比较的需求，或点击「试跑示例」。' }
         try {
@@ -580,7 +579,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       catch (error) { throw new HttpError(400, (error as Error).message) }
       const ids = Array.isArray(b.ids) && b.ids.length <= 200 && b.ids.every(id => Number.isSafeInteger(id) && (id as number) >= 0) ? b.ids as number[] : undefined
       if (b.ids !== undefined && ids === undefined) throw new HttpError(400, '所选主对话消息无效')
-      return buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ids)) ?? null
+      return buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ids), await pendingNotes(agent.session)) ?? null
     },
     async latest(b) {
       if (typeof b.sessionId !== 'string' || !b.sessionId.trim() || b.sessionId.length > 500) throw new HttpError(400, '会话编号无效')

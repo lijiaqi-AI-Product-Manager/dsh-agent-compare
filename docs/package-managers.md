@@ -1,12 +1,12 @@
 # 包管理器与网络 / Package managers and networking
 
-## 当前源码基线（未发布） / Current source baseline (unreleased)
+## 1.2.0 基线 / 1.2.0 baseline
 
-当前源码使用 Playwright 1.65.0、Vite 8.3.6、pnpm 12.18.0，并保留 npm 12.2.2、Yarn Classic 1.22.22、Yarn 4.18.1 与 TypeScript 7.0.2。Windows／Linux／macOS 的原生 CI 分别输出实际结果；宿主固定检查 0.2.1-rc.5 与 0.2.2-rc.1，next 通道另列。此处不是 npm 1.1.0 的重新测量，也不把安装范围当作已验证范围。
+1.2.0 使用 Playwright 1.65.0、Vite 8.3.6、pnpm 12.18.0，并保留 npm 12.2.2、Yarn Classic 1.22.22、Yarn 4.18.1 与 TypeScript 7.0.2。Windows／Linux／macOS 的原生 CI 分别输出实际结果；宿主固定检查 0.2.1-rc.5 与 0.2.2-rc.1，next 通道另列。此处不是 npm 1.1.0 的重新测量，也不把安装范围当作已验证范围。
 
 Windows 下已用准确的 12.18.0 工具、更新后的有效锁文件和真实 DSH 0.2.2-rc.1 边界再次直接执行冻结安装，仍报告 ERR_PNPM_STORE_DIR_OPEN_OPERATION_LOCK；随后确认比较在生成前拒绝，两版模型请求均未发生。上游限制仍跟踪于 [#100](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/100)。不能用旧锁文件不匹配代替这项存储锁复现。
 
-The current source pins the versions above and runs native project/host/manager acceptance on Windows, Linux and macOS. The exact pnpm 12.18.0 Windows fixture still fails native frozen installation with the store-lock permission error after its lock was updated; admission makes no model request. Each job reports its actual positive and negative results. Native Safari remains a separate browser gate; Chromium or SDK success does not establish it.
+1.2.0 pins the versions above and runs native project/host/manager acceptance on Windows, Linux and macOS. The exact pnpm 12.18.0 Windows fixture still fails native frozen installation with the store-lock permission error after its lock was updated; admission makes no model request. Each job reports its actual positive and negative results. Native Safari remains a separate browser gate; Chromium or SDK success does not establish it.
 
 ## 1.1.0 历史记录 / Historical 1.1.0 observations
 

@@ -19,9 +19,9 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.1.0 · Stable release.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+> **1.2.0 · Stable release.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
 
-1.1.0 adds quick/full examples, reviewed copy-space release, rehearsal cancellation, cross-conversation action confirmation and current-state synchronization after restart. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#110) for measured package-manager scope and limits.
+1.2.0 keeps comparison results in the main conversation's memory and lets you choose what both versions see from it. It adds changing the pick after the reveal, Compare again, copy release for large dependency trees, a Chinese/English interface, Windows process compatibility settings and a refreshed interface. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#120) for measured package-manager scope and limits.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
@@ -56,7 +56,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm package into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.1.0
+dsh plugin --profile web add dsh-agent-compare@1.2.0
 ```
 
 For another self-managed profile, replace `web` with its actual name.
@@ -74,13 +74,13 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.1.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.2.0.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
 
 1. A settings strip opens above the existing input. Choose one model with two strategies, or select two configured models. The default reuses the current model.
-2. Select a per-candidate generation limit (5–120 minutes). Settings are retained for this conversation across reopening.
+2. Select a per-candidate generation limit (5–120 minutes) and the **main-conversation context** both versions see: none, the recent exchanges (3 by default) or messages you tick. The strip shows the complete excerpt both will receive. Settings are retained for this conversation across reopening.
 3. Write the task in the original composer and send. No flags to type. Mode switching changes only its command chip, preserving the draft, references, and attachments. Unsupported attachment submissions are refused by the host while retaining the originals.
 4. The conversation renders a persistent A|B card with two **live, interactive applications**. In a new conversation without a chat timeline, the same record appears above the composer. Adaptive views support direct interaction; matching desktop/phone sizes and focused A/B views are available. Expand the card for closer inspection.
 5. Choose, reveal, and review source changes. Adoption displays its target repository and preflight result before a separate confirmation writes anything. Recovery actions stay at the top. **Continue conversation** exits comparison mode and focuses the original composer, retaining the record.
@@ -91,7 +91,9 @@ Use **comparison records** and **tutorial** at the upper right of new or existin
 
 [Records, restarts and recovery](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/runs-and-recovery.en.md) · [Supported scope](#compatibility) · [Custom acceptance](#repository-acceptance-agent-comparejson)
 
-Unreleased main also offers [Windows process compatibility settings](docs/windows-process-compat.en.md): automatic/off controls preserve host confinement and show observed hooks after reveal. This control is not in npm 1.1.0.
+Results, your pick, adoption and undo enter this conversation's memory. You can then ask how the comparison went, or keep working on the adopted version. After the reveal and before adopting, you can switch to the other finished version; when neither is usable, use **Compare again**. See [conversation memory and context](docs/conversation-memory.md#english).
+
+[Windows process compatibility settings](docs/windows-process-compat.en.md) offer automatic/off controls that preserve host confinement and show observed hooks after reveal.
 
 ## What it is for
 
@@ -207,13 +209,13 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 | Linux, Ubuntu CI, DSH 0.2.1-rc.5 | Core regressions and real host confinement, environment scrub, frozen install, build, preview reopening and cancellation passed; no complete external-model delivery case yet |
 | DSH next channel | Separate Windows/Linux/macOS native runtime canaries print the resolved version; see [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). This is separate from full model-delivery acceptance |
 | macOS | Current source adds native full regression, Chromium interface, actual DSH and package-manager checks. Safari live comparison remains separate in [#115](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/115); Chromium results do not replace it |
-| Current source baseline (unreleased) | Windows/Linux/macOS pin DSH 0.2.1-rc.5 and 0.2.2-rc.1; Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0. See the execution matrix and current CI for passing combinations and limits |
+| 1.2.0 baseline | Windows/Linux/macOS pin DSH 0.2.1-rc.5 and 0.2.2-rc.1; Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0. See the execution matrix and current CI for passing combinations and limits |
 | Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
 | Projects | Root-level Vite projects in a Git repository with at least one commit. See the [execution matrix](docs/package-managers.md) for complete package-manager checks and known limitations |
 
 ## Verified (maintained through current CI and the cases below)
 
-The cases below retain their original source and tool versions. Current-source scripts use the unreleased baseline above; historical run numbers are not presented as new-version measurements.
+The cases below retain their original source and tool versions. 1.2.0 scripts use the baseline above; historical run numbers are not presented as new-version measurements.
 
 Current results are available in [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml). The reproducible runtime check also exercised DSH 0.2.1-rc.5 with Node 26.13 and Vite 8.3.5 on Windows: adjacent writes denied, child environment scrubbed, frozen installation, typecheck/build, two preview starts and cancelled writes stopped. Windows correctly reported partial enforcement.
 

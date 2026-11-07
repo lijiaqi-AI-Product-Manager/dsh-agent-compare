@@ -2,7 +2,7 @@
 
 [简体中文](windows-process-compat.md)
 
-This feature is on unreleased main. The public npm 1.1.0 interface does not include this control.
+This feature is available from 1.2.0. The 1.1.0 interface does not include this control.
 
 Expand **Advanced Windows settings** in the A|B composer settings and choose **Automatic (recommended)** or **Turn compatibility off**. The preference is saved for the conversation and frozen into shared acceptance when a comparison starts. Later preference changes do not alter existing candidates, adoption rehearsal or retained previews.
 
