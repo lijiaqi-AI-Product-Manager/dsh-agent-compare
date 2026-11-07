@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { commandResultText, memoryNote, milestoneOf, parseAbInput, runIdInText } from '../src/host/conversation.ts'
 import { RUN_SCHEMA, type RunRecord } from '../src/core/types.ts'
-import { ConversationMemory } from '../src/host/memory.ts'
+import { StepMemory } from '../src/host/step-memory.ts'
 
 describe('/ab input', () => {
   it('keeps the task verbatim and reads flags anywhere', () => {
@@ -59,36 +59,49 @@ describe('conversation memory notes', () => {
     expect(milestoneOf(run({ state: 'running' }))).toBeUndefined()
     expect(memoryNote(run({ state: 'running' }))).toBeUndefined()
   })
+})
 
-  it('retries an offline conversation and a failed injection, preserving target identity', async () => {
-    const queued: unknown[] = [], warnings: string[] = []
-    let online = false, fail = true
-    const agent = { session: { snapshotEvents: () => [] }, inbox: { nextTurn: queued, nextStep: [] }, inject: (m: unknown) => { if (fail) throw new Error('busy'); queued.push(m) } }
-    const memory = new ConversationMemory({ findAgent: () => online ? agent : undefined, createMessage: async () => m => m, warn: m => warnings.push(m) })
-    const record = run({})
-    await memory.remember(record)
-    expect(queued).toHaveLength(0)
-    online = true
-    await memory.remember(record)
-    expect(warnings).toHaveLength(1)
-    fail = false
-    await memory.remember(record)
-    await memory.remember(record)
-    expect(queued).toHaveLength(1)
-    expect(JSON.stringify(queued)).toContain('Target repository: /r')
+/** A session log that grows as steps commit their messages. */
+function logSession(id = 's1') {
+  const events: Array<{ type: string; data: unknown }> = []
+  return { id, events, get seq() { return events.length }, snapshotEvents: (from: number) => events.slice(from), commit(messages: unknown[]) { for (const message of messages) events.push({ type: 'user/message', data: { message } }) } }
+}
+
+describe('conversation memory in the conversation\'s own steps', () => {
+  const create = async () => (message: unknown) => message
+
+  it('adds each current fact once, in the step that follows it, preserving target identity', async () => {
+    const session = logSession()
+    let records = [run({})]
+    const memory = new StepMemory({ records: async () => records, createMessage: create })
+    const first = await memory.messages(session)
+    expect(first).toHaveLength(1)
+    expect(JSON.stringify(first)).toContain('Target repository: /r')
+    expect(memory.delivered(session, records[0]!)).toBe(false)
+    session.commit(first)
+    expect(memory.delivered(session, records[0]!)).toBe(true)
+    expect(await memory.messages(session)).toHaveLength(0)
+    records = [run({ state: 'adopted', choice: { pick: 'A', at: 1 }, adoption: { label: 'A', mode: 'worktree', state: 'adopted', startedAt: 5, writtenPaths: ['src/App.tsx'] }, updatedAt: 2 })]
+    const adopted = await memory.messages(session)
+    expect(JSON.stringify(adopted)).toContain('Files written: src/App.tsx')
+    expect(adopted[0]).toMatchObject({ source: { kind: 'agent-compare', runId: '0a1b2c3d', milestone: 'adoption:worktree:adopted:5' } })
   })
 
-  it('deduplicates after restart and retries an inbox entry lost before it became history', async () => {
-    const events: Array<{ type: string; data: unknown }> = [], queued: unknown[] = []
-    const agent = { session: { snapshotEvents: () => events }, inbox: { nextTurn: [], nextStep: queued }, inject: (m: unknown) => { queued.push(m) } }
-    const dependencies = { findAgent: () => agent, createMessage: async () => (m: unknown) => m, warn: () => {} }
-    const memory = new ConversationMemory(dependencies)
-    await memory.remember(run({}))
-    queued.length = 0
-    await memory.remember(run({}))
-    expect(queued).toHaveLength(1)
-    events.push({ type: 'user/message', data: { message: queued.shift() } })
-    await new ConversationMemory(dependencies).remember(run({}))
-    expect(queued).toHaveLength(0)
+  it('retries a step that never committed and deduplicates against the log after a restart', async () => {
+    const session = logSession(), records = [run({})]
+    const memory = new StepMemory({ records: async () => records, createMessage: create })
+    expect(await memory.messages(session)).toHaveLength(1)
+    // The step was cancelled before admission: nothing reached the log, so the next step adds it again.
+    const retried = await memory.messages(session)
+    expect(retried).toHaveLength(1)
+    session.commit(retried)
+    expect(await new StepMemory({ records: async () => records, createMessage: create }).messages(session)).toHaveLength(0)
+  })
+
+  it('only speaks for the owning conversation and stays silent without a message factory', async () => {
+    const other = logSession('s2'), records = [run({})]
+    expect(await new StepMemory({ records: async () => records, createMessage: create }).messages(other)).toHaveLength(0)
+    expect(await new StepMemory({ records: async () => records, createMessage: async () => undefined }).messages(logSession())).toHaveLength(0)
+    expect(await new StepMemory({ records: async () => [run({ state: 'running' })], createMessage: create }).messages(logSession())).toHaveLength(0)
   })
 })

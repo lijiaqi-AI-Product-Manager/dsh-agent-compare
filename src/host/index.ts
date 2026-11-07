@@ -16,6 +16,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import {
   Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, exampleTask, DEFAULT_GENERATION_MS,
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
@@ -23,8 +24,9 @@ import {
 import { commandResultText, parseAbInput } from './conversation.ts'
 import { inspectProject } from '../core/project.ts'
 import { repoRoot } from '../core/git.ts'
-import { defaultPreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
-import { ConversationMemory } from './memory.ts'
+import { contextRequestOf, defaultPreferences, parsePreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
+import { buildConversationContext, CONTEXT_CHARS, listedEntries, MESSAGE_CHARS, type ConversationContext } from './conversation-context.ts'
+import { StepMemory } from './step-memory.ts'
 import { historyPage, HistoryQueryError } from './history.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
 import { createProjectProcess, projectCommandArgv, type ManagedPnpm, type ProjectSandbox } from './project-process.ts'
@@ -363,15 +365,28 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   })), 'agent-compare: current state in scoped prompt assembly')
   const preferences = new PreferencesStore(store, defaultPreferences(config.generationMinutes ?? 30))
   // Each milestone of a run becomes one model-facing note in its conversation,
-  // so the conversation remembers what was compared, chosen and adopted.
-  const memory = new ConversationMemory({
-    findAgent: (sessionId) => agents?.list().find(a => a.session.id === sessionId),
+  // so the conversation remembers what was compared, chosen and adopted. The
+  // note enters the conversation's own next step (see StepMemory).
+  const memory = new StepMemory({
+    records: async sessionId => (await store.list()).filter(record => record.sessionId === sessionId),
     createMessage: async () => {
       try { return ((await import('@deepseek-ai/dsh-llm' as string)) as { createUserMessage: (m: unknown) => unknown }).createUserMessage } catch { return undefined }
     },
-    warn: message => ctx.logger.warn(message),
   })
-  const remember = (record: RunRecord): void => { void memory.remember(record) }
+  ctx.effect(() => ctx.on('agent/pre-step', async (payload: { agent: AgentLike; step: number; signal: AbortSignal }, next: () => Promise<{ kind: 'reject' } | { kind: 'enter'; messages: unknown[] }>) => {
+    const decision = await next()
+    if (decision.kind !== 'enter' || payload.signal.aborted || isDelegated(payload.agent)) return decision
+    try {
+      const notes = await memory.messages(payload.agent.session)
+      if (notes.length === 0 || payload.signal.aborted) return decision
+      // Facts come first so the user's own message stays the latest input of the step.
+      return { ...decision, messages: [...notes, ...decision.messages] }
+    } catch (error) {
+      // Memory is supplementary: a failure must never block the user's own request.
+      ctx.logger.warn(`agent-compare: comparison notes unavailable for this step: ${(error as Error).message}`)
+      return decision
+    }
+  }), 'agent-compare: comparison notes in conversation steps')
   const bundledPnpm = (): ManagedPnpm | undefined => (ctx.get('profileContext') as { packageManager?: ManagedPnpm } | undefined)?.packageManager
   const comparer = new Comparer({
     store,
@@ -380,25 +395,20 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     prepareProjectProcess: createProjectProcess(() => ctx.get('sandbox') as ProjectSandbox | undefined, undefined, undefined, bundledPnpm),
     generationMs: (config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000) * 60_000,
     maxActiveRuns: config.maxActiveRuns ?? 1,
-    onUpdate: remember,
     onRecoveryIssue: issue => ctx.logger.warn(`agent-compare: ${issue.runId}: ${issue.message}`),
   })
-  const present = async (record: RunRecord): Promise<unknown> => ({ ...publicView(record), control: await comparer.control(record) })
-  const reconcileMemory = async (): Promise<void> => {
-    const latest = new Map<string, RunRecord>()
-    for (const record of await store.list()) {
-      if (!record.sessionId) continue
-      const previous = latest.get(record.sessionId)
-      if (!previous || record.updatedAt > previous.updatedAt) latest.set(record.sessionId, record)
-    }
-    await Promise.all([...latest.values()].map(record => memory.remember(record)))
+  // `example` lets the card offer a repeat that creates a fresh example repository instead of using the conversation's project.
+  /** `synced`: the owning conversation's log holds the current fact; `next-message`: it enters the next request. */
+  const memoryState = (record: RunRecord): 'synced' | 'next-message' | undefined => {
+    if (!record.sessionId) return undefined
+    const agent = agents?.list().find(candidate => candidate.session.id === record.sessionId)
+    const delivered = agent ? memory.delivered(agent.session, record) : false
+    return delivered === undefined ? undefined : delivered ? 'synced' : 'next-message'
   }
-  ctx.effect(() => {
-    const timer = setInterval(() => { void memory.retryUndelivered(id => store.load(id)).catch(error => ctx.logger.warn(`agent-compare: conversation retry failed: ${(error as Error).message}`)) }, 30000)
-    timer.unref()
-    void reconcileMemory().catch(error => ctx.logger.warn(`agent-compare: conversation restore failed: ${(error as Error).message}`))
-    return () => clearInterval(timer)
-  }, 'agent-compare: reconcile conversation memory')
+  const present = async (record: RunRecord): Promise<unknown> => {
+    const conversationMemory = memoryState(record)
+    return { ...publicView(record), example: insideDirectory(store.examplesDir, record.baseline.repoRoot), ...(conversationMemory ? { conversationMemory } : {}), control: await comparer.control(record) }
+  }
   ctx.effect(() => () => comparer.dispose(), 'agent-compare: stop previews and candidates')
   const recovered = await comparer.recover()
   if (recovered.length > 0) ctx.logger.info(`agent-compare: settled ${recovered.length} unfinished run(s) after restart`)
@@ -437,6 +447,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       return startToolComparison(args, { ...exec, agent: exec.agent }, {
         preferences: sessionId => preferences.load(sessionId), currentRoute, repoFor,
         start: input => comparer.start(input),
+        // A tool call has no ticked messages; a saved manual selection falls back to the recent exchanges.
+        conversationContext: (agent, saved) => buildConversationContext(agent.session.snapshotEvents(0), { ...contextRequestOf(saved), ...(saved.contextMode === 'selected' ? { mode: 'recent' as const } : {}) }),
       })
     },
   })), 'agent-compare: agent_compare_start tool')
@@ -468,6 +480,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         let input: ReturnType<typeof parseAbInput>
         let exampleKind: 'quick' | 'full' = 'quick'
         let windowsProcessCompat: 'auto' | 'off' = 'auto'
+        let conversationContext: ConversationContext | undefined
         try {
           const ui = parseUiSubmission(rawInput)
           const saved = ui?.preferences ?? await preferences.load(agent.session.id)
@@ -477,6 +490,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           input = { ...input, minutes: input.minutes ?? saved.generationMinutes, ...(input.models === undefined && saved.mode === 'cross-model' ? { models: saved.models } : {}) }
           if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请在输入框上方选择两个完整的模型配置')
           if (!input.models && !currentRoute(agent).model) throw new Error('当前对话尚未选择模型，请先在输入框右下角选择模型。')
+          // The built-in example is a separate repository; this conversation's history does not describe it.
+          if (!input.example) conversationContext = buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ui?.contextIds))
         } catch (error) { return { kind: 'error', text: (error as Error).message } }
         if (!input.example && input.task === '') return { kind: 'error', text: '请在输入框中写下要比较的需求，或点击「试跑示例」。' }
         try {
@@ -489,6 +504,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
             sessionId: agent.session.id,
             origin: { kind: 'command', id: commandId },
             windowsProcessCompat,
+            ...(conversationContext ? { conversationContext } : {}),
             ...(input.minutes === undefined ? {} : { generationMs: input.minutes * 60_000 }),
           })
           return { kind: 'success', text: commandResultText(r.runId) }
@@ -548,6 +564,23 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     async list(b) {
       const page = await historyPage(store, b)
       return { ...page, runs: await Promise.all(page.runs.map(present)), isolation: runner.isolation }
+    },
+    /** Recent visible conversation entries the user can tick for both candidates. */
+    async contextEntries(b, signal) {
+      const agent = await agentFor(b, signal)
+      return { entries: listedEntries(agent.session.snapshotEvents(0)), limits: { messageChars: MESSAGE_CHARS, totalChars: CONTEXT_CHARS } }
+    },
+    /** Exactly what a submission with these settings would give both candidates. */
+    async contextPreview(b, signal) {
+      const agent = await agentFor(b, signal)
+      // The settings being edited may not be saved yet; the request states them explicitly.
+      const stored = await preferences.load(agent.session.id)
+      let saved: typeof stored
+      try { saved = parsePreferences({ ...stored, ...(b.mode === undefined ? {} : { contextMode: b.mode }), ...(b.turns === undefined ? {} : { contextTurns: b.turns }) }) }
+      catch (error) { throw new HttpError(400, (error as Error).message) }
+      const ids = Array.isArray(b.ids) && b.ids.length <= 200 && b.ids.every(id => Number.isSafeInteger(id) && (id as number) >= 0) ? b.ids as number[] : undefined
+      if (b.ids !== undefined && ids === undefined) throw new HttpError(400, '所选主对话消息无效')
+      return buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ids)) ?? null
     },
     async latest(b) {
       if (typeof b.sessionId !== 'string' || !b.sessionId.trim() || b.sessionId.length > 500) throw new HttpError(400, '会话编号无效')
@@ -686,6 +719,14 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       }
     },
   }), 'agent-compare: /agent-compare/api routes'))
+}
+
+/** Whether `child` is `parent` or below it, compared the way the platform compares paths. */
+export function insideDirectory(parent: string, child: string | undefined): boolean {
+  if (!child) return false
+  const fold = (value: string): string => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value)
+  const relative = path.relative(fold(parent), fold(child))
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {

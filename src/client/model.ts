@@ -38,6 +38,14 @@ export interface Run {
   rev?: number
   control?: { allowed: boolean; reason?: string; retryable?: boolean; canCancelAdoption?: boolean; adoptionCancellationRequested?: boolean }
   runId: string
+  sessionId?: string
+  /** The comparison ran in a built-in example repository. */
+  example?: boolean
+  budget?: { generationMs: number }
+  /** What both candidates received from the main conversation. */
+  conversationContext?: { mode: 'recent' | 'selected'; messages: number; chars: number; truncated: boolean; text: string }
+  /** Whether the owning conversation's log holds this comparison's current result. */
+  conversationMemory?: 'synced' | 'next-message'
   task: string
   state: string
   mode: 'same-model' | 'cross-model'
@@ -48,14 +56,14 @@ export interface Run {
   baseline: { dirty: boolean; headCommit?: string; repoRoot?: string }
   acceptance: { source: 'defaults' | 'repository'; checks: string[]; steps: number; frozenInstall: boolean }
   candidates: Cand[]
-  choice?: { pick: 'A' | 'B' | 'none' }
+  choice?: { pick: 'A' | 'B' | 'none'; initialPick?: 'A' | 'B' | 'none' }
   checksFavoured?: 'A' | 'B' | 'tie' | 'none'
   adoption?: Adoption
   outsideChanges?: string[]
   leftovers?: string[]
   copiesReleasedAt?: number
 }
-export interface CopyPlan { version: 1; runId: string; rev: number; state: string; allowed: boolean; reasons: string[]; bytes: number; token: string; otherSession?: boolean; retained?: { gitRefs?: number; childSessions: number; sealedPatches: number; sourceRepository: string }; resources: Array<{ label: string; path: string; bytes: number; files: number; links: number; stopsPreview: boolean; reason?: string }> }
+export interface CopyPlan { version: 1; runId: string; rev: number; state: string; allowed: boolean; reasons: string[]; bytes: number; token: string; otherSession?: boolean; retained?: { gitRefs?: number; childSessions: number; sealedPatches: number; sourceRepository: string }; resources: Array<{ label: string; path: string; bytes: number; files: number; links: number; stopsPreview: boolean; reason?: string; estimated?: boolean }> }
 export interface Legacy { runId: string; task: string; createdAt: number; state: string; legacy: true; unavailable?: true; reason?: string }
 export interface HistoryMeta { version: 1; scope: 'all' | 'session'; query: string; total: number; offset: number; limit: number; hasNext: boolean; onlyUnavailable?: boolean; unavailable?: number }
 export interface ListResult { runs: Run[]; legacy: Legacy[]; isolation: 'own-root' | 'shared-root'; history?: HistoryMeta }

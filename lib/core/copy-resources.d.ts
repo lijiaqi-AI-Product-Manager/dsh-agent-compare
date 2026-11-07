@@ -7,6 +7,17 @@ export interface CopyResource {
     readonly links: number;
     readonly stopsPreview: boolean;
     readonly reason?: string;
+    /** Dependency and cache directories were sized within a time budget; the totals are a lower bound. */
+    readonly estimated?: boolean;
+}
+export interface CopyScanLimits {
+    /** Directory entries outside dependency and cache directories. */
+    readonly entries?: number;
+    readonly deadlineMs?: number;
+    /** Size dependency and cache directories for display. Release skips it. */
+    readonly measureDependencies?: boolean;
+    readonly dependencyEntries?: number;
+    readonly dependencyDeadlineMs?: number;
 }
 export interface CopyCleanupPlan {
     readonly version: 1;
@@ -26,4 +37,4 @@ export interface CopyCleanupPlan {
     };
 }
 /** Inspect only. Never follows dependency links or deletes user material. */
-export declare function planCopyCleanup(record: RunRecord, signal?: AbortSignal): Promise<CopyCleanupPlan>;
+export declare function planCopyCleanup(record: RunRecord, signal?: AbortSignal, limits?: CopyScanLimits): Promise<CopyCleanupPlan>;

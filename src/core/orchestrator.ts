@@ -74,6 +74,8 @@ export interface StartInput {
   readonly origin?: RunRecord['origin']
   readonly generationMs?: number
   readonly windowsProcessCompat?: WindowsProcessCompatMode
+  /** Main-conversation excerpt for both candidates; recorded with the run. */
+  readonly conversationContext?: RunRecord['conversationContext']
   /** Fixed A/B assignment for tests; production shuffles. */
   readonly assignment?: 'fixed' | 'shuffle'
   /** Handed to every AgentRunner call; never persisted. */
@@ -193,6 +195,7 @@ export class Comparer {
       task,
       ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
       ...(input.follows === undefined ? {} : { follows: input.follows }),
+      ...(input.conversationContext === undefined ? {} : { conversationContext: input.conversationContext }),
       ...(input.origin === undefined ? {} : { origin: input.origin }),
       baseline: { repoRoot: root, headCommit: head, snapshotCommit, snapshotTree: tree, dirty },
       acceptance,
@@ -345,7 +348,7 @@ export class Comparer {
       const result = await this.opts.runner.run({
         label: c.label,
         cwd: dir,
-        prompt: candidatePrompt(record.task, c.strategy, record.isolation),
+        prompt: candidatePrompt(record.task, c.strategy, record.isolation, record.conversationContext?.text),
         route: c.route,
         signal: AbortSignal.any([signal, budget]),
         hostContext: lr.hostContext,
@@ -711,14 +714,26 @@ export class Comparer {
     return lr.record
   }
 
-  /** Record the blind choice and reveal at once. Any finished candidate can be picked; adoption rules come later. */
+  /**
+   * Record the blind choice and reveal at once. Any finished candidate can be
+   * picked; adoption rules come later. After the reveal the user may change the
+   * pick to another finished candidate while nothing is adopted: the first,
+   * blind pick stays recorded as `initialPick`.
+   */
   choose(runId: string, pick: CandidateLabel | 'none', note?: string): Promise<RunRecord> {
     return this.operation(() => this.mutate(runId, (r) => {
-      if (r.state !== 'judging' && !(r.state === 'interrupted' && pick === 'none')) throw new Error(r.state === 'revealed' ? '已经选过了' : `现在不能选择（${r.state}）`)
+      const revising = r.state === 'revealed' && r.choice !== undefined
+      if (revising) {
+        if (pick === 'none' || pick === r.choice!.pick) throw new Error(pick === 'none' ? '揭晓后只能改选另一版已完成的结果' : '已经选了这一版')
+        // An adoption attempt owns journals, retained originals and rehearsal
+        // copies that belong to its pick; keep them bound to that pick.
+        if (r.adoption !== undefined) throw new Error('这次比较已有采用记录，不能改选')
+      } else if (r.state !== 'judging' && !(r.state === 'interrupted' && pick === 'none')) throw new Error(`现在不能选择（${r.state}）`)
       if (pick !== 'none' && r.candidates.find((c) => c.label === pick)?.stage !== 'ready') throw new Error(`候选 ${pick} 还没有可体验的结果`)
-      r.choice = { pick, at: Date.now(), ...(note === undefined ? {} : { note }) }
+      const initialPick = revising ? r.choice!.initialPick ?? r.choice!.pick : undefined
+      r.choice = { pick, at: Date.now(), ...(note === undefined ? {} : { note }), ...(initialPick === undefined ? {} : { initialPick }) }
       r.state = 'revealed'
-      r.revealedAt = Date.now()
+      r.revealedAt ??= Date.now()
     }), runId)
   }
 
@@ -1095,7 +1110,8 @@ export class Comparer {
       const initial = await this.mustLoad(runId)
       return withRepositoryWrite(initial.baseline.repoRoot, () => this.serial(runId, async () => {
         const record = await this.fresh(runId)
-        const plan = await planCopyCleanup(record, this.lifetime.signal)
+        // Sizes are not part of the confirmation token; skip re-measuring dependencies.
+        const plan = await planCopyCleanup(record, this.lifetime.signal, { measureDependencies: false })
         if (!plan.allowed) throw new BusyError(plan.reasons.join('；'))
         if (!/^[0-9a-f]{64}$/.test(token) || plan.token !== token) throw new BusyError('比较或副本内容在确认后发生变化，尚未删除副本。请重新查看清单。')
         await this.releaseResources(record)

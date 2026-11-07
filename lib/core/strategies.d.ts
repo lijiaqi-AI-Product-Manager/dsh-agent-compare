@@ -7,4 +7,4 @@ import type { Strategy } from './types.ts';
 export declare const DEFAULT_STRATEGIES: readonly [Strategy, Strategy];
 /** Cross-model runs give both models the same instruction, so the model is the only variable. */
 export declare const BALANCED: Strategy;
-export declare function candidatePrompt(task: string, strategy: Strategy, isolation: 'own-root' | 'shared-root'): string;
+export declare function candidatePrompt(task: string, strategy: Strategy, isolation: 'own-root' | 'shared-root', conversationContext?: string): string;

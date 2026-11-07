@@ -16,6 +16,8 @@ export async function startToolComparison<A extends { session: { id: string } }>
     currentRoute(agent: A): AgentRoute
     repoFor(agent: A, signal: AbortSignal): Promise<string>
     start(input: StartInput): Promise<{ runId: string; state: string }>
+    /** The saved main-conversation context for both candidates, if any. */
+    conversationContext?(agent: A, saved: AbPreferences): StartInput['conversationContext']
   },
 ): Promise<{ runId: string; state: string; background: true; next: string }> {
   exec.signal.throwIfAborted()
@@ -31,7 +33,9 @@ export async function startToolComparison<A extends { session: { id: string } }>
   if (mode === 'cross-model' && routes[0].provider === routes[1].provider && routes[0].model === routes[1].model) throw new Error('两个模型模式需要不同的模型配置')
   const repo = await ports.repoFor(exec.agent, exec.signal)
   exec.signal.throwIfAborted()
+  const conversationContext = ports.conversationContext?.(exec.agent, saved)
   const started = await ports.start({
+    ...(conversationContext ? { conversationContext } : {}),
     repo, task: args.task, mode, routes, hostContext: exec.agent,
     sessionId: exec.agent.session.id,
     origin: { kind: 'tool', ...(exec.callId ? { id: exec.callId } : {}) },

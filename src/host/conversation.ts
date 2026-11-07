@@ -62,7 +62,8 @@ export function milestoneOf(r: RunRecord): string | undefined {
   if (r.adoption !== undefined && ['adopted', 'needs-attention', 'reverted', 'rolled-back', 'blocked', 'needs-recovery'].includes(r.adoption.state)) {
     return `adoption:${r.adoption.mode}:${r.adoption.state}:${r.adoption.startedAt}`
   }
-  if (r.choice !== undefined) return `choice:${r.choice.pick}`
+  // A pick changed after the reveal is a new fact; the original key stays unchanged for older records.
+  if (r.choice !== undefined) return r.choice.initialPick === undefined ? `choice:${r.choice.pick}` : `choice:${r.choice.pick}:revised:${r.choice.at}`
   if (r.state === 'judging') return 'judging'
   if (r.state === 'abandoned') return 'abandoned'
   return undefined
@@ -88,7 +89,8 @@ export function memoryNote(r: RunRecord): string | undefined {
     if (pick === 'none') return `${head}\nThe user rejected both versions. The project is unchanged.`
     const c = r.candidates.find((x) => x.label === pick)!
     const route = c.actualRoute ?? c.route
-    return `${head}\nThe user picked ${pick} (strategy: ${c.strategy.title}${route.model ? `; model: ${route.model}` : ''}). It is not adopted yet; the project is unchanged.`
+    const revised = r.choice!.initialPick !== undefined ? ` after the reveal (blind pick: ${r.choice!.initialPick === 'none' ? 'neither' : r.choice!.initialPick})` : ''
+    return `${head}\nThe user picked ${pick}${revised} (strategy: ${c.strategy.title}${route.model ? `; model: ${route.model}` : ''}). It is not adopted yet; the project is unchanged.`
   }
   if (m === 'abandoned') return `${head}\nThe comparison was ended without adopting anything. The project is unchanged.`
   const a = r.adoption!

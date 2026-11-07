@@ -1,4 +1,6 @@
 import type { Acceptance, AgentRoute, Candidate, CandidateLabel, CandidateStage, CheckResult, RunRecord, Strategy, Usage, Verdict } from './types.ts';
+/** Shared by every sealing failure that found no change in the copy. */
+export declare const NO_CHANGES = "\u6CA1\u6709\u6539\u52A8\u4EFB\u4F55\u6587\u4EF6";
 export declare function canRetryVerification(r: RunRecord, c: Candidate): boolean;
 /** Which candidate the checks favour: eligibility first, then passes minus failures. */
 export declare function favoured(cands: readonly Candidate[]): RunRecord['checksFavoured'];

@@ -256,6 +256,8 @@ export interface Choice {
     readonly pick: CandidateLabel | 'none';
     readonly at: number;
     readonly note?: string;
+    /** The blind pick, kept when the user changes the pick after the reveal. */
+    readonly initialPick?: CandidateLabel | 'none';
 }
 export type AdoptionState = 
 /** Building the would-be result in a scratch copy and checking it. Nothing written. */
@@ -316,6 +318,14 @@ export interface Adoption {
     /** Paths the user needs to look at (conflicts, concurrent edits). */
     attention?: string[];
 }
+export interface ConversationContextRecord {
+    readonly mode: 'recent' | 'selected';
+    readonly messages: number;
+    readonly chars: number;
+    readonly truncated: boolean;
+    readonly sha256: string;
+    readonly text: string;
+}
 export interface RunRecord {
     readonly schema: typeof RUN_SCHEMA;
     /** New runs use a host-held OS lease. Older active runs stay read-only. */
@@ -335,6 +345,8 @@ export interface RunRecord {
         readonly kind: 'command' | 'tool' | 'panel';
         readonly id?: string;
     };
+    /** Main-conversation excerpt the user chose; both candidates receive exactly this text. */
+    readonly conversationContext?: ConversationContextRecord;
     readonly baseline: Baseline;
     readonly acceptance: Acceptance;
     /**
