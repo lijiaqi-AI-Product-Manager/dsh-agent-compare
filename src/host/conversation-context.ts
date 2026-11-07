@@ -64,7 +64,7 @@ const LABEL: Record<ContextRole, string> = { user: 'User', assistant: 'Assistant
  * and the excerpt cannot close or reopen its own block.
  */
 function candidateText(entry: ContextEntry): string {
-  const text = entry.role === 'note' ? entry.text.replace(/^Target repository: .*(?:\r?\n|$)/m, '') : entry.text
+  const text = entry.role === 'note' ? entry.text.replace(/^(?:Target repository|Folder): .*(?:\r?\n|$)/m, '') : entry.text
   return text.replace(/<(\/?\s*main-conversation)/gi, '&lt;$1')
 }
 

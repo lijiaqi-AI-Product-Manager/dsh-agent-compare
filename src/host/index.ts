@@ -22,8 +22,8 @@ import {
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
 } from '../core/index.ts'
 import { commandResultText, parseAbInput } from './conversation.ts'
-import { inspectProject } from '../core/project.ts'
-import { repoRoot } from '../core/git.ts'
+import { profileProject, type ProjectProfile } from '../core/project.ts'
+import { checkEnableGit, enableGit, resolveWorkspace } from '../core/workspace.ts'
 import { contextRequestOf, defaultPreferences, parsePreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
 import { buildConversationContext, CONTEXT_CHARS, listedEntries, MESSAGE_CHARS, type ConversationContext } from './conversation-context.ts'
 import { StepMemory, withComparisonNotes, type StepDecision, type StepPayload } from './step-memory.ts'
@@ -520,6 +520,31 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     if (typeof id !== 'string' || !/^[0-9a-f]{8}$/.test(id)) throw new HttpError(400, 'runId is required')
     return id
   }
+  /**
+   * What the settings strip says about this conversation's directory. Every
+   * directory can be compared. `supported: false` remains only where a Vite
+   * project's own package manager cannot run: both versions would fail
+   * before showing anything, so no model is asked.
+   */
+  const describeProject = async (cwd: string | undefined): Promise<ProjectDescription> => {
+    const workspace = await resolveWorkspace(cwd)
+    if (workspace.kind === 'folder') return { path: workspace.folder ?? '', supported: true, workspace: 'folder', canEnableGit: workspace.folder !== undefined }
+    const dir = workspace.projectPath ? path.join(workspace.root, ...workspace.projectPath.split('/')) : workspace.root
+    const profiled = await profileProject(dir)
+    const info = profiled.info
+    const base: ProjectDescription = {
+      path: dir, supported: true, workspace: 'repository', profile: profiled.profile,
+      ...(workspace.projectPath ? { projectPath: workspace.projectPath } : {}), ...(profiled.script ? { script: profiled.script } : {}),
+      ...(profiled.note ? { packageNote: profiled.note } : {}), ...(info.warning ? { warning: info.warning } : {}),
+    }
+    if (profiled.profile !== 'vite') return base
+    if (process.platform === 'win32' && info.packageManager === 'pnpm' && Number(info.packageManagerVersion?.split('.')[0]) >= 12) {
+      return { ...base, supported: false, reason: '项目声明的 pnpm 12+ 在 Windows 上需要写入系统存储锁目录，当前宿主沙箱尚不支持；不会自动换版本或放宽权限。可试跑内置示例，需求草稿会保留。' }
+    }
+    try { projectCommandArgv([info.packageManager, '--version'], dir, process.platform, { pnpm: bundledPnpm() }) }
+    catch { return { ...base, supported: false, reason: `未找到项目需要的 ${info.packageManager}。请在 DSH 所用环境中安装或启用该包管理器；需求草稿会保留。` } }
+    return base
+  }
   const label = (v: unknown): 'A' | 'B' | undefined => (v === 'A' || v === 'B' ? v : undefined)
   const resolveConversation = conversationResolver({ attached: () => agents?.list() ?? [], controller: () => ctx.get('sessionController') as SessionController<AgentLike> | undefined, guard })
   const agentFor = (b: Record<string, unknown>, signal: AbortSignal): Promise<AgentLike> => resolveConversation(b.sessionId, signal)
@@ -540,24 +565,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     },
     async setup(b, signal) {
       const agent = await agentFor(b, signal)
-      let project: { path: string; supported: boolean; reason?: string; warning?: string } = { path: '', supported: false, reason: '当前对话没有项目目录，请打开 Git 项目，或试跑内置示例。' }
-      const cwd = agent.session.header.cwd
-      if (cwd) {
-        try {
-          const root = await repoRoot(cwd)
-          const info = await inspectProject(root)
-          project = { path: root, supported: info.kind === 'vite', ...(info.reason ? { reason: info.reason } : {}), ...(info.warning ? { warning: info.warning } : {}) }
-          if (project.supported && process.platform === 'win32' && info.packageManager === 'pnpm' && Number(info.packageManagerVersion?.split('.')[0]) >= 12) {
-            project = { path: root, supported: false, reason: '项目声明的 pnpm 12+ 在 Windows 上需要写入系统存储锁目录，当前宿主沙箱尚不支持；不会自动换版本或放宽权限。可试跑内置示例，需求草稿会保留。' }
-          }
-          if (project.supported) {
-            try { projectCommandArgv([info.packageManager, '--version'], root, process.platform, { pnpm: bundledPnpm() }) }
-            catch { project = { path: root, supported: false, reason: `未找到项目需要的 ${info.packageManager}。请在 DSH 所用环境中安装或启用该包管理器；需求草稿会保留。` } }
-          }
-        } catch {
-          project = { path: cwd, supported: false, reason: '当前目录不是 Git 仓库，请在 DSH 中打开项目，或选择内置示例。' }
-        }
-      }
+      const project = await describeProject(agent.session.header.cwd)
       return { hostVersion: VERSION, pluginVersion: VERSION, dshVersion: await runtimeVersion, projectProcess: { platform: process.platform, windowsCompatControl: true }, features: { currentComparisonContext: 'scoped-assembly-v1' }, capabilities: await capabilities(), current: currentRoute(agent), project, generationMinutes: config.generationMinutes ?? DEFAULT_GENERATION_MS / 60_000 }
     },
     async list(b) {
@@ -654,7 +662,29 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       return present(await comparer.choose(runIdOf(b), pick, typeof b.note === 'string' ? b.note.slice(0, 500) : undefined))
     },
     async preflight(b) { return { ...await comparer.adoptPreflight(runIdOf(b)), protectedWorktreeApply: true } },
-    async adopt(b) { return present(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : 'worktree')) },
+    async adopt(b) { return present(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : b.mode === 'folder' ? 'folder' : 'worktree')) },
+    /**
+     * Turn the conversation's folder into a Git repository so both versions
+     * start from its files. `check: true` only reports whether it may.
+     */
+    async enableGit(b, signal) {
+      const agent = await agentFor(b, signal)
+      const cwd = agent.session.header.cwd
+      if (!cwd) throw new HttpError(400, '这条对话没有目录')
+      if (b.check === true) return checkEnableGit(cwd)
+      try { await enableGit(cwd) }
+      catch (error) { throw new HttpError(409, (error as Error).message) }
+      return describeProject(cwd)
+    },
+    /** One file a version wrote. Before the reveal only results judged by their files can be read. */
+    async candidateFile(b) {
+      const r = await comparer.get(runIdOf(b))
+      const c = r?.candidates.find((x) => x.label === label(b.label))
+      if (r === undefined || c === undefined) throw new HttpError(404, '没有这个候选')
+      if (r.revealedAt === undefined && c.result !== 'files') throw new HttpError(403, '选择之后才能查看改动')
+      if (typeof b.path !== 'string' || !(c.touchedFiles ?? []).includes(b.path)) throw new HttpError(404, '这一版没有写这个文件')
+      return comparer.readResultFile(r.runId, c.label, b.path)
+    },
     async cancelAdoption(b, signal) {
       const runId = runIdOf(b), record = await comparer.get(runId)
       if (!record) throw new HttpError(404, '没有这次比较')
@@ -718,6 +748,23 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       }
     },
   }), 'agent-compare: /agent-compare/api routes'))
+}
+
+/** The settings strip's description of a conversation's directory (see `describeProject`). */
+interface ProjectDescription {
+  readonly path: string
+  readonly supported: boolean
+  readonly workspace: 'repository' | 'folder'
+  readonly profile?: ProjectProfile
+  readonly projectPath?: string
+  readonly reason?: string
+  readonly warning?: string
+  /** `node-web`: the server script both versions are shown with. */
+  readonly script?: 'dev' | 'start'
+  /** Why the project's package.json cannot be used this time (no install). */
+  readonly packageNote?: string
+  /** A folder outside Git that may become a repository, so both versions start from its files. */
+  readonly canEnableGit?: boolean
 }
 
 /** Whether `child` is `parent` or below it, compared the way the platform compares paths. */

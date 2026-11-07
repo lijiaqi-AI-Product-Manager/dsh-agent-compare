@@ -95,6 +95,8 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.2.0.tgz
 
 [Windows 进程兼容设置](docs/windows-process-compat.md)提供自动与关闭选项，保留原有宿主约束，并在揭晓后显示实际观察到的钩子。
 
+主分支（尚未发布到 npm）：任何目录都能用 A|B。不是 Git 仓库的目录（包括 DSH 默认工作区）会在空白目录里比较两版的页面、文件或回答，选定后保存到当前目录的新文件夹；也支持子目录项目、非 Vite 的 Node 项目和静态网页。详见[目录与项目类型](docs/workspaces-and-projects.md)。
+
 <a id="what-it-is-for"></a>
 
 ## 适合什么任务

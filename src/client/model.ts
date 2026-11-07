@@ -6,12 +6,32 @@ export interface Route { provider?: string; model?: string }
 export interface InstallFailure { kind: string; summary: string; hint: string; code?: string; diagnostic?: string }
 export interface VerificationRuntime { hostNode: string; platform: string; packageManager: string; packageManagerVersion?: string; windowsProcessCompat?: WindowsCompatEvidence }
 export interface VerificationAttempt { recordedAt: number; durationMs?: number; install?: { failure?: InstallFailure; outcome?: string; runtime?: VerificationRuntime }; error?: { message: string }; checks?: Check[] }
-export interface Setup { pluginVersion?: string; dshVersion?: string; projectProcess?: { platform: string; windowsCompatControl: boolean }; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: { path: string; supported: boolean; reason?: string; warning?: string } }
+export type ProjectProfile = 'vite' | 'node-web' | 'node' | 'static' | 'files'
+/** How the conversation's directory is compared: a repository's project, or a folder outside Git. */
+export interface ProjectSetup {
+  path: string
+  supported: boolean
+  workspace?: 'repository' | 'folder'
+  profile?: ProjectProfile
+  projectPath?: string
+  script?: 'dev' | 'start'
+  packageNote?: string
+  canEnableGit?: boolean
+  reason?: string
+  warning?: string
+}
+export interface Setup { pluginVersion?: string; dshVersion?: string; projectProcess?: { platform: string; windowsCompatControl: boolean }; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: ProjectSetup }
 export interface Cand {
   label: 'A' | 'B'
   stage: Stage
   previewUrl?: string
-  previewKind?: 'build' | 'dev'
+  previewKind?: 'build' | 'dev' | 'static' | 'script'
+  /** A result without a live page: an answer, or the files it wrote. */
+  result?: 'answer' | 'files'
+  previewNote?: string
+  answer?: string
+  resultFiles?: string[]
+  touchedFiles?: string[]
   checks?: Check[]
   execution?: { enforcement: 'full' | 'partial' | 'unknown' }
   patchStats?: { files: number; insertions: number; deletions: number; binary: number }
@@ -33,7 +53,7 @@ export interface Cand {
   actualRoute?: Route
   summary?: string
 }
-export interface Adoption { state: string; mode: string; message?: string; branch?: string; attention?: string[]; rehearsed?: boolean; rehearsalChecks?: Check[]; transferDirection?: 'apply' | 'undo'; retainedDirectory?: string; retainedDirectories?: string[] }
+export interface Adoption { state: string; mode: string; message?: string; branch?: string; exportPath?: string; writtenPaths?: string[]; attention?: string[]; rehearsed?: boolean; rehearsalChecks?: Check[]; transferDirection?: 'apply' | 'undo'; retainedDirectory?: string; retainedDirectories?: string[] }
 export interface Run {
   rev?: number
   control?: { allowed: boolean; reason?: string; retryable?: boolean; canCancelAdoption?: boolean; adoptionCancellationRequested?: boolean }
@@ -53,7 +73,9 @@ export interface Run {
   createdAt: number
   follows?: string
   origin?: { kind: 'command' | 'tool' | 'panel'; id?: string }
-  baseline: { dirty: boolean; headCommit?: string; repoRoot?: string }
+  baseline: { dirty: boolean; headCommit?: string; repoRoot?: string; projectPath?: string }
+  /** Started from a folder outside Git: both versions ran in a private workspace; `folder` is where a pick can be saved. */
+  target?: { kind: 'folder'; folder?: string }
   acceptance: { source: 'defaults' | 'repository'; checks: string[]; steps: number; frozenInstall: boolean }
   candidates: Cand[]
   choice?: { pick: 'A' | 'B' | 'none'; initialPick?: 'A' | 'B' | 'none' }

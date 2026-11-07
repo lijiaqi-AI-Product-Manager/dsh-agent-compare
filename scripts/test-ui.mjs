@@ -23,11 +23,11 @@ try {
   const open = async (state, extra = '') => {
     await page.emulateMedia({ colorScheme: extra.includes('theme=dark') ? 'dark' : 'light' })
     await page.goto(`${harness.url}/?state=${state}${extra}`)
-    if (['start', 'compose', 'closed', 'blank', 'blank-history'].includes(state)) {
+    if (['start', 'compose', 'closed', 'blank', 'blank-history', 'folder-start'].includes(state)) {
       const toggle = page.getByRole('button', { name: 'A|B 对比模式' })
       await toggle.waitFor()
       await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
-      if (state === 'compose') {
+      if (state === 'compose' || state === 'folder-start') {
         if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click()
         await page.getByRole('region', { name: 'A|B 比较设置' }).waitFor()
       }
@@ -890,7 +890,41 @@ try {
   check(await page.locator('.ac-header-tools-hero button').count() === 0, 'blank-session navigation must not overlay other controls when the anchor is absent')
   check(await mode.isVisible(), 'a missing header anchor must not remove the input mode')
 
-  for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'install-failure', 'retrying', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'old-owner', 'retained', 'mixed-preview', 'interrupted-peer']) {
+  // A folder outside Git: an informational note instead of a refusal, and Git only on confirmed request.
+  await open('folder-start')
+  const notes = page.locator('.ac-project-notes')
+  await notes.waitFor()
+  check((await notes.innerText()).includes('当前目录不是 Git 仓库'), 'a folder outside Git must be explained, not refused')
+  check(await page.getByText('当前项目不受支持').count() === 0, 'a folder outside Git must not be reported as unsupported')
+  await page.getByRole('button', { name: '在此目录启用 Git' }).click()
+  await page.getByRole('group', { name: '在此目录启用 Git' }).waitFor()
+  check((await page.getByRole('group', { name: '在此目录启用 Git' }).innerText()).includes('12 个文件'), 'enabling Git must show what both versions would copy before anything changes')
+  check((await requests('enableGit')).every(r => r.body.check === true), 'checking the folder must not create a repository')
+  await page.getByRole('button', { name: '确认启用 Git' }).click()
+  await page.waitForFunction(() => document.querySelector('.ac-project-notes')?.innerText.includes('静态网页'))
+  check((await requests('enableGit')).some(r => r.body.check !== true), 'confirming must enable Git once')
+  await page.screenshot({ path: path.join(output, 'folder-settings.png') })
+
+  await open('folder')
+  const answer = page.getByRole('region', { name: '候选 A 的回答' })
+  check((await answer.innerText()).includes('wc -w notes.txt'), 'an answer must be readable before the pick')
+  const written = page.getByRole('region', { name: '候选 B 写出的文件' })
+  await page.waitForFunction(() => document.querySelector('.ac-file-text')?.textContent?.includes('README.md'))
+  await written.getByRole('button', { name: 'count_words.py' }).click()
+  await page.waitForFunction(() => document.querySelector('.ac-file-text')?.textContent?.includes('count_words.py'))
+  check((await requests('candidateFile')).some(r => r.body.label === 'B' && r.body.path === 'count_words.py'), 'opening a written file must read that file of that version')
+  check(!/\+\d+ −\d+/.test(await page.locator('[role="dialog"]').innerText()), 'blind review must still hide change sizes')
+  await page.screenshot({ path: path.join(output, 'folder-results.png') })
+  await page.getByRole('button', { name: '选 B', exact: true }).click()
+  const save = page.getByRole('button', { name: '保存到当前目录' })
+  await save.waitFor()
+  check(await page.getByRole('button', { name: '另存为分支' }).count() === 0 && await page.getByRole('button', { name: /审查并采用/ }).count() === 0, 'a folder comparison offers saving, not repository adoption')
+  await save.click()
+  await page.getByRole('button', { name: '撤销保存' }).waitFor()
+  check((await requests('adopt')).at(-1)?.body.mode === 'folder', 'saving must use the folder adoption')
+  check((await page.locator('.ac-bar').innerText()).includes('写一个统计单词数的小脚本-0f0f0f0f'), 'the saved folder must be named after saving')
+
+  for (const theme of ['light', 'dark']) for (const state of ['compose', 'judging', 'install-failure', 'retrying', 'revealed', 'recovery', 'undo-recovery', 'history', 'history-damaged', 'foreign', 'old-owner', 'retained', 'mixed-preview', 'interrupted-peer', 'folder']) {
     await open(state, `&theme=${theme}`)
     await page.addScriptTag({ path: 'node_modules/axe-core/axe.min.js' })
     const result = await page.evaluate(async () => window.axe.run(document.querySelector('[role="dialog"]') ?? document.querySelector('.ac-composer-settings'), { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] } }))

@@ -527,7 +527,7 @@ describe.concurrent('adoption', () => {
     const after = new Comparer({ prepareProjectProcess: prepareFixtureProcess, store, runner: scripted({}), version: 'test' })
     expect(await after.recover()).toContain(runId)
     expect((await store.load(runId))!.state).toBe('recovery')
-    await expect(after.revert(runId)).rejects.toThrow(/只有写入工作区的采用可以撤销/)
+    await expect(after.revert(runId)).rejects.toThrow(/只有写入工作区或保存到文件夹的采用可以撤销/)
     const restored = await after.recoverAdoption(runId, 'restore')
     expect(restored.state).toBe('revealed')
     expect(restored.adoption?.state).toBe('rolled-back')

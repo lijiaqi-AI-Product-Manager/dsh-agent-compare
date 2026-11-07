@@ -124,11 +124,22 @@ export declare class Comparer {
     salvage(runId: string, label: CandidateLabel): Promise<RunRecord>;
     private salvageRun;
     /**
-     * Install, run the shared commands, serve the build, and run the browser
-     * acceptance in `dir`, whose files must equal `sealedTree`. Used for each
-     * candidate and for the adoption rehearsal.
+     * Verify the copy `dir`, whose files must equal `sealedTree`, and serve it.
+     * Used for each candidate and for the adoption rehearsal.
+     *
+     * What runs follows the project in the copy (see `profileProject`): a Vite
+     * project installs, runs the shared commands and serves its build; another
+     * Node project installs and runs them, and serves its `dev`/`start` script;
+     * an HTML page is served as files; anything else has no live page. A result
+     * without a live page is judged by its files, or by the answer alone.
      */
     private verifyCopy;
+    /** No installation: serve an HTML page as files when there is one, otherwise keep the files as the result. */
+    private serveFiles;
+    /** Install, run the shared commands, then serve: Vite's build, or the project's server script. */
+    private verifyNodeCopy;
+    /** Run the page acceptance on a live preview; the preview stops if anything after it fails. */
+    private finishPreview;
     /**
      * Compare the user's checkout (copies excluded) with the baseline and record
      * every differing path. Called when each candidate finishes generating.
@@ -152,6 +163,18 @@ export declare class Comparer {
      */
     reopenPreview(runId: string, label: CandidateLabel): Promise<RunRecord>;
     private reopenRunPreview;
+    /**
+     * One file of a candidate's sealed result: its text (first 64 KB), or only
+     * its size when it is binary or larger than 4 MB. Deleted paths say so.
+     */
+    readResultFile(runId: string, label: CandidateLabel, file: string): Promise<{
+        path: string;
+        size: number;
+        binary: boolean;
+        deleted?: true;
+        text?: string;
+        truncated: boolean;
+    }>;
     /** Report-only adoption check: overlap, eligibility and whether a rehearsal will run. Writes nothing. */
     adoptPreflight(runId: string): Promise<{
         ok: boolean;
@@ -174,15 +197,22 @@ export declare class Comparer {
      * `branch`: create a branch with the candidate, switching nothing. Allowed
      * for any finished candidate, so an unverified one can still be inspected.
      */
-    adopt(runId: string, mode?: 'worktree' | 'branch'): Promise<RunRecord>;
+    adopt(runId: string, mode?: 'worktree' | 'branch' | 'folder'): Promise<RunRecord>;
     /** Interrupt only this owner's rehearsal; file handoff must finish once writing begins. */
     cancelAdoption(runId: string): Promise<RunRecord>;
     private adoptRun;
     /** Build `tree` in a scratch copy and run the full acceptance on it. */
     private rehearse;
     /**
+     * Save the picked version of a folder comparison into a new subfolder of
+     * that folder. Existing files are never replaced: the subfolder is new, and
+     * its name gets a number when the first choice already exists.
+     */
+    private exportPick;
+    /**
      * Undo a worktree adoption. Refuses (and lists the paths) when any touched
      * file was edited after adoption, so nothing the user wrote is overwritten.
+     * A folder save is undone the same way: only unchanged saved files go.
      */
     revert(runId: string): Promise<RunRecord>;
     private revertRun;

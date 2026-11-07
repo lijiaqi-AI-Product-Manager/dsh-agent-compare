@@ -21,7 +21,7 @@ try {
   const open = async (state, extra = '') => {
     await page.goto(`${harness.url}/?state=${state}${extra}`)
     await page.getByRole('combobox', { name: 'Interface language', exact: true }).first().waitFor()
-    if (state === 'compose') {
+    if (state === 'compose' || state === 'folder-start') {
       const toggle = page.getByRole('button', { name: 'A|B comparison mode', exact: true })
       await toggle.waitFor()
       await page.waitForFunction(() => !document.querySelector('.ac-mode-btn').disabled)
@@ -169,6 +169,17 @@ try {
   await page.keyboard.press('Escape')
   check(await page.getByRole('dialog').count() === 0, 'English Escape behavior must close the dialog')
   check(await page.evaluate(() => document.activeElement.matches('[data-ac-history]')), 'English close must restore the translated history entry focus')
+
+  // Folders outside Git and results without a page read naturally in English.
+  await open('folder-start')
+  check((await page.locator('.ac-project-notes').innerText()).includes('This folder is not a Git repository.'), 'the folder note must be translated')
+  check(await page.getByRole('button', { name: 'Enable Git in this folder', exact: true }).isVisible(), 'the enable-Git action must be translated')
+  await open('folder')
+  check(await page.getByRole('region', { name: 'Candidate A answer', exact: true }).isVisible(), 'an answer must be labelled in English')
+  check(await page.getByRole('region', { name: 'Files written by candidate B', exact: true }).isVisible(), 'written files must be labelled in English')
+  check((await page.getByRole('region', { name: 'Candidate A', exact: true }).innerText()).includes('Finished · Compare by content'), 'a content-judged result must not claim missing checks')
+  check(!/[㐀-鿿]/.test(await page.locator('.ac-result-head').first().innerText()), 'result headings must have no untranslated copy')
+  await page.screenshot({ path: path.join(output, 'folder-results-en.png') })
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
   console.log(JSON.stringify({ localeAssertions: assertions, screenshots: output, browser: browser.version(), engine, channel, locale: 'en-GB', languages: ['zh-CN', 'en'] }))
 } catch (error) {

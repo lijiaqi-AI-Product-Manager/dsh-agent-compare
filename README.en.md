@@ -95,6 +95,8 @@ Results, your pick, adoption and undo enter this conversation's memory. You can 
 
 [Windows process compatibility settings](docs/windows-process-compat.en.md) offer automatic/off controls that preserve host confinement and show observed hooks after reveal.
 
+Unreleased main (not yet on npm): A|B works in any folder. A folder outside Git, including the DSH default workspace, compares both versions' pages, files or answers from an empty folder and saves the pick into a new folder there. Subfolder projects, non-Vite Node projects and static sites are supported too. See [folders and project types](docs/workspaces-and-projects.md#english).
+
 ## What it is for
 
 UI and interaction tasks, where quality is judged by using it and tests can only tell whether something was delivered: search and filters, form flows, landing pages, dashboard layouts, component redesigns. Bug fixes and refactors with one right answer are better served by a single agent plus tests.
