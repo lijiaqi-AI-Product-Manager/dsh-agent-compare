@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Release copies of projects with large dependency trees. Dependency and cache directories (`node_modules`, `.vite`, Yarn cache and unplugged) are bound by identity instead of per-file scanning and sized within a separate budget, shown as a lower bound when large; source entries are still checked against the sealed content. Previously a typical `node_modules` exceeded the 100,000-entry / 20-second scan and blocked release permanently. The release no longer re-measures sizes, and the confirmation token no longer depends on them.
+- Let the user pick the other finished version after the reveal while nothing is adopted, for example when the blind pick failed the shared checks. The blind pick stays recorded as `initialPick`, the reveal summary marks the change, and the conversation receives a separate note.
+- Offer **Compare again** when no result is usable, neither version was picked or the pick failed the checks. It runs the same requirement through the conversation command with a selectable time limit, suggesting the next longer limit after a timeout; example comparisons create a fresh example repository.
+- Fold the composer settings once when the conversation already shows an open comparison, so the live previews keep their space.
+- Keep English failure titles and assembled sentences correctly spaced, and render failure explanations in the interface font while installation logs stay monospace.
+
 - Translate exact interface-copy keys with intentional whitespace, including advanced Windows labels and hook evidence. Let the longer process selector wrap on small screens. Check literal copy in every client module and the visible English label at narrow and wide widths.
 
 - Refresh the acceptance baseline to Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0, regenerate manager fixture locks with their exact tools, and add native macOS regression/runtime jobs with pinned minimum and current DSH versions. Keep native Safari and known Windows/PnP limits separately identified.

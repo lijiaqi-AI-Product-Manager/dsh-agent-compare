@@ -3,7 +3,20 @@
  * records exactly how a candidate session is created and driven.
  */
 import { describe, expect, it } from 'vitest'
-import { IsolatedSessionRunner, finalText, progressOf, stopReasonOf, usageFromEvents } from '../src/host/index.ts'
+import path from 'node:path'
+import { IsolatedSessionRunner, finalText, insideDirectory, progressOf, stopReasonOf, usageFromEvents } from '../src/host/index.ts'
+
+describe('example repository detection', () => {
+  it('accepts the directory and its descendants only', () => {
+    const parent = path.resolve('agent-compare-home', 'examples')
+    expect(insideDirectory(parent, path.join(parent, 'shop-3'))).toBe(true)
+    expect(insideDirectory(parent, parent)).toBe(true)
+    expect(insideDirectory(parent, path.resolve('agent-compare-home', 'examples-other', 'shop-1'))).toBe(false)
+    expect(insideDirectory(parent, path.resolve('projects', 'shop'))).toBe(false)
+    expect(insideDirectory(parent, undefined)).toBe(false)
+    if (process.platform === 'win32') expect(insideDirectory(parent, path.join(parent.toUpperCase(), 'shop-1'))).toBe(true)
+  })
+})
 
 interface Ev { type: string; data?: any }
 

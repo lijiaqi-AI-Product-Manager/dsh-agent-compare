@@ -131,4 +131,6 @@ export declare class IsolatedSessionRunner implements AgentRunner {
     run(req: AgentRunRequest): Promise<AgentRunResult>;
 }
 export declare function apply(ctx: HostCtx, config?: Config): Promise<void>;
+/** Whether `child` is `parent` or below it, compared the way the platform compares paths. */
+export declare function insideDirectory(parent: string, child: string | undefined): boolean;
 export {};

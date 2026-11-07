@@ -136,7 +136,12 @@ export declare class Comparer {
     /** Stop one candidate or the whole run. Shows "stopping" until each candidate has actually settled. */
     cancel(runId: string, label?: CandidateLabel): Promise<RunRecord | undefined>;
     private cancelRun;
-    /** Record the blind choice and reveal at once. Any finished candidate can be picked; adoption rules come later. */
+    /**
+     * Record the blind choice and reveal at once. Any finished candidate can be
+     * picked; adoption rules come later. After the reveal the user may change the
+     * pick to another finished candidate while nothing is adopted: the first,
+     * blind pick stays recorded as `initialPick`.
+     */
     choose(runId: string, pick: CandidateLabel | 'none', note?: string): Promise<RunRecord>;
     /**
      * Serve a finished candidate again (its preview stopped with a host

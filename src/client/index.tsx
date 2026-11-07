@@ -84,7 +84,7 @@ function returnToComposer(sessionId: string): void {
   else inputShell(sessionId)?.focus?.()
 }
 interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route]; exampleKind?: 'quick' | 'full'; windowsProcessCompat?: 'auto' | 'off' }
-interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
+interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; autoCollapsedRunId?: string; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
 const registeredShells = new WeakSet<InputShell>()
 function modeFor(sessionId: string): AbMode {
@@ -286,7 +286,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         </div>
       ) : c.error || c.canRetryVerification ? (
         <div className={`ac-fail${c.stage === 'interrupted' ? ' interrupted' : ''}`}>
-          <b>{t(c.install?.failure?.summary) ?? (c.error ? `${t(ERROR_STAGE[c.error.stage]) ?? t(STAGE_TEXT[c.error.stage]) ?? c.error.stage}${c.stage === 'interrupted' ? t("时中断") : c.stage === 'cancelled' ? t("已停止") : t("失败")}` : t("验收已停止"))}</b>
+          <b>{t(c.install?.failure?.summary) ?? (c.error ? (stage => c.stage === 'interrupted' ? `${stage}${t("时中断")}` : c.stage === 'cancelled' ? t("{0}已停止", { 0: stage }) : t("{0}失败", { 0: stage }))(t(ERROR_STAGE[c.error.stage]) ?? t(STAGE_TEXT[c.error.stage]) ?? c.error.stage) : t("验收已停止"))}</b>
           {c.install?.failure ? <p><Diagnostic text={c.install.failure.hint} />{c.install.failure.code ? `（${c.install.failure.code}）` : ''}</p> : <Diagnostic text={c.error?.message} />}
           {c.canRetryVerification && <div className="ac-salvage"><span>{t("保留已封存代码与共同验收，不重新生成。")}</span><button className="ac-btn primary sm" disabled={busy} onClick={() => act('retryVerification', { label: c.label })}>{t("重新验收 ")}{c.label}</button></div>}
           {revealed && c.install?.failure?.diagnostic && <details className="ac-details"><summary>{t("查看安装日志")}</summary><pre className="ac-install-log" tabIndex={0}>{c.install.failure.diagnostic}</pre></details>}
@@ -425,6 +425,12 @@ function ComposerDockState({ sessionId, session }: { sessionId: string; session?
     const timer = setInterval(refresh, 5000)
     return () => { active = false; clearInterval(timer) }
   }, [blank, sessionId, mode.runId, mode.refreshVersion])
+  useEffect(() => {
+    // An open comparison needs the space above the composer; fold the settings once per comparison.
+    if (!latest || !ACTIVE.has(latest.state) || mode.autoCollapsedRunId === latest.runId) return
+    mode.autoCollapsedRunId = latest.runId
+    if (!mode.collapsed) { mode.collapsed = true; publishMode(mode) }
+  }, [latest?.runId, latest?.state, mode])
   const resident = latest?.origin?.kind === 'tool' && latest.state !== 'abandoned' && mode.dismissedRunId !== latest.runId
   const runId = blank ? mode.runId ?? latest?.runId : resident ? latest?.runId : undefined
   useEffect(() => { setCollapsed(!blank && latest?.state === 'adopted' && latest.adoption?.state === 'adopted') }, [runId])
@@ -450,7 +456,23 @@ function StarNudge(): React.ReactElement | null {
   )
 }
 type Act = (method: string, extra?: Record<string, unknown>) => void
-function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; busy: boolean; pending?: string | undefined; act: Act; onDone?: () => void; onContinue?: () => void }): React.ReactElement | null {
+const BUDGET_OPTIONS = [5, 15, 30, 60, 90, 120]
+/** The same limit again, or the next longer one when generation ran out of time. */
+function suggestedMinutes(run: Run): number {
+  const base = Math.min(120, Math.max(5, Math.round((run.budget?.generationMs ?? 30 * 60_000) / 60_000)))
+  if (!run.candidates.some(c => c.generation?.ended === 'budget')) return base
+  return BUDGET_OPTIONS.find(minutes => minutes > base) ?? 120
+}
+/** Start the same requirement again from the conversation that owns this comparison. */
+function RerunControl({ run, sessionId, busy, act }: { run: Run; sessionId?: string; busy: boolean; act: Act }): React.ReactElement | null {
+  const [minutes, setMinutes] = useState(() => suggestedMinutes(run))
+  if (!sessionId || run.sessionId !== sessionId) return null
+  return <span className="ac-rerun">
+    <label className="ac-budget">{t("每版上限 ")}<select aria-label={t("重新比较的每版生成上限")} value={minutes} disabled={busy} onChange={e => setMinutes(Number(e.target.value))}>{[...new Set([...BUDGET_OPTIONS, minutes])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m}{t(" 分钟")}</option>)}</select></label>
+    <button className="ac-btn" disabled={busy} onClick={() => act('rerun', { minutes })} title={t("用同一条需求在本对话里重新比较两版；这次的结果和记录继续保留。")}>{t("再比较一次")}</button>
+  </span>
+}
+function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: { run: Run; sessionId?: string; busy: boolean; pending?: string | undefined; act: Act; onDone?: () => void; onContinue?: () => void }): React.ReactElement | null {
   if (run.control?.allowed === false) return <div className="ac-bar" role="status" aria-label={t("比较操作权限")}><span className="ac-bar-text"><strong>{t("当前仅可查看。")}</strong><Diagnostic text={run.control.reason} /></span></div>
   const pick = run.choice?.pick
   const picked = run.candidates.find((c) => c.label === pick)
@@ -472,6 +494,7 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
           <div className="ac-bar">
             <span className="ac-bar-text"><strong>{t("两边都没有可体验的结果。")}</strong>{salvageable ? t("改动仍保留。可以在卡片里查看原因并验收，或结束这次比较。") : t("可以结束这次比较，调整描述或时间上限后再来。")}</span>
             <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>{t("两版都不采用并揭晓")}</button>
+            <RerunControl run={run} sessionId={sessionId} busy={busy} act={act} />
           </div>
         )
       }
@@ -484,9 +507,14 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
       )
     case 'revealed': {
       const eligible = picked?.verdict?.eligible === true
+      // Nothing adopted yet: the user may switch to the other finished version after seeing both revealed.
+      const alternatives = run.adoption === undefined ? run.candidates.filter(c => c.stage === 'ready' && c.label !== pick) : []
+      const alternativeEligible = alternatives.some(c => c.verdict?.eligible === true)
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text">{pick === 'none' || picked === undefined ? t("这次两版都没选。可以换个描述再来一次。") : eligible ? t("先核对目标与改动，必要时在副本中预演；确认后才写入。") : t("这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。")}</span>
+          <span className="ac-bar-text">{pick === 'none' || picked === undefined ? alternatives.length ? t("这次两版都没选。揭晓后仍可改选一版，或用同一需求再比较一次。") : t("这次两版都没选。可以换个描述再来一次。") : eligible ? t("先核对目标与改动，必要时在副本中预演；确认后才写入。") : alternativeEligible ? t("这一版没有通过共同验收，不能写入工作区。可以改选通过验收的另一版，或另存为分支查看。") : t("这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。")}</span>
+          {alternatives.map(c => <button key={c.label} className={`ac-btn${!eligible && c.verdict?.eligible ? ' primary' : ''}`} disabled={busy} onClick={() => act('choose', { pick: c.label })} title={t("揭晓后改选；最初的盲选结果仍保留在记录中。")}>{t("改选 {0}", { 0: c.label })}</button>)}
+          {(pick === 'none' || picked === undefined || !eligible) && <RerunControl run={run} sessionId={sessionId} busy={busy} act={act} />}
           <button className="ac-btn" disabled={busy} onClick={() => act('reviewCopyCleanup')}>{t("整理工作副本")}</button>
           {picked !== undefined && <button className="ac-btn" disabled={busy} onClick={() => act('adopt', { mode: 'branch' })} title={t("只新建分支（含一个提交），不切换、不改当前文件")}>{t("另存为分支")}</button>}
           {picked !== undefined && eligible && <button className="ac-btn primary" disabled={busy} onClick={() => act('reviewAdoption')}>{t("审查并采用 ")}{pick}</button>}
@@ -519,6 +547,7 @@ function ActionBar({ run, busy, pending, act, onDone, onContinue }: { run: Run; 
         <div className="ac-bar">
           <span className="ac-bar-text">{run.state === 'interrupted' ? t("这次比较在宿主停止时中断，可验收副本里已经写出的改动。") : t("这次比较已结束。")}</span>
           {run.state === 'interrupted' && <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>{t("不采用本次结果，查看保留内容")}</button>}
+          {(run.state === 'abandoned' || run.state === 'interrupted') && <RerunControl run={run} sessionId={sessionId} busy={busy} act={act} />}
         </div>
       )
   }
@@ -560,14 +589,14 @@ function CopySpace({ run, sessionId, blocked, publish, requestKey = 0, onRelease
     <div className="ac-row" style={{ flexWrap: 'wrap', justifyContent: 'space-between' }}><div><b>{t("副本空间")}</b><div className="ac-note">{run.copiesReleasedAt ? t("副本已释放；运行记录、源码补丁、截图与撤销原件继续保留。") : t("查看空间与清单后再决定是否释放；没有自动过期删除。")}</div></div><button className="ac-btn" disabled={blocked || !!busy || !sessionId} onClick={() => { void inspect() }}>{busy === 'read' ? t("正在核对空间…") : t("查看副本空间")}</button></div>
     {error && <p className="ac-feedback" role="alert"><Diagnostic text={error} /></p>}
     {plan && <div className="ac-copy-plan">
-      <p><strong>{t("本次清单：")}{copySize(plan.bytes)}</strong>{t("（文件逻辑大小；不跟随链接，硬链接的实际释放量可能更少）")}</p>
+      <p><strong>{t("本次清单：")}{plan.resources.some(resource => resource.estimated) ? '≥ ' : ''}{copySize(plan.bytes)}</strong>{t("（文件逻辑大小；不跟随链接，硬链接的实际释放量可能更少）")}{plan.resources.some(resource => resource.estimated) ? t("依赖与缓存目录较大，已在时限内估算，实际释放量更多；它们会随副本一起删除。") : ''}</p>
       <p>{t("确认后停止清单内的预览，删除对应副本及依赖。运行记录、封存源码与 Git 引用、截图、示例原仓库、候选会话及撤销原件保留；不修改当前项目。释放后不能重开这些副本的预览，仍可查看截图、审查采用或撤销已有采用。")}</p>
       {plan.retained && <details><summary>{t("单独保留的资源")}</summary><p>{t("记录了 ")}{plan.retained.sealedPatches}{t(" 份封存补丁、")}{plan.retained.childSessions}{t(" 个候选会话，以及 ")}{plan.retained.gitRefs === undefined ? t("数量暂不可确认的") : plan.retained.gitRefs + t(" 个")}{t(" Git 引用。会话、原仓库和采用恢复目录均不在删除清单中；占用空间不计入上面的可释放量。")}</p><code>{plan.retained.sourceRepository}</code></details>}
-      {plan.resources.length > 0 && <ul>{plan.resources.map(resource => <li key={resource.label}><b>{t("副本 ")}{resource.label} · {copySize(resource.bytes)}</b> · {resource.files}{t(" 个文件")}{resource.links ? t(" · {0} 个链接未跟随", { 0: resource.links }) : ''}{resource.stopsPreview ? t(" · 将停止预览") : ''}<details><summary>{t("目录位置")}</summary><code>{resource.path}</code></details>{resource.reason && <p><Diagnostic text={resource.reason} /></p>}</li>)}</ul>}
+      {plan.resources.length > 0 && <ul>{plan.resources.map(resource => <li key={resource.label}><b>{t("副本 ")}{resource.label} · {resource.estimated ? '≥ ' : ''}{copySize(resource.bytes)}</b> · {resource.files}{t(" 个文件")}{resource.links ? t(" · {0} 个链接未跟随", { 0: resource.links }) : ''}{resource.stopsPreview ? t(" · 将停止预览") : ''}<details><summary>{t("目录位置")}</summary><code>{resource.path}</code></details>{resource.reason && <p><Diagnostic text={resource.reason} /></p>}</li>)}</ul>}
       {plan.reasons.map(reason => <p className="ac-feedback" key={reason}>{reason}</p>)}
       {stale && <p className="ac-feedback" role="alert">{t("比较已变化，请重新查看清单后再确认。")}</p>}
       {plan.otherSession && <label className="ac-row"><input type="checkbox" checked={otherConfirmed} onChange={event => setOtherConfirmed(event.target.checked)} />{t("这是其他对话的比较，确认释放该比较的副本。")}</label>}
-      <div className="ac-row"><button className="ac-btn" disabled={!!busy} onClick={() => setPlan(undefined)}>{t("保留副本")}</button><button className="ac-btn primary" disabled={blocked || !!busy || !plan.allowed || stale || (!!plan.otherSession && !otherConfirmed)} onClick={() => { void release() }}>{busy === 'release' ? t("正在停止预览并释放…") : t("确认释放 {0} 副本", { 0: copySize(plan.bytes) })}</button></div>
+      <div className="ac-row"><button className="ac-btn" disabled={!!busy} onClick={() => setPlan(undefined)}>{t("保留副本")}</button><button className="ac-btn primary" disabled={blocked || !!busy || !plan.allowed || stale || (!!plan.otherSession && !otherConfirmed)} onClick={() => { void release() }}>{busy === 'release' ? t("正在停止预览并释放…") : t("确认释放 {0} 副本", { 0: `${plan.resources.some(resource => resource.estimated) ? '≥ ' : ''}${copySize(plan.bytes)}` })}</button></div>
     </div>}
   </section>
 }
@@ -579,7 +608,7 @@ function Banners({ run, recordOnly = false }: { run: Run; recordOnly?: boolean }
   const a = run.adoption
   const bad = a && ['blocked', 'rolled-back', 'needs-recovery'].includes(a.state)
   const comparison = revealed && pick !== undefined ? <>
-    <div>{run.mode === 'same-model' ? t("同一模型、两种策略。") : t("两个模型、同一要求。")}{t("你选了 ")}<strong>{pick === 'none' ? t("都不满意") : `${pick}${pickedTitle ? `（${pickedTitle}）` : ''}`}</strong>{t("；程序验收倾向 ")}<strong>{fav === 'tie' ? t("持平") : fav === 'none' || fav === undefined ? t("无") : fav}</strong>
+    <div>{run.mode === 'same-model' ? t("同一模型、两种策略。") : t("两个模型、同一要求。")}{t("你选了 ")}<strong>{pick === 'none' ? t("都不满意") : `${pick}${pickedTitle ? `（${pickedTitle}）` : ''}`}</strong>{run.choice?.initialPick !== undefined && <>{t("（揭晓后改选；盲选时选了 {0}）", { 0: run.choice.initialPick === 'none' ? t("都不满意") : run.choice.initialPick })}</>}{t("；程序验收倾向 ")}<strong>{fav === 'tie' ? t("持平") : fav === 'none' || fav === undefined ? t("无") : fav}</strong>
       {pick !== 'none' && fav !== undefined && fav !== 'tie' && fav !== 'none' && fav !== pick ? t("。你的选择和验收结论不同。") : '。'}</div>
     <div className="disclaimer">{t("单次任务的结果不代表模型或策略的整体优劣。")}</div>
   </> : null
@@ -711,6 +740,23 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       call<NonNullable<typeof preflight>>('preflight', { runId, sessionId, ...extra }).then(value => { if (current()) setPreflight(value.protectedWorktreeApply === true ? value : { ...value, ok: false, reasons: [t("插件服务尚未启用文件交接保护。请重启 DSH 后重新审查；也可以先另存为分支。")] }) }, failed).finally(finished)
       return
     }
+    if (method === 'rerun') {
+      // A new comparison through the composer command, so its card appears in this conversation.
+      const owner = sessionId, source = run
+      void (async () => {
+        if (!owner || source.sessionId !== owner) throw new Error(t("只能在发起这次比较的对话里重新比较。"))
+        const mode = modeFor(owner)
+        if (!mode.loaded) await loadMode(owner)
+        if (!mode.loaded) throw new Error(mode.error ?? t("比较设置尚未读取，请稍后重试"))
+        const minutes = typeof extra.minutes === 'number' && BUDGET_OPTIONS.includes(extra.minutes) ? extra.minutes : mode.preferences.generationMinutes
+        if (minutes !== mode.preferences.generationMinutes) saveMode(owner, { ...mode.preferences, generationMinutes: minutes })
+        // An example repeat uses the example task that matches the repository it creates.
+        const result = await executeComparison(owner, source.example === true ? '' : source.task, source.example === true)
+        if (result.kind === 'error') throw new Error(result.text ?? t("重新比较未能开始"))
+        if (openSession?.sessionId === owner) setOpen(undefined)
+      })().catch(failed).finally(finished)
+      return
+    }
     setPreflight(undefined)
     call<Run | null>(method, { runId, sessionId, ...extra })
       .then((r) => { if (current() && r && typeof r === 'object' && 'runId' in r) publish(r, targetId) }, failed)
@@ -740,9 +786,9 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const independentHosts = previewHosts.length > 0 && previewHosts.every(host => /^ac-[0-9a-f]{32}\.localhost$/.test(host)) && new Set(previewHosts).size === previewHosts.length
   const body = (
     <>
-      {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}>{err ?? readErr}</div>}
+      {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}><Diagnostic text={err ?? readErr} /></div>}
       {confirmation && <div ref={confirmationBox} tabIndex={-1} className="ac-review" role="region" aria-label={t("跨对话操作确认")} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConfirmation(undefined) } }}><div><b>{t("这次比较来自另一个对话")}</b><p>{t("请确认要操作的项目：")}{run.baseline.repoRoot ?? t("记录中未提供项目路径")}</p><p>{t("运行编号：")}<code>{runId}</code>{t(" · 将执行：")}{confirmationLabel ?? ({ choose: t("选择并揭晓"), reviewAdoption: t("审查采用"), adopt: t("采用候选"), revert: t("撤销采用"), recover: t("恢复文件"), cancel: t("停止比较"), cancelAdoption: t("停止采用预演"), salvage: t("验收已有改动"), retryVerification: t("重新验收"), reopenPreview: t("重新打开预览") } as Record<string, string>)[confirmation.method] ?? t("更新这次比较")}</p><p>{t("确认仅适用于这一次操作，仍会重新核验项目、候选与归属。")}</p></div><div className="ac-row"><button className="ac-btn" onClick={() => setConfirmation(undefined)}>{t("取消操作")}</button><button className="ac-btn primary" disabled={cancelBusy || (confirmation.method === 'cancelAdoption' ? run.control?.allowed === false : operationBlocked)} onClick={() => { const next = confirmation; setConfirmation(undefined); act(next.method, { ...next.extra, confirmOtherSession: true }) }}>{t("确认本次操作")}</button></div></div>}
-      <div className="ac-action-dock"><ActionBar run={run} busy={busy || copyBusy || !!confirmation} pending={confirmation ? 'confirmation' : cancelBusy ? 'cancelAdoption' : pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
+      <div className="ac-action-dock"><ActionBar run={run} {...(sessionId ? { sessionId } : {})} busy={busy || copyBusy || !!confirmation} pending={confirmation ? 'confirmation' : cancelBusy ? 'cancelAdoption' : pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label={t("资源清理状态")}><div><b>{run.state === 'adopted' ? t("采用已完成，仍有资源等待清理") : t("仍有资源等待清理")}</b><p>{t("可以重试清理。清理只处理本次比较拥有的资源。")}</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>{t("重试清理")}</button></div></section>}
       {preflight && <section className="ac-review" aria-label={t("采用前审查")} role="region"><div><b>{preflight.ok ? t("目标核验通过，请确认采用") : t("当前无法采用")}</b><p className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的项目")}</p><p>{preflight.ok ? preflight.rehearsal ? t("项目有新改动，将先合并到临时副本中重新验收。") : t("将写入选中版本；不自动提交，保留暂存状态。") : preflight.reasons.join('；')}</p>{preflight.ok && <p>{t("先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。")}</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>{t("返回审查")}</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>{t("确认采用 ")}{run.choice?.pick}</button></div></section>}
       <Banners run={run} />

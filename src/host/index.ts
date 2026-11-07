@@ -16,6 +16,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import {
   Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, exampleTask, DEFAULT_GENERATION_MS,
   type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
@@ -383,7 +384,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     onUpdate: remember,
     onRecoveryIssue: issue => ctx.logger.warn(`agent-compare: ${issue.runId}: ${issue.message}`),
   })
-  const present = async (record: RunRecord): Promise<unknown> => ({ ...publicView(record), control: await comparer.control(record) })
+  // `example` lets the card offer a repeat that creates a fresh example repository instead of using the conversation's project.
+  const present = async (record: RunRecord): Promise<unknown> => ({ ...publicView(record), example: insideDirectory(store.examplesDir, record.baseline.repoRoot), control: await comparer.control(record) })
   const reconcileMemory = async (): Promise<void> => {
     const latest = new Map<string, RunRecord>()
     for (const record of await store.list()) {
@@ -686,6 +688,14 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       }
     },
   }), 'agent-compare: /agent-compare/api routes'))
+}
+
+/** Whether `child` is `parent` or below it, compared the way the platform compares paths. */
+export function insideDirectory(parent: string, child: string | undefined): boolean {
+  if (!child) return false
+  const fold = (value: string): string => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value)
+  const relative = path.relative(fold(parent), fold(child))
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {

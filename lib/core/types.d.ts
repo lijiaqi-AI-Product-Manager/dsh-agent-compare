@@ -256,6 +256,8 @@ export interface Choice {
     readonly pick: CandidateLabel | 'none';
     readonly at: number;
     readonly note?: string;
+    /** The blind pick, kept when the user changes the pick after the reveal. */
+    readonly initialPick?: CandidateLabel | 'none';
 }
 export type AdoptionState = 
 /** Building the would-be result in a scratch copy and checking it. Nothing written. */

@@ -126,7 +126,7 @@ const record = shape({
   }),
   mode: oneOf('same-model', 'cross-model'), isolation: oneOf('own-root', 'shared-root'), budget: shape({ generationMs: count(1) }),
   state: oneOf('running', 'judging', 'revealed', 'adopting', 'adopted', 'recovery', 'abandoned', 'interrupted'), candidates: array(candidate, 2),
-  choice: optional(shape({ pick: oneOf('A', 'B', 'none'), at: count(), note: optional(text()) })), revealedAt: optional(count()), checksFavoured: optional(oneOf('A', 'B', 'tie', 'none')),
+  choice: optional(shape({ pick: oneOf('A', 'B', 'none'), at: count(), note: optional(text()), initialPick: optional(oneOf('A', 'B', 'none')) })), revealedAt: optional(count()), checksFavoured: optional(oneOf('A', 'B', 'tie', 'none')),
   adoption: optional(adoption), outsideChanges: optional(paths), leftovers: optional(array(text())), copiesReleasedAt: optional(count()),
 })
 
