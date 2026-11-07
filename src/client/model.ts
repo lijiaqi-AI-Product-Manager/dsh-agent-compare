@@ -42,6 +42,10 @@ export interface Run {
   /** The comparison ran in a built-in example repository. */
   example?: boolean
   budget?: { generationMs: number }
+  /** What both candidates received from the main conversation. */
+  conversationContext?: { mode: 'recent' | 'selected'; messages: number; chars: number; truncated: boolean; text: string }
+  /** Whether the owning conversation's log holds this comparison's current result. */
+  conversationMemory?: 'synced' | 'next-message'
   task: string
   state: string
   mode: 'same-model' | 'cross-model'

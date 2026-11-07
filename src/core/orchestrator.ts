@@ -74,6 +74,8 @@ export interface StartInput {
   readonly origin?: RunRecord['origin']
   readonly generationMs?: number
   readonly windowsProcessCompat?: WindowsProcessCompatMode
+  /** Main-conversation excerpt for both candidates; recorded with the run. */
+  readonly conversationContext?: RunRecord['conversationContext']
   /** Fixed A/B assignment for tests; production shuffles. */
   readonly assignment?: 'fixed' | 'shuffle'
   /** Handed to every AgentRunner call; never persisted. */
@@ -193,6 +195,7 @@ export class Comparer {
       task,
       ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
       ...(input.follows === undefined ? {} : { follows: input.follows }),
+      ...(input.conversationContext === undefined ? {} : { conversationContext: input.conversationContext }),
       ...(input.origin === undefined ? {} : { origin: input.origin }),
       baseline: { repoRoot: root, headCommit: head, snapshotCommit, snapshotTree: tree, dirty },
       acceptance,
@@ -345,7 +348,7 @@ export class Comparer {
       const result = await this.opts.runner.run({
         label: c.label,
         cwd: dir,
-        prompt: candidatePrompt(record.task, c.strategy, record.isolation),
+        prompt: candidatePrompt(record.task, c.strategy, record.isolation, record.conversationContext?.text),
         route: c.route,
         signal: AbortSignal.any([signal, budget]),
         hostContext: lr.hostContext,

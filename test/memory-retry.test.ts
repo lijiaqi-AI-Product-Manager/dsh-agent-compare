@@ -1,46 +1,40 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ConversationMemory } from '../src/host/memory.ts'
+import { StepMemory } from '../src/host/step-memory.ts'
 import { fixtureRecord } from './record-fixture.ts'
 
-describe('pending conversation delivery', () => {
-  it('does no record reads while empty or while the owning conversation is inactive', async () => {
-    let online = false
-    const queued: unknown[] = [], events: Array<{ type: string; data: unknown }> = []
-    const agent = { session: { snapshotEvents: () => events }, inbox: { nextTurn: [], nextStep: queued }, inject: (message: unknown) => queued.push(message) }
-    const memory = new ConversationMemory({ findAgent: () => online ? agent : undefined, createMessage: async () => message => message, warn: () => {} })
-    const record = fixtureRecord(), load = vi.fn(async () => record)
-    await memory.retryUndelivered(load)
-    await memory.remember(record)
-    await memory.retryUndelivered(load)
-    expect(load).not.toHaveBeenCalled()
-    online = true
-    await memory.retryUndelivered(load)
-    expect(queued).toHaveLength(1)
-    queued.length = 0
-    await memory.retryUndelivered(load)
-    expect(queued).toHaveLength(1)
-    events.push({ type: 'user/message', data: { message: queued.shift() } })
-    await memory.retryUndelivered(load)
-    load.mockClear()
-    await memory.retryUndelivered(load)
-    expect(load).not.toHaveBeenCalled()
-    expect(queued).toHaveLength(0)
+describe('step memory reads', () => {
+  it('reads no log for conversations without comparisons and scans only new log entries', async () => {
+    const events: Array<{ type: string; data: unknown }> = []
+    const snapshot = vi.fn((from: number) => events.slice(from))
+    const session = { id: 's1', get seq() { return events.length }, snapshotEvents: snapshot }
+    const record = fixtureRecord(); record.sessionId = 's1'; record.state = 'judging'
+    const records = vi.fn(async (sessionId: string) => sessionId === 's1' ? [record] : [])
+    const memory = new StepMemory({ records, createMessage: async () => message => message })
+
+    expect(await memory.messages({ id: 'idle', seq: 0, snapshotEvents: snapshot })).toHaveLength(0)
+    expect(snapshot).not.toHaveBeenCalled()
+
+    const notes = await memory.messages(session)
+    expect(notes).toHaveLength(1)
+    for (const message of notes) events.push({ type: 'user/message', data: { message } })
+    for (let i = 0; i < 50; i++) events.push({ type: 'assistant/message', data: {} })
+    expect(await memory.messages(session)).toHaveLength(0)
+    expect(snapshot.mock.calls.map(call => call[0])).toEqual([0])
+    events.push({ type: 'assistant/message', data: {} })
+    expect(await memory.messages(session)).toHaveLength(0)
+    expect(snapshot.mock.calls.map(call => call[0])).toEqual([0, 51])
   })
-  it('does not enqueue a superseded milestone after delayed message preparation', async () => {
-    const queued: unknown[] = []
-    let release!: () => void, entered!: () => void, calls = 0
-    const gate = new Promise<void>(resolve => { release = resolve }), waiting = new Promise<void>(resolve => { entered = resolve })
-    const agent = { session: { snapshotEvents: () => [] }, inbox: { nextTurn: [], nextStep: queued }, inject: (message: unknown) => queued.push(message) }
-    const memory = new ConversationMemory({ findAgent: () => agent, createMessage: async () => { if (++calls === 1) { entered(); await gate } return message => message }, warn: () => {} })
-    const old = fixtureRecord(); old.rev = 1
-    const first = memory.remember(old)
-    await waiting
-    const current = structuredClone(old); current.rev = 2; current.state = 'revealed'; current.choice = { pick: 'A', at: 2 }
-    await memory.remember(current)
-    release(); await first
-    expect(queued).toHaveLength(1)
-    expect(JSON.stringify(queued)).toContain('picked A')
-    await memory.remember(old)
-    expect(queued).toHaveLength(1)
+
+  it('rescans from the start when the session log is replaced', async () => {
+    let events: Array<{ type: string; data: unknown }> = []
+    const session = { id: 's1', get seq() { return events.length }, snapshotEvents: (from: number) => events.slice(from) }
+    const record = fixtureRecord(); record.sessionId = 's1'; record.state = 'judging'
+    const memory = new StepMemory({ records: async () => [record], createMessage: async () => message => message })
+    const notes = await memory.messages(session)
+    events = [...notes.map(message => ({ type: 'user/message', data: { message } })), { type: 'assistant/message', data: {} }]
+    expect(await memory.messages(session)).toHaveLength(0)
+    // A cleared log no longer contains the note; it is delivered again.
+    events = []
+    expect(await memory.messages(session)).toHaveLength(1)
   })
 })

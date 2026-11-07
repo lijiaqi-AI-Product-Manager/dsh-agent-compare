@@ -53,6 +53,8 @@ export interface StartInput {
     readonly origin?: RunRecord['origin'];
     readonly generationMs?: number;
     readonly windowsProcessCompat?: WindowsProcessCompatMode;
+    /** Main-conversation excerpt for both candidates; recorded with the run. */
+    readonly conversationContext?: RunRecord['conversationContext'];
     /** Fixed A/B assignment for tests; production shuffles. */
     readonly assignment?: 'fixed' | 'shuffle';
     /** Handed to every AgentRunner call; never persisted. */

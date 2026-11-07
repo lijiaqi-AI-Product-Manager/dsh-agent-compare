@@ -22,6 +22,8 @@ export declare function startToolComparison<A extends {
         runId: string;
         state: string;
     }>;
+    /** The saved main-conversation context for both candidates, if any. */
+    conversationContext?(agent: A, saved: AbPreferences): StartInput['conversationContext'];
 }): Promise<{
     runId: string;
     state: string;

@@ -11,6 +11,26 @@ export interface AbPreferences {
   readonly exampleKind?: 'quick' | 'full'
   readonly windowsProcessCompat?: 'auto' | 'off'
   readonly models: readonly [AgentRoute, AgentRoute]
+  /** Main-conversation context given to both candidates. Absent means the recent default. */
+  readonly contextMode?: ConversationContextMode
+  /** Exchanges included by `recent`. */
+  readonly contextTurns?: number
+}
+
+export type ConversationContextMode = 'none' | 'recent' | 'selected'
+export const CONTEXT_TURNS = [1, 3, 6, 10] as const
+export const DEFAULT_CONTEXT_TURNS = 3
+
+/** What one submission asks to include; `selected` names log entries the user ticked. */
+export interface ConversationContextRequest {
+  readonly mode: ConversationContextMode
+  readonly turns: number
+  readonly ids?: readonly number[]
+}
+
+export function contextRequestOf(preferences: AbPreferences, ids?: readonly number[]): ConversationContextRequest {
+  const mode = preferences.contextMode ?? 'recent'
+  return { mode, turns: preferences.contextTurns ?? DEFAULT_CONTEXT_TURNS, ...(mode === 'selected' && ids ? { ids } : {}) }
 }
 
 export function defaultPreferences(minutes = 30): AbPreferences {
@@ -24,6 +44,8 @@ export function parsePreferences(value: unknown): AbPreferences {
   if (typeof p.generationMinutes !== 'number' || !Number.isFinite(p.generationMinutes) || p.generationMinutes < 5 || p.generationMinutes > 120) throw new Error('每版生成上限需要在 5 到 120 分钟之间')
   if (p.exampleKind !== undefined && p.exampleKind !== 'quick' && p.exampleKind !== 'full') throw new Error('示例类型无效')
   if (p.windowsProcessCompat !== undefined && p.windowsProcessCompat !== 'auto' && p.windowsProcessCompat !== 'off') throw new Error('Windows 进程兼容设置无效')
+  if (p.contextMode !== undefined && p.contextMode !== 'none' && p.contextMode !== 'recent' && p.contextMode !== 'selected') throw new Error('主对话上下文设置无效')
+  if (p.contextTurns !== undefined && !(CONTEXT_TURNS as readonly unknown[]).includes(p.contextTurns)) throw new Error('主对话上下文轮数无效')
   if (!Array.isArray(p.models) || p.models.length !== 2) throw new Error('模型设置需要两个位置')
   const models = p.models.map((value: unknown): AgentRoute => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('模型设置无效')
@@ -32,7 +54,7 @@ export function parsePreferences(value: unknown): AbPreferences {
     if (typeof r.provider !== 'string' || !r.provider.trim() || typeof r.model !== 'string' || !r.model.trim()) throw new Error('请选择包含服务与模型的完整配置')
     return { provider: r.provider, model: r.model }
   }) as [AgentRoute, AgentRoute]
-  return { enabled: p.enabled, mode: p.mode as AbPreferences['mode'], generationMinutes: p.generationMinutes, models, ...(p.exampleKind === undefined ? {} : { exampleKind: p.exampleKind as 'quick' | 'full' }), ...(p.windowsProcessCompat === undefined ? {} : { windowsProcessCompat: p.windowsProcessCompat as 'auto' | 'off' }) }
+  return { enabled: p.enabled, mode: p.mode as AbPreferences['mode'], generationMinutes: p.generationMinutes, models, ...(p.exampleKind === undefined ? {} : { exampleKind: p.exampleKind as 'quick' | 'full' }), ...(p.windowsProcessCompat === undefined ? {} : { windowsProcessCompat: p.windowsProcessCompat as 'auto' | 'off' }), ...(p.contextMode === undefined ? {} : { contextMode: p.contextMode as ConversationContextMode }), ...(p.contextTurns === undefined ? {} : { contextTurns: p.contextTurns as number }) }
 }
 
 export class PreferencesStore {
@@ -78,10 +100,11 @@ export class PreferencesStore {
 }
 
 /** UI submissions carry frozen settings without asking users to write flags. */
-export function parseUiSubmission(raw: string): { task: string; example: boolean; preferences: AbPreferences } | undefined {
+export function parseUiSubmission(raw: string): { task: string; example: boolean; preferences: AbPreferences; contextIds?: number[] } | undefined {
   const text = raw.trim()
   if (!text.startsWith('@ui ')) return undefined
   const value = JSON.parse(text.slice(4)) as Record<string, unknown>
   if (value.version !== 1 || typeof value.task !== 'string' || typeof value.example !== 'boolean') throw new Error('比较任务格式无效')
-  return { task: value.task, example: value.example, preferences: parsePreferences(value.preferences) }
+  if (value.contextIds !== undefined && (!Array.isArray(value.contextIds) || value.contextIds.length > 200 || value.contextIds.some(id => !Number.isSafeInteger(id) || (id as number) < 0))) throw new Error('所选主对话消息无效')
+  return { task: value.task, example: value.example, preferences: parsePreferences(value.preferences), ...(value.contextIds === undefined ? {} : { contextIds: [...new Set(value.contextIds as number[])] }) }
 }

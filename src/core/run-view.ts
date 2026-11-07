@@ -5,6 +5,8 @@ import { fileTransferDirectory } from './file-transfer.ts'
 import type { Acceptance, AgentRoute, Candidate, CandidateLabel, CandidateStage, CheckResult, RunRecord, Strategy, Usage, Verdict } from './types.ts'
 
 const REVEALED_STATES = new Set(['revealed', 'adopting', 'adopted', 'recovery'])
+/** Shared by every sealing failure that found no change in the copy. */
+export const NO_CHANGES = '没有改动任何文件'
 
 export function canRetryVerification(r: RunRecord, c: Candidate): boolean {
   return (r.state === 'judging' || r.state === 'interrupted') && ['failed', 'interrupted', 'cancelled'].includes(c.stage)
@@ -130,8 +132,10 @@ export function publicView(r: RunRecord): PublicRun {
       timings: c.timings,
       hasScreenshot: c.screenshot !== undefined,
       hasMobileScreenshot: c.mobileScreenshot !== undefined,
+      // A copy sealed with no change has nothing to verify: offering it would only repeat the same failure.
       salvageable: (r.state === 'judging' || r.state === 'interrupted') && (c.stage === 'failed' || c.stage === 'interrupted')
-        && (c.error?.stage === 'generating' || c.error?.stage === 'sealing') && c.dir !== undefined && existsSync(c.dir),
+        && (c.error?.stage === 'generating' || (c.error?.stage === 'sealing' && !candidate.error?.message.includes(NO_CHANGES)))
+        && c.dir !== undefined && existsSync(c.dir),
       canReopenPreview: c.stage === 'ready' && c.preview === undefined && c.dir !== undefined && existsSync(c.dir),
       canRetryVerification: canRetryVerification(r, c),
       ...(c.install === undefined ? {} : { install: c.install }),

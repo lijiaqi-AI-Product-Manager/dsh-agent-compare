@@ -26,7 +26,7 @@ const checks = (ok) => [
   { name: 'browser', outcome: ok ? 'passed' : 'failed', durationMs: 6400, steps: steps(!ok), ...(ok ? {} : { reason: '验收步骤未通过：点「清空」（找不到按钮）' }) },
 ]
 const acceptance = { source: 'repository', checks: ['typecheck', 'build', 'browser'], steps: 12, frozenInstall: true, sha256: 'abc' }
-const base = { runId: '0a1b2c3d', rev: 1, task: '给商品列表加上搜索框和分类筛选，手机上也要好用。要求：搜索不区分大小写；分类可与搜索组合；有「清空」按钮；390px 手机可用。', mode: 'same-model', isolation: 'own-root', createdAt: now - 95000, baseline: { dirty: true, repoRoot: 'D:\\Projects\\demo-shop' }, acceptance }
+const base = { runId: '0a1b2c3d', rev: 1, conversationContext: { mode: 'recent', messages: 4, chars: 96, truncated: false, text: '[User]\n商品页想做得年轻一点，用紫色和青柠色。\n\n[Assistant]\n好的，我会把主色换成紫色。' }, task: '给商品列表加上搜索框和分类筛选，手机上也要好用。要求：搜索不区分大小写；分类可与搜索组合；有「清空」按钮；390px 手机可用。', mode: 'same-model', isolation: 'own-root', createdAt: now - 95000, baseline: { dirty: true, repoRoot: 'D:\\Projects\\demo-shop' }, acceptance }
 const reported = { kind: 'reported', totalTokens: 48210 }
 const networkFailure = { kind: 'network', summary: '包服务连接或证书检查失败', hint: '检查网络、registry、代理和证书；连接恢复后可重新验收原候选。无需因此修改锁文件。', code: 'ECONNRESET', diagnostic: 'npm error code ECONNRESET\nnpm error network connection reset' }
 const previousVerification = { recordedAt: now - 40000, durationMs: 10000, install: { argv: ['npm', 'ci'], frozen: true, durationMs: 10000, outcome: 'failed', failure: networkFailure } }
@@ -63,7 +63,7 @@ const states = {
   revealed: [{ ...base, state: 'revealed', checksFavoured: 'A', choice: { pick: 'B' }, revealedAt: now, candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   partial: [{ ...base, state: 'revealed', choice: { pick: 'A' }, revealedAt: now, candidates: [{ ...A, ...strat.A, usage: { kind: 'reported', inputTokens: 10, outputTokens: 2, cacheReadTokens: 100, cacheWriteTokens: 50 } }, { ...B, ...strat.B, usage: { kind: 'unknown', reason: 'provider omitted usage' } }] }],
   blocked: [{ ...base, state: 'revealed', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'blocked', mode: 'worktree', rehearsed: true, message: '把这一版接到你当前的项目上预演后，验收没有通过：test 未通过。尚未写入任何文件。', rehearsalChecks: [{ name: 'typecheck', outcome: 'passed', durationMs: 1 }, { name: 'test', outcome: 'failed', durationMs: 1 }, { name: 'build', outcome: 'passed', durationMs: 1 }] }, candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
-  adopted: [{ ...base, state: 'adopted', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', rehearsed: true, retainedDirectory: 'D:/Projects/demo-shop/.agent-compare-transfer-1234567890abcdef1234567890abcdef', message: '已写入 2 个文件，项目现在与预演通过的版本完全一致；未提交，index 和 HEAD 未改动' }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
+  adopted: [{ ...base, conversationMemory: 'synced', state: 'adopted', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', rehearsed: true, retainedDirectory: 'D:/Projects/demo-shop/.agent-compare-transfer-1234567890abcdef1234567890abcdef', message: '已写入 2 个文件，项目现在与预演通过的版本完全一致；未提交，index 和 HEAD 未改动' }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
   retained: [{ ...base, state: 'adopted', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', message: '已采用；截图为验收时保存的静态记录' }, candidates: [A, B].map(c => ({ ...c, ...strat[c.label], previewUrl: undefined, hasScreenshot: true, hasMobileScreenshot: true })) }],
   'reverted-history': [{ ...base, state: 'revealed', checksFavoured: 'tie', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'reverted', mode: 'worktree', retainedDirectory: 'D:/Projects/demo-shop/.agent-compare-transfer-1234567890abcdef1234567890abcdef', message: '已撤销，原有文件已恢复；比较记录与候选成果继续保留。' }, candidates: [A, B].map(c => ({ ...c, ...strat[c.label], previewUrl: undefined, hasScreenshot: true, hasMobileScreenshot: true })) }],
   'mixed-preview': [{ ...base, state: 'revealed', choice: { pick: 'A' }, revealedAt: now, candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B, previewUrl: undefined, hasScreenshot: true, hasMobileScreenshot: true, canReopenPreview: true }] }],
@@ -99,6 +99,21 @@ window.__sessionPlans = [];
 window.__actionPlans = [];
 window.__shotPlans = []; window.__shotFailedOnce = false;
 const realFetch = window.fetch;
+const contextEntries = [
+  {id:3,role:'user',text:'商品页想做得年轻一点，用紫色和青柠色。',chars:18},
+  {id:5,role:'assistant',text:'好的，我会把主色换成紫色，按钮用渐变，强调色用青柠。',chars:26},
+  {id:8,role:'note',text:'[AgentCompare run 11111111] Candidate A is now in the target repository\\'s working tree, uncommitted.',chars:96},
+  {id:11,role:'user',text:'搜索框要在手机上也好用，清空按钮放在右侧。',chars:21},
+  {id:12,role:'assistant',text:'明白，手机上搜索框占满一行，清空按钮放在输入框右侧。',chars:25},
+];
+function contextPreview(body) {
+  const mode = body.mode ?? 'recent';
+  if (mode === 'none') return null;
+  const chosen = mode === 'selected' ? contextEntries.filter(entry => (body.ids ?? []).includes(entry.id)) : contextEntries.slice(-Math.min(contextEntries.length, (body.turns ?? 3) * 2));
+  if (!chosen.length) return null;
+  const text = chosen.map(entry => '[' + entry.role + ']\\n' + entry.text).join('\\n\\n');
+  return {mode,messages:chosen.length,chars:text.length,truncated:false,sha256:'b'.repeat(64),text};
+}
 function listHistory(body) {
   const scope = body.scope ?? (body.sessionId ? 'session' : 'all');
   const query = (body.search ?? '').trim();
@@ -142,7 +157,10 @@ window.fetch = async (url, init) => {
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true,...(${JSON.stringify(error)}==='old-apply-host'?{}:{protectedWorktreeApply:true})}
     : m[1] === 'copyCleanupPlan' ? {version:1,runId:body.runId,rev:runs.find(r=>r.runId===body.runId)?.rev??0,state:'revealed',allowed:true,reasons:[],bytes:15728640,token:'a'.repeat(64),otherSession:${JSON.stringify(error==='other-session-cleanup')},resources:[{label:'A',path:'D:/Comparisons/0a1b2c3d/A',bytes:7340032,files:100,links:0,stopsPreview:true},{label:'B',path:'D:/Comparisons/0a1b2c3d/B',bytes:8388608,files:120,links:2,stopsPreview:true}]}
-    : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false} : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
+    : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false}
+    : m[1] === 'contextEntries' ? {entries:contextEntries,limits:{messageChars:2000,totalChars:12000}}
+    : m[1] === 'contextPreview' ? contextPreview(body)
+    : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method==='choose')?.error) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
   if (m[1] === 'adopt' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method==='adopt')?.error) { const rehearsal=window.__actionPlans.find(plan=>plan.method==='adopt')?.rehearsal; runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:rehearsal?'adopting':'adopted',control:rehearsal?{allowed:true,canCancelAdoption:true,adoptionCancellationRequested:false}:runs[selected].control,adoption:{state:rehearsal?'rehearsing':'adopted',mode:body.mode,message:rehearsal?'正在预演':'已采用'}}; value=runs[selected]; }
