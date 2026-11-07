@@ -1,8 +1,8 @@
 # 界面语言 / Interface language
 
-The bilingual interface is available on main after #113; npm 1.1.0 retains its recorded Chinese interface until a later release is published.
+The bilingual interface is available from 1.2.0; 1.1.0 keeps its Chinese-only interface.
 
-主分支的比较界面支持简体中文和英文。新对话和已有对话的右上角均可切换；设置默认跟随浏览器首选语言，手动选择保存在当前浏览器或桌面配置的本地存储中。语言切换不修改需求草稿、引用、模型设置、候选选择、代码或运行记录，也不重新启动比较与预览。浏览器拒绝存储时，本窗口仍可切换语言。
+自 1.2.0 起，比较界面支持简体中文和英文。新对话和已有对话的右上角均可切换；设置默认跟随浏览器首选语言，手动选择保存在当前浏览器或桌面配置的本地存储中。语言切换不修改需求草稿、引用、模型设置、候选选择、代码或运行记录，也不重新启动比较与预览。浏览器拒绝存储时，本窗口仍可切换语言。
 
 The comparison interface supports Simplified Chinese and English. Use the language selector beside history and tutorial in new or existing conversations. The default follows the browser's preferred language; an explicit choice is retained in local browser storage for that profile. Changing language preserves drafts, references, model settings, candidate choices, code and records. It does not restart comparisons or previews. When browser storage is unavailable, the current window still retains the choice in memory.
 

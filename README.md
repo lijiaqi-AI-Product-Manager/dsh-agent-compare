@@ -19,9 +19,9 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.1.0 · 正式版。** 支持 DSH 桌面端与浏览器界面。首期面向本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
+> **1.2.0 · 正式版。** 支持 DSH 桌面端与浏览器界面。首期面向本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
 
-1.1.0 增加快速与完整示例、可确认的副本空间清理、采用预演停止、跨对话操作确认及重启后的当前状态同步。包管理器的实测范围与限制见[更新记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#110)。
+1.2.0 让比较结果可靠写回主对话记忆，并可选择两版能看到的主对话内容。新增揭晓后改选、再比较一次、大依赖目录副本释放、中英文界面和 Windows 进程兼容设置，界面也做了整体更新。包管理器的实测范围与限制见[更新记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#120)。
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一前端需求，生成并实际运行两份实现。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
@@ -54,7 +54,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 安装 npm 包到默认 Web profile（公开发布状态见顶部 npm 徽章）：
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.1.0
+dsh plugin --profile web add dsh-agent-compare@1.2.0
 ```
 
 如使用其他自行运行的 profile，请将 `web` 换成实际名称。
@@ -72,13 +72,13 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.1.0.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.2.0.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：
 
 1. 输入框上方展开设置条，直接选择「同一模型 · 两种策略」或「两个模型 · 同一要求」。默认复用当前模型；双模型模式提供两个已配置模型的下拉框。
-2. 选择每版生成上限（5–120 分钟）。设置保存在当前对话，重新打开仍可读取。
+2. 选择每版生成上限（5–120 分钟），以及两版能看到的「主对话上下文」：不带、最近几轮（默认 3 轮）或手动勾选。设置条会显示两版将收到的完整内容。设置保存在当前对话，重新打开仍可读取。
 3. 在原输入框里写需求并发送。无需填写指令或参数；模式切换只操作自己的命令标记，保留草稿、引用与附件。暂不支持的附件提交会由宿主拒绝并保留原稿。
 4. 同一条对话里出现 A|B 卡片，两个小窗口是两版**真实运行的应用**。新会话尚未显示聊天时间线时，同一份记录直接显示在输入框上方。默认适应窗口、直接交互，也可切换统一桌面／手机视口或专注 A/B；「大窗口查看」用于放大检查。
 5. 选择后揭晓模型和策略，展开代码改动，再点「审查并采用」。先显示目标仓库与核验结果，确认后才写入。恢复操作置于结果顶部；采用后点「继续主对话」，退出比较模式并聚焦原输入框，记录仍保留。
@@ -91,7 +91,9 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.1.0.tgz
 
 [运行记录、重启与恢复](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/runs-and-recovery.md) · [支持范围](#兼容范围) · [自定义验收](#repository-acceptance-agent-comparejson)
 
-主分支另有[Windows 进程兼容设置](docs/windows-process-compat.md)：提供自动与关闭选项，保留原有宿主约束，并在揭晓后显示实际观察到的钩子。该设置尚未进入 npm 1.1.0。
+比较结果、你的选择、采用与撤销都会写入这条对话的记忆。之后可以直接问「刚才比较的结果怎么样」，或者在采用的版本上继续改。揭晓后还没采用时可以改选另一版；两版都不可用时可以「再比较一次」。详见[主对话记忆与上下文](docs/conversation-memory.md)。
+
+[Windows 进程兼容设置](docs/windows-process-compat.md)提供自动与关闭选项，保留原有宿主约束，并在揭晓后显示实际观察到的钩子。
 
 <a id="what-it-is-for"></a>
 
@@ -227,7 +229,7 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 | Linux，Ubuntu CI，DSH 0.2.1-rc.5 | 核心回归和真实宿主进程约束、环境清理、冻结安装、构建、预览重开、取消检查已通过；未测外部模型完整交付 |
 | DSH next 通道 | 独立 Windows／Linux／macOS 原生运行 canary，记录实际版本；状态见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)，不等同于完整模型交付验收 |
 | macOS | 当前源码增加原生完整回归、Chromium 界面、真实 DSH 与包管理器检查；Safari 实时比较另见 [#115](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/115)，不能用 Chromium 结果代替 |
-| 当前源码验收基线（未发布） | Windows／Linux／macOS 固定 DSH 0.2.1-rc.5 与 0.2.2-rc.1；Playwright 1.65.0、Vite 8.3.6、pnpm 12.18.0，具体通过项与限制见执行矩阵及本次 CI |
+| 1.2.0 验收基线 | Windows／Linux／macOS 固定 DSH 0.2.1-rc.5 与 0.2.2-rc.1；Playwright 1.65.0、Vite 8.3.6、pnpm 12.18.0，具体通过项与限制见执行矩阵及本次 CI |
 | Node | 26.13.0 为主开发基线；22／24 维护线的最新补丁版也纳入 CI 兼容检查 |
 | 项目类型 | 仓库根目录的 Vite 项目；至少有一次提交的 Git 仓库。包管理器的完整通过项与已知限制见[执行矩阵](docs/package-managers.md) |
 
@@ -235,7 +237,7 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 
 ## 已验证（持续更新，以当前 CI 和所列案例为准）
 
-以下案例保留各自的源码与工具版本。当前源码的测试脚本使用上方「未发布」基线，历史运行数字不作为新版重新测量的结果。
+以下案例保留各自的源码与工具版本。1.2.0 的测试脚本使用上方基线，历史运行数字不作为新版重新测量的结果。
 
 最新结果见 [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)。可复现的原生运行检查还在 Windows 上实测了 DSH 0.2.1-rc.5、Node 26.13 和 Vite 8.3.5：相邻文件写入被拒绝、子进程环境被清理、冻结安装、类型检查和构建通过、预览两次启动、取消后停止写入。Windows 如实报告部分约束。
 
