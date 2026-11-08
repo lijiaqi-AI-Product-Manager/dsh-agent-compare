@@ -13,7 +13,7 @@ import { runBrowserCheck, runCommandChecks } from './checks.ts'
 import { acceptanceChanges, buildAcceptance, inspectProject, installArgv, LOCKFILES, managerVersionIssue, profileProject, scriptArgv, staticEntry, type ProfiledProject } from './project.ts'
 import { isPreviewProcess, startScriptPreview, startStaticPreview, startVitePreview, PreviewError, type Preview } from './preview.ts'
 import { createPrivateWorkspace, resolveWorkspace } from './workspace.ts'
-import { exportFolderName, exportTree, freeFolder, removeExport } from './export.ts'
+import { exportFolderName, exportTree, exportUndoDirectory, freeFolder, removeExport } from './export.ts'
 import { diagnosticText, killTree, observeProcess, ProcessStopError, waitGone } from './proc.ts'
 import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
 import { WindowsCompatObserver, type WindowsProcessCompatMode } from './windows-compat.ts'
@@ -1170,6 +1170,7 @@ export class Comparer {
       r.adoption = {
         label: c.label, mode: 'folder', state: 'adopted', startedAt, endedAt: Date.now(),
         exportPath: saved.exportPath, exportDigests: saved.digests, writtenPaths: saved.written,
+        ...(r.adoption?.retainedExports?.length ? { retainedExports: r.adoption.retainedExports } : {}),
         message: `已保存 ${saved.written.length} 个文件到 ${saved.exportPath}；没有改动目录里原有的文件${saved.skipped.length ? `。${saved.skipped.length} 个链接或特殊条目没有保存：${saved.skipped.slice(0, 5).join('、')}` : ''}`,
       }
       r.state = 'adopted'
@@ -1193,7 +1194,12 @@ export class Comparer {
       const r = await this.fresh(runId)
       const a = r.adoption
       if (r.state === 'adopted' && a?.mode === 'folder' && a.exportPath && a.exportDigests) {
-        const undo = await removeExport(a.exportPath, a.exportDigests)
+        const retained = exportUndoDirectory(a.exportPath)
+        // Persist the location before moving any saved file, including an
+        // interrupted undo. Originals are never part of preview cleanup.
+        ;(a.retainedExports ??= []).push(retained)
+        await this.save(r)
+        const undo = await removeExport(a.exportPath, a.exportDigests, retained)
         if (undo.changed.length > 0) throw new AdoptError('overlap', `保存之后你改过这些文件，为避免丢失，没有撤销：${undo.changed.slice(0, 10).join('、')}`)
         a.state = 'reverted'
         a.message = undo.folderRemoved ? `已撤销：删除了保存的 ${undo.removed.length} 个文件和文件夹` : `已撤销：删除了保存的 ${undo.removed.length} 个文件；文件夹里还有其它内容，予以保留`

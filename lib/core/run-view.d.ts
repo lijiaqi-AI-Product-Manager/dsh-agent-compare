@@ -58,7 +58,7 @@ export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance'
         sha256: string;
         frozenInstall: boolean;
     };
-    adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers' | 'exportDigests'> & {
+    adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers' | 'exportDigests' | 'retainedExports'> & {
         rehearsed?: boolean;
         rehearsalChecks?: CheckResult[];
         retainedDirectory?: string;

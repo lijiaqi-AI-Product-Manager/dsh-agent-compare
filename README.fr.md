@@ -19,7 +19,7 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.2.0 · Version stable.** Projets Vite locaux à la racine d’un dépôt Git. Réutilise le modèle DSH actuel.
+> **1.3.0 · Version stable.** DSH Desktop et Web, avec interface en chinois et en anglais. Comparez réponses, fichiers ou pages web dans la conversation principale depuis tout dossier, avec vos modèles configurés.
 
 AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. Deux agents réalisent la même tâche d'interface dans des copies indépendantes du projet. L'extension installe les dépendances, compile, sert les deux applications et leur applique des critères communs. Vous manipulez les pages avant de choisir A, B ou aucune. Avant l'adoption, la proposition est vérifiée avec l'état actuel de votre projet.
 
@@ -37,7 +37,7 @@ AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek
 
 [![Exemple à candidats fixes : essayer, vérifier, choisir et appliquer](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Démonstration à candidats fixes du paquet public 1.1.0, avec son interface chinoise. Les applications, vérifications communes, adoption et annulation sont réellement exécutées. La vidéo coupe les attentes ; le GIF rejoue les interactions à 0,5×. Les chemins locaux sont masqués.
+L’interface est disponible en chinois simplifié et en anglais, au choix dans DSH Desktop et Web.
 
 [Vidéo complète (29 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -54,7 +54,7 @@ La référence de développement est Node 26.13.0 et npm 12.2.1. Les vérificati
 Installez le paquet npm dans le profil Web par défaut. Le badge npm indique son état de publication :
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.2.0
+dsh plugin --profile web add dsh-agent-compare@1.3.0
 ```
 
 Pour un autre profil autogéré, remplacez `web` par son nom réel.
@@ -71,7 +71,7 @@ npm pack
 Remplacez `<your-profile>` par le nom réel de votre profil :
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.2.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.3.0.tgz
 ```
 
 Redémarrez DSH. Avant une mise à jour, terminez les comparaisons actives et fermez les anciennes instances qui partagent leurs fichiers. Les modifications simultanées par plusieurs versions de l'extension ne sont pas prises en charge.

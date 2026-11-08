@@ -1,7 +1,7 @@
 /** Where a comparison works: a repository's project, a private workspace for any other folder, and enabling Git on request. */
 import { describe, expect, it, vi } from 'vitest'
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, realpath, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { git, headCommit } from '../src/core/git.ts'
@@ -37,7 +37,7 @@ describe('workspace resolution', () => {
   it('creates a private workspace without user templates or hooks', async () => {
     const dir = path.join(await tmp('ac-ws-private'), 'ws')
     const root = await createPrivateWorkspace(dir)
-    expect(path.relative(root, dir)).toBe('')
+    expect(path.relative(await realpath(root), await realpath(dir))).toBe('')
     expect(await headCommit(root)).toBeUndefined()
     expect(existsSync(path.join(dir, '.git', 'hooks'))).toBe(false)
   })

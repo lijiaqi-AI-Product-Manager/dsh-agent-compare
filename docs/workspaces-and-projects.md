@@ -27,6 +27,8 @@ A|B 不再只限于 Git 仓库根目录下的 Vite 项目。打开任何目录�
 - 其他文件：列出两版写出的文件，盲选前可以逐个打开查看；揭晓后还能看完整改动。
 - 「保存到当前目录」会新建一个文件夹（以需求开头、运行编号结尾，重名时加序号），把选中的文件写进去，不覆盖、不改动原有文件。
 - 「撤销保存」只删除保存后没有改过的文件；只要有一个文件被改过，就整体不撤销，并列出改过的文件。
+- 撤销会先把实际文件移入同一磁盘上的 `.agent-compare-undo-*` 保留目录，再复核内容；途中出现新编辑时停止并尝试原位恢复，不覆盖新出现的文件。原件与路径清单继续保留，可在卡片的「查看保留内容的位置」找到；确认不再需要后可自行删除。
+- 保存失败时保留已写出的部分文件供检查，不递归删除可能已被编辑的目录。
 
 ### 在此目录启用 Git
 
@@ -73,6 +75,8 @@ Project details:
 - **Files.** Written files can be opened one by one before the pick.
 - **Saving.** **Save to this folder** creates a new folder and never replaces existing files.
 - **Undoing a save.** **Undo save** removes only saved files that are unchanged; if any was edited, nothing is removed.
+- **Retained originals.** Undo captures the actual files into a same-volume `.agent-compare-undo-*` directory before checking them again. A concurrent edit stops the operation and attempts no-replace restoration. Captured files and their path list remain available under **View retained-content locations**; delete them manually only when no longer needed.
+- **Interrupted saves.** Partial output is retained for inspection rather than recursively deleting a folder someone may already have edited.
 
 **Enable Git in this folder** checks first, then shows exactly how many files both versions would copy, and runs `git init` only after you confirm. Nothing is committed or changed. It refuses the following:
 - the home folder;

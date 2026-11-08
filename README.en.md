@@ -19,11 +19,11 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.2.0 · Stable release.** Supports the DSH desktop app and browser interface. Local Git repositories with a root-level Vite front end. Reuses your current DSH model.
+> **1.3.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
 
-1.2.0 keeps comparison results in the main conversation's memory and lets you choose what both versions see from it. It adds changing the pick after the reveal, Compare again, copy release for large dependency trees, a Chinese/English interface, Windows process compatibility settings and a refreshed interface. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#120) for measured package-manager scope and limits.
+1.3.0 adds folder mode, subfolder projects, non-Vite Node projects, static sites, and answer/file comparison. Outside Git, both versions start in a private empty workspace. Save the pick into a new subfolder and undo it later. Main-conversation memory, context selection and blind picking remain available. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#130) for scope and limits.
 
-AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: build two versions of one front-end task, run shared checks, and try both real pages. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
+AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: complete two versions of a task as answers, files or web pages. Runnable pages get live previews; content-only comparison does not claim arbitrary-language execution or functional test coverage. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
@@ -39,7 +39,7 @@ AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-har
 
 [![Fixed-candidate workflow: interact with both apps, check, choose and adopt](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Controlled-candidate recording of the public 1.1.0 artifact, with its Chinese interface. Both applications, shared checks, adoption and undo execute for real. The video cuts waiting; the GIF replays interaction at 0.5×. Local paths are hidden.
+Interface languages: Simplified Chinese and English, selectable in DSH Desktop and Web.
 
 [Full video (29 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -56,7 +56,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm package into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.2.0
+dsh plugin --profile web add dsh-agent-compare@1.3.0
 ```
 
 For another self-managed profile, replace `web` with its actual name.
@@ -74,7 +74,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.2.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.3.0.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
@@ -95,7 +95,7 @@ Results, your pick, adoption and undo enter this conversation's memory. You can 
 
 [Windows process compatibility settings](docs/windows-process-compat.en.md) offer automatic/off controls that preserve host confinement and show observed hooks after reveal.
 
-Unreleased main (not yet on npm): A|B works in any folder. A folder outside Git, including the DSH default workspace, compares both versions' pages, files or answers from an empty folder and saves the pick into a new folder there. Subfolder projects, non-Vite Node projects and static sites are supported too. See [folders and project types](docs/workspaces-and-projects.md#english).
+In 1.3.0, A|B works in any folder. A folder outside Git, including the DSH default workspace, compares both versions' pages, files or answers from an empty folder and saves the pick into a new folder there. Subfolder projects, non-Vite Node projects and static sites are supported too. See [folders and project types](docs/workspaces-and-projects.md#english).
 
 ## What it is for
 
@@ -253,7 +253,7 @@ The host dependency directory is ignored and excluded from the plugin package. T
 
 ## Known limitations
 
-- Vite projects only; a Git repository with at least one commit.
+- Answers, files and web pages; folders outside Git, repository subfolders, Vite, non-Vite Node projects and static sites. File comparison does not establish execution or tests for arbitrary languages.
 - npm 12 installation policy can block dependency scripts; projects requiring native installation steps must first allow them under their own policy.
 - One comparison says nothing about a model's or strategy's overall quality.
 

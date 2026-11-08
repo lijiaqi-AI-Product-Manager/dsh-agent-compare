@@ -114,6 +114,7 @@ const adoption = shape({
   fileTransfer: optional(shape({ id: pattern(/^[0-9a-f]{32}$/), token: pattern(/^[0-9a-f]{32}$/) })), transferDirection: optional(oneOf('apply', 'undo')),
   transferReturn: optional(oneOf('adopted', 'recovery')),
   retainedTransfers: optional(array(shape({ id: pattern(/^[0-9a-f]{32}$/), token: pattern(/^[0-9a-f]{32}$/) }))),
+  retainedExports: optional(array(absolutePath)),
 })
 const record = shape({
   coordination: optional(oneOf(RUN_COORDINATION)),

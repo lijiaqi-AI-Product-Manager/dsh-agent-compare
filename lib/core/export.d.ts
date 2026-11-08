@@ -14,7 +14,9 @@ export interface ExportResult {
 }
 /**
  * Write every regular file of `tree` into the new folder `target` (which must
- * not exist yet). On any failure the files written so far are removed again.
+ * not exist yet). Checkout happens privately; publication never replaces a
+ * path. On failure, leave partial output for inspection instead of deleting
+ * a directory another writer may already have edited.
  */
 export declare function exportTree(repo: string, tree: string, scratchDir: string, target: string): Promise<ExportResult>;
 /**
@@ -22,7 +24,8 @@ export declare function exportTree(repo: string, tree: string, scratchDir: strin
  * were saved; otherwise nothing is removed and the changed paths are returned.
  * The folder itself is removed only when it ends up empty.
  */
-export declare function removeExport(exportPath: string, digests: Readonly<Record<string, string>>): Promise<{
+export declare function exportUndoDirectory(exportPath: string): string;
+export declare function removeExport(exportPath: string, digests: Readonly<Record<string, string>>, retainedDirectory: string): Promise<{
     removed: string[];
     changed: string[];
     folderRemoved: boolean;

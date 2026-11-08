@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
 - **Compare in any folder.** A|B no longer refuses directories that are not the root of a Git repository with a Vite project.
   - **A folder outside Git**, or no folder, starts both versions in a private, empty repository of the run; nothing in the user's folder is read or written. **Save to this folder** writes the picked files into a new subfolder without replacing anything. **Undo save** removes only files that are unchanged since saving.
@@ -13,6 +13,8 @@
   - An unusable `package.json` only skips the install and says why.
 - **Answers are results.** Where the baseline has nothing to run, a version that replies without writing files is a finished answer, shown side by side before the pick. The picked answer enters the main conversation's memory. A version that neither wrote nor answered still fails.
 - Shared checks run only the scripts a baseline has, and Vite keeps its build fallback. A lockfile written by an install without one is not drift. A Git failure other than "not a repository" is reported instead of silently starting from an empty workspace.
+
+- Resolve physical-path aliases in private-workspace acceptance on Windows and macOS. Folder saves publish without replacing paths, retain partial output on failure, and capture undo originals before checking concurrent edits. Retained locations remain visible in the result card.
 
 ## 1.2.0
 

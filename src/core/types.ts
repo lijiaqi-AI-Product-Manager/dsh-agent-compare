@@ -286,6 +286,8 @@ export interface Adoption {
   /** `folder` mode: the new subfolder, and the SHA-256 of every file written there. */
   exportPath?: string
   exportDigests?: Record<string, string>
+  /** Same-volume retained files captured by folder undo, including interrupted attempts. */
+  retainedExports?: string[]
   state: AdoptionState
   readonly startedAt: number
   endedAt?: number

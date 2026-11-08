@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Comparer, publicView, type AgentRunner, type AgentRunRequest } from '../src/core/orchestrator.ts'
 import { RunStore } from '../src/core/run-store.ts'
@@ -54,7 +54,7 @@ describe('a folder outside Git', () => {
     }, '背一下乘法口诀表')
     try {
       expect(done.target).toEqual({ kind: 'folder', folder: path.resolve(folder) })
-      expect(path.relative(store.home, done.baseline.repoRoot).startsWith('..')).toBe(false)
+      expect(path.relative(await realpath(store.home), await realpath(done.baseline.repoRoot))).toBe(path.join('ws', runId))
       expect(prompts.every(prompt => prompt.includes('starts empty'))).toBe(true)
       expect(done.candidates[0]).toMatchObject({ stage: 'ready', result: 'answer' })
       expect(done.candidates[1]).toMatchObject({ stage: 'ready', preview: { kind: 'static' } })
@@ -74,7 +74,7 @@ describe('a folder outside Git', () => {
       const saved = await comparer.adopt(runId, 'folder')
       expect(saved.adoption).toMatchObject({ mode: 'folder', state: 'adopted' })
       const exportPath = saved.adoption!.exportPath!
-      expect(sameDir(path.dirname(exportPath), folder)).toBe(true)
+      expect(sameDir(await realpath(path.dirname(exportPath)), await realpath(folder))).toBe(true)
       expect(path.basename(exportPath)).toBe(`背一下乘法口诀表-${runId}`)
       expect(await readFile(path.join(exportPath, 'index.html'), 'utf8')).toContain('口诀表')
       expect(await readFile(path.join(folder, 'notes.txt'), 'utf8')).toBe('mine\n')

@@ -101,7 +101,7 @@ export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance'
   candidates: PublicCandidate[]
   baseline: { dirty: boolean; headCommit?: string; repoRoot: string; projectPath?: string }
   acceptance: { source: Acceptance['source']; checks: string[]; steps: number; sha256: string; frozenInstall: boolean }
-  adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers' | 'exportDigests'> & { rehearsed?: boolean; rehearsalChecks?: CheckResult[]; retainedDirectory?: string; retainedDirectories?: string[] }
+  adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers' | 'exportDigests' | 'retainedExports'> & { rehearsed?: boolean; rehearsalChecks?: CheckResult[]; retainedDirectory?: string; retainedDirectories?: string[] }
 }
 
 /**
@@ -134,7 +134,7 @@ export function publicView(r: RunRecord): PublicRun {
         ...(a.writtenPaths === undefined ? {} : { writtenPaths: a.writtenPaths }),
         ...(a.transferDirection === undefined ? {} : { transferDirection: a.transferDirection }),
         ...(a.fileTransfer === undefined ? {} : { retainedDirectory: fileTransferDirectory(baseline.repoRoot, a.fileTransfer) }),
-        ...(a.retainedTransfers?.length ? { retainedDirectories: a.retainedTransfers.map(ref => fileTransferDirectory(baseline.repoRoot, ref)) } : {}),
+        ...(a.retainedTransfers?.length || a.retainedExports?.length ? { retainedDirectories: [...(a.retainedTransfers ?? []).map(ref => fileTransferDirectory(baseline.repoRoot, ref)), ...(a.retainedExports ?? []).filter(existsSync)] } : {}),
         ...(a.rehearsal === undefined ? {} : { rehearsed: !a.rehearsal.reused, ...(a.rehearsal.checks ? { rehearsalChecks: a.rehearsal.checks } : {}) }),
       },
     }),

@@ -19,11 +19,11 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.2.0 · 正式版。** 支持 DSH 桌面端与浏览器界面。首期面向本地 Git 仓库中的根目录 Vite 前端，复用 DSH 当前模型。
+> **1.3.0 · 正式版。** DSH 桌面端与 Web 端，中英双语。在主对话内比较两版回答、文件或网页；普通文件夹也能开始，复用已配置模型。
 
-1.2.0 让比较结果可靠写回主对话记忆，并可选择两版能看到的主对话内容。新增揭晓后改选、再比较一次、大依赖目录副本释放、中英文界面和 Windows 进程兼容设置，界面也做了整体更新。包管理器的实测范围与限制见[更新记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#120)。
+1.3.0 新增普通文件夹、项目子目录、非 Vite Node 项目、静态网页，以及回答和文件结果比较。没有 Git 的目录从私有空白工作区开始；选中结果可以存到新子文件夹，之后撤销。保留主对话记忆同步、上下文选择和盲选流程。范围与限制见[更新记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#130)。
 
-AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一前端需求，生成并实际运行两份实现。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
+AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一需求，独立完成两版回答、文件或网页。有可运行页面时实际预览；没有可运行项目时按内容比较，不宣称通过功能测试。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
@@ -54,7 +54,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 安装 npm 包到默认 Web profile（公开发布状态见顶部 npm 徽章）：
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.2.0
+dsh plugin --profile web add dsh-agent-compare@1.3.0
 ```
 
 如使用其他自行运行的 profile，请将 `web` 换成实际名称。
@@ -72,7 +72,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.2.0.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.3.0.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：
@@ -95,7 +95,7 @@ dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.2.0.tgz
 
 [Windows 进程兼容设置](docs/windows-process-compat.md)提供自动与关闭选项，保留原有宿主约束，并在揭晓后显示实际观察到的钩子。
 
-主分支（尚未发布到 npm）：任何目录都能用 A|B。不是 Git 仓库的目录（包括 DSH 默认工作区）会在空白目录里比较两版的页面、文件或回答，选定后保存到当前目录的新文件夹；也支持子目录项目、非 Vite 的 Node 项目和静态网页。详见[目录与项目类型](docs/workspaces-and-projects.md)。
+1.3.0：任何目录都能用 A|B。不是 Git 仓库的目录（包括 DSH 默认工作区）会在空白目录里比较两版的页面、文件或回答，选定后保存到当前目录的新文件夹；也支持子目录项目、非 Vite 的 Node 项目和静态网页。详见[目录与项目类型](docs/workspaces-and-projects.md)。
 
 <a id="what-it-is-for"></a>
 
@@ -233,7 +233,7 @@ DSH 宿主没有提供会话创建接口（`ctx.agents.create`）时，会退回
 | macOS | 当前源码增加原生完整回归、Chromium 界面、真实 DSH 与包管理器检查；Safari 实时比较另见 [#115](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/115)，不能用 Chromium 结果代替 |
 | 1.2.0 验收基线 | Windows／Linux／macOS 固定 DSH 0.2.1-rc.5 与 0.2.2-rc.1；Playwright 1.65.0、Vite 8.3.6、pnpm 12.18.0，具体通过项与限制见执行矩阵及本次 CI |
 | Node | 26.13.0 为主开发基线；22／24 维护线的最新补丁版也纳入 CI 兼容检查 |
-| 项目类型 | 仓库根目录的 Vite 项目；至少有一次提交的 Git 仓库。包管理器的完整通过项与已知限制见[执行矩阵](docs/package-managers.md) |
+| 项目类型 | 回答、文件与网页；普通文件夹、仓库子目录、Vite、非 Vite Node 项目和静态网页。按内容比较不代表执行了任意语言的测试。包管理器的完整通过项与已知限制见[执行矩阵](docs/package-managers.md) |
 
 <a id="verified-maintained-through-current-ci-and-the-cases-below"></a>
 
