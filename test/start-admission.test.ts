@@ -22,14 +22,16 @@ describe('comparison start admission', () => {
       throw new Error('repository deliberately unavailable')
     })
     const comparer = new Comparer({ version: 'test', runner: runner(), prepareProjectProcess: prepareFixtureProcess })
-    const first = comparer.start({ repo: 'unused', task: 'first' })
+    // An existing directory whose Git lookup fails for a reason other than "not a repository".
+    const repo = await tmp('ac-admission')
+    const first = comparer.start({ repo, task: 'first' })
     void first.catch(() => {})
     try {
       try {
-        await expect(comparer.start({ repo: 'unused', task: 'second' })).rejects.toBeInstanceOf(BusyError)
+        await expect(comparer.start({ repo, task: 'second' })).rejects.toBeInstanceOf(BusyError)
         expect(lookup).toHaveBeenCalledTimes(1)
       } finally { release(); await first.catch(() => {}) }
-      await expect(comparer.start({ repo: 'unused', task: 'retry' })).rejects.toThrow('repository deliberately unavailable')
+      await expect(comparer.start({ repo, task: 'retry' })).rejects.toThrow('repository deliberately unavailable')
       expect(lookup).toHaveBeenCalledTimes(2)
     } finally { lookup.mockRestore(); await comparer.dispose() }
   })

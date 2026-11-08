@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { blindEvidence } from './blind-view.ts'
 import { checksScore } from './checks.ts'
 import { fileTransferDirectory } from './file-transfer.ts'
-import type { Acceptance, AgentRoute, Candidate, CandidateLabel, CandidateStage, CheckResult, RunRecord, Strategy, Usage, Verdict } from './types.ts'
+import type { Acceptance, AgentRoute, Candidate, CandidateLabel, CandidateStage, CheckResult, PreviewInfo, RunRecord, Strategy, Usage, Verdict } from './types.ts'
 
 const REVEALED_STATES = new Set(['revealed', 'adopting', 'adopted', 'recovery'])
 /** Shared by every sealing failure that found no change in the copy. */
@@ -30,19 +30,25 @@ export function verdictOf(c: Candidate, acceptance: Acceptance): Verdict {
   const reasons: string[] = []
   const warnings: string[] = []
   if (c.install?.runtime && (c.install.runtime.hostNode !== acceptance.runtime.node || c.install.runtime.platform !== acceptance.runtime.platform)) warnings.push('验收宿主环境与基线记录不同；请在检查依据中核对版本，不能据此视为完全相同的运行条件')
+  // No installation and no project command means no project process to constrain.
+  const ranProjectProcesses = c.execution !== undefined || c.install !== undefined || (c.checks ?? []).some(k => k.name !== 'browser')
   if (c.execution?.enforcement === 'partial') warnings.push('宿主报告部分文件写入约束，不能视为完整安全沙箱；文件读取和网络也不在此边界内')
-  else if (c.execution?.enforcement !== 'full') warnings.push('没有完整的项目进程约束记录，不能据此认定执行已隔离')
+  else if (ranProjectProcesses && c.execution?.enforcement !== 'full') warnings.push('没有完整的项目进程约束记录，不能据此认定执行已隔离')
   const NAMES: Record<string, string> = { typecheck: '类型检查', lint: 'Lint', test: '测试', build: '构建', browser: '页面验收' }
   for (const k of c.checks ?? []) {
     if (k.outcome === 'failed' || k.outcome === 'timeout') reasons.push(`${NAMES[k.name] ?? k.name}${k.outcome === 'timeout' ? '超时' : '未通过'}`)
   }
   const browser = c.checks?.find((k) => k.name === 'browser')
   const scripted = acceptance.checks.browser?.steps?.length || acceptance.checks.browser?.expectSelector || acceptance.checks.browser?.expectText
-  if (acceptance.checks.browser !== undefined && (browser === undefined || browser.outcome === 'skipped')) {
+  // An answer, or files with nothing to serve, has no page to load; only a scripted page acceptance expects one.
+  const pageExpected = c.result === undefined || !!scripted
+  if (acceptance.checks.browser !== undefined && pageExpected && (browser === undefined || browser.outcome === 'skipped')) {
     if (scripted) reasons.push('页面验收没有运行')
     else warnings.push(`页面加载检查没有运行${browser?.reason ? `（${browser.reason}）` : ''}`)
   }
-  if (c.preview?.kind === 'dev') reasons.push('构建未通过，只能以开发模式预览')
+  // Without a shared build there is no failed build behind a dev server.
+  if (c.preview?.kind === 'dev' && acceptance.checks.commands.some(k => k.name === 'build')) reasons.push('构建未通过，只能以开发模式预览')
+  if (c.previewNote) warnings.push(c.previewNote)
   if ((c.acceptanceTouched ?? []).length > 0) reasons.push(`改动了验收相关文件：${c.acceptanceTouched!.slice(0, 5).join('、')}`)
   if ((c.drift ?? []).length > 0) reasons.push(`验收过程中副本出现未封存的改动：${c.drift!.slice(0, 5).join('、')}。如为生成的构建产物，请先将输出目录加入 .gitignore，再开始新的比较；已跟踪的源码仍会检查。`)
   if (c.checkedTree === undefined || c.checkedTree !== c.candidateTree) reasons.push('验收的内容不是封存的版本')
@@ -57,7 +63,14 @@ export interface PublicCandidate {
   readonly label: CandidateLabel
   readonly stage: CandidateStage
   readonly previewUrl?: string
-  readonly previewKind?: 'build' | 'dev'
+  readonly previewKind?: PreviewInfo['kind']
+  /** A result without a live page: an answer, or written files. */
+  readonly result?: 'answer' | 'files'
+  readonly previewNote?: string
+  /** The reply of an `answer` result. It is the result itself, so it is shown before the reveal. */
+  readonly answer?: string
+  /** Paths a `files` result wrote; they are what the user judges, so they are listed before the reveal. */
+  readonly resultFiles?: string[]
   readonly checks?: Candidate['checks']
   readonly execution?: Candidate['execution']
   readonly patchStats?: Candidate['patchStats']
@@ -86,9 +99,9 @@ export interface PublicCandidate {
 
 export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance' | 'adoption'> & {
   candidates: PublicCandidate[]
-  baseline: { dirty: boolean; headCommit?: string; repoRoot: string }
+  baseline: { dirty: boolean; headCommit?: string; repoRoot: string; projectPath?: string }
   acceptance: { source: Acceptance['source']; checks: string[]; steps: number; sha256: string; frozenInstall: boolean }
-  adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers'> & { rehearsed?: boolean; rehearsalChecks?: CheckResult[]; retainedDirectory?: string; retainedDirectories?: string[] }
+  adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers' | 'exportDigests' | 'retainedExports'> & { rehearsed?: boolean; rehearsalChecks?: CheckResult[]; retainedDirectory?: string; retainedDirectories?: string[] }
 }
 
 /**
@@ -102,7 +115,7 @@ export function publicView(r: RunRecord): PublicRun {
   const a = adoption
   return {
     ...rest,
-    baseline: { dirty: baseline.dirty, repoRoot: baseline.repoRoot, ...(baseline.headCommit === undefined ? {} : { headCommit: baseline.headCommit.slice(0, 12) }) },
+    baseline: { dirty: baseline.dirty, repoRoot: baseline.repoRoot, ...(baseline.headCommit === undefined ? {} : { headCommit: baseline.headCommit.slice(0, 12) }), ...(baseline.projectPath ? { projectPath: baseline.projectPath } : {}) },
     acceptance: {
       source: acceptance.source,
       checks: [...acceptance.checks.commands.map((c) => c.name), ...(acceptance.checks.browser ? ['browser'] : [])],
@@ -115,12 +128,13 @@ export function publicView(r: RunRecord): PublicRun {
         label: a.label, mode: a.mode, state: a.state, startedAt: a.startedAt,
         ...(a.endedAt === undefined ? {} : { endedAt: a.endedAt }),
         ...(a.branch === undefined ? {} : { branch: a.branch }),
+        ...(a.exportPath === undefined ? {} : { exportPath: a.exportPath }),
         ...(a.message === undefined ? {} : { message: a.message }),
         ...(a.attention === undefined ? {} : { attention: a.attention }),
         ...(a.writtenPaths === undefined ? {} : { writtenPaths: a.writtenPaths }),
         ...(a.transferDirection === undefined ? {} : { transferDirection: a.transferDirection }),
         ...(a.fileTransfer === undefined ? {} : { retainedDirectory: fileTransferDirectory(baseline.repoRoot, a.fileTransfer) }),
-        ...(a.retainedTransfers?.length ? { retainedDirectories: a.retainedTransfers.map(ref => fileTransferDirectory(baseline.repoRoot, ref)) } : {}),
+        ...(a.retainedTransfers?.length || a.retainedExports?.length ? { retainedDirectories: [...(a.retainedTransfers ?? []).map(ref => fileTransferDirectory(baseline.repoRoot, ref)), ...(a.retainedExports ?? []).filter(existsSync)] } : {}),
         ...(a.rehearsal === undefined ? {} : { rehearsed: !a.rehearsal.reused, ...(a.rehearsal.checks ? { rehearsalChecks: a.rehearsal.checks } : {}) }),
       },
     }),
@@ -136,7 +150,11 @@ export function publicView(r: RunRecord): PublicRun {
       salvageable: (r.state === 'judging' || r.state === 'interrupted') && (c.stage === 'failed' || c.stage === 'interrupted')
         && (c.error?.stage === 'generating' || (c.error?.stage === 'sealing' && !candidate.error?.message.includes(NO_CHANGES)))
         && c.dir !== undefined && existsSync(c.dir),
-      canReopenPreview: c.stage === 'ready' && c.preview === undefined && c.dir !== undefined && existsSync(c.dir),
+      canReopenPreview: c.stage === 'ready' && c.preview === undefined && c.result === undefined && c.dir !== undefined && existsSync(c.dir),
+      ...(candidate.result === undefined || c.stage !== 'ready' ? {} : { result: candidate.result }),
+      ...(candidate.previewNote === undefined ? {} : { previewNote: candidate.previewNote }),
+      ...(candidate.result === 'answer' && c.stage === 'ready' && candidate.summary ? { answer: candidate.summary } : {}),
+      ...(candidate.result === 'files' && c.stage === 'ready' && candidate.touchedFiles ? { resultFiles: candidate.touchedFiles.slice(0, 500) } : {}),
       canRetryVerification: canRetryVerification(r, c),
       ...(c.install === undefined ? {} : { install: c.install }),
       ...(c.verificationHistory === undefined ? {} : { verificationHistory: c.verificationHistory }),

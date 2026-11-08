@@ -19,7 +19,7 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.2.0 · 正式版。** 対象は Git リポジトリ直下のローカル Vite フロントエンドです。現在の DSH モデルを再利用します。
+> **1.3.0 · 正式版。** DSH Desktop と Web、中国語・英語の画面に対応。どのフォルダーからでも、メイン会話内で回答・ファイル・Web ページを比較できます。設定済みモデルを再利用します。
 
 AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）のプラグインです。一つのフロントエンド課題から独立した二つの実装を作り、依存関係のインストール、ビルド、共通の検証を実行します。実際のページを操作して A、B、または「どちらも選ばない」を選択できます。採用前には、現在のプロジェクトと組み合わせた状態を検証します。
 
@@ -45,16 +45,16 @@ AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 ## インストール
 
-1.0 の画面表示は簡体字中国語のみです。DSH Desktop と Web に対応します。文書の言語と画面の言語は別です。
+画面言語は簡体字中国語と英語です。DSH Desktop と Web で切り替えられます。
 
 以下のコマンドは自分で起動する DSH Web 用です。デスクトップ版の `desktop` プロファイルはアプリが管理するため、アプリのプラグイン画面を利用してください。
 
-Node 26.13.0 と npm 12.2.1 が開発基準です。公式の最新 DSH パッケージ 0.2.1-rc.5 で動作確認しています。既存の DSH プロファイル名を確認してください。
+Node 26.13.0 と npm 12.2.2 が開発基準です。公式の最新 DSH パッケージ 0.2.1-rc.5 で動作確認しています。既存の DSH プロファイル名を確認してください。
 
 npm パッケージを既定の Web プロファイルに追加します。公開状態は上部の npm バッジで確認できます。
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.2.0
+dsh plugin --profile web add dsh-agent-compare@1.3.0
 ```
 
 別の自己管理プロファイルを使う場合は、`web` を実際の名前に置き換えてください。
@@ -71,7 +71,7 @@ npm pack
 `<your-profile>` を実際に使っているプロファイル名に置き換えます。
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.2.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.3.0.tgz
 ```
 
 DSH を再起動します。同じ記録を使う古いプラグインの実行は、更新前に終了してください。旧版と新版による同時変更はサポートしません。

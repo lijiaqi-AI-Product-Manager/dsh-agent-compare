@@ -5,13 +5,15 @@ import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, rm, rmdir } from 'node:fs/promises'
-import { addOwnedWorktree, ALWAYS_EXCLUDED, YARN_RUNTIME_FILES, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, repoRoot, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
+import { addOwnedWorktree, ALWAYS_EXCLUDED, YARN_RUNTIME_FILES, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, gitTry, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
 import { adoptAsBranch, AdoptError, CandidateWriteError, checkWritten, pinPreAdopt, preflight, targetChanges, undoAdoption, writeCandidate, type NameStatus } from './adopt.ts'
 import { newFileTransferRef } from './file-transfer.ts'
 import { installFailure } from './install-failure.ts'
 import { runBrowserCheck, runCommandChecks } from './checks.ts'
-import { acceptanceChanges, buildAcceptance, inspectProject, installArgv, managerVersionIssue } from './project.ts'
-import { isPreviewProcess, startVitePreview, PreviewError, type Preview } from './preview.ts'
+import { acceptanceChanges, buildAcceptance, inspectProject, installArgv, LOCKFILES, managerVersionIssue, profileProject, scriptArgv, staticEntry, type ProfiledProject } from './project.ts'
+import { isPreviewProcess, startScriptPreview, startStaticPreview, startVitePreview, PreviewError, type Preview } from './preview.ts'
+import { createPrivateWorkspace, resolveWorkspace } from './workspace.ts'
+import { exportFolderName, exportTree, exportUndoDirectory, freeFolder, removeExport } from './export.ts'
 import { diagnosticText, killTree, observeProcess, ProcessStopError, waitGone } from './proc.ts'
 import { prepareProjectProcess, runProjectProcess, type PrepareProjectProcess } from './project-process.ts'
 import { WindowsCompatObserver, type WindowsProcessCompatMode } from './windows-compat.ts'
@@ -19,7 +21,7 @@ import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
 import type { FileLease } from './file-lock.ts'
 import { isRunId } from './record-validation.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
-import { RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
+import { RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type FolderTarget, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
 
 export interface AgentRunRequest {
   readonly label: CandidateLabel
@@ -109,7 +111,8 @@ interface LiveRun {
   done: Promise<void>
 }
 
-const SUMMARY_MAX = 1200
+/** A reply can be the whole result (an answer), so it is kept in full up to this bound. */
+const SUMMARY_MAX = 8000
 export const DEFAULT_GENERATION_MS = 30 * 60_000
 const SETTLED = new Set<CandidateStage>(['ready', 'failed', 'cancelled', 'interrupted'])
 
@@ -155,10 +158,22 @@ export class Comparer {
   }
 
   private async prepareStart(input: StartInput, task: string, reservation: object): Promise<RunRecord> {
-    const root = await repoRoot(input.repo)
+    // Any directory works: a repository is copied as it is; anything else
+    // starts both versions in a private, empty repository of this run.
+    const workspace = await resolveWorkspace(input.repo)
     this.assertOpen()
-    const info = await inspectProject(root)
-    if (info.kind === 'unsupported') throw new Error(info.reason ?? 'unsupported project')
+    const runId = newRunId()
+    let root: string
+    let projectPath: string | undefined
+    let target: FolderTarget | undefined
+    if (workspace.kind === 'repository') {
+      root = workspace.root
+      projectPath = workspace.projectPath || undefined
+    } else {
+      root = await createPrivateWorkspace(this.store.workspace(runId))
+      target = { kind: 'folder', ...(workspace.folder ? { folder: workspace.folder } : {}) }
+    }
+    const info = await inspectProject(projectDirectory(root, projectPath))
 
     const mode = input.mode ?? 'same-model'
     let routes: [AgentRoute, AgentRoute]
@@ -175,13 +190,12 @@ export class Comparer {
       strategies = input.strategies ?? DEFAULT_STRATEGIES
     }
 
-    const runId = newRunId()
     const scratch = this.store.artifacts(runId)
     await mkdir(scratch, { recursive: true })
     const head = await headCommit(root)
     const tree = await snapshotTree(root, scratch, ALWAYS_EXCLUDED)
     const dirty = head === undefined ? true : tree !== (await treeOf(root, head))
-    const acceptance = await buildAcceptance(root, tree, info, input.checks, input.windowsProcessCompat ?? 'auto')
+    const acceptance = await buildAcceptance(root, tree, info, input.checks, input.windowsProcessCompat ?? 'auto', projectPath)
     const snapshotCommit = await commitTree(root, tree, [head], `agent-compare baseline ${runId}`)
 
     const order: [number, number] = input.assignment === 'fixed' || Math.random() < 0.5 ? [0, 1] : [1, 0]
@@ -197,7 +211,8 @@ export class Comparer {
       ...(input.follows === undefined ? {} : { follows: input.follows }),
       ...(input.conversationContext === undefined ? {} : { conversationContext: input.conversationContext }),
       ...(input.origin === undefined ? {} : { origin: input.origin }),
-      baseline: { repoRoot: root, headCommit: head, snapshotCommit, snapshotTree: tree, dirty },
+      ...(target === undefined ? {} : { target }),
+      baseline: { repoRoot: root, headCommit: head, snapshotCommit, snapshotTree: tree, dirty, ...(projectPath ? { projectPath } : {}) },
       acceptance,
       mode,
       isolation: this.opts.runner.isolation,
@@ -325,8 +340,10 @@ export class Comparer {
       // Recorded before the copy exists, so a crash right after creation still leaves a provable owner.
       await this.persist(record)
       await addOwnedWorktree(repo, dir, record.baseline.snapshotCommit, { runId: record.runId, label: c.label, token: c.ownerToken })
-      const project = await inspectProject(dir)
-      if (project.packageManagerVersion || project.packageManager !== 'npm') {
+      // A Vite project's declared manager must be ready before any model call;
+      // for other projects a missing manager only means no install later.
+      const project = await inspectProject(projectDirectory(dir, record.baseline.projectPath))
+      if (project.kind === 'vite' && (project.packageManagerVersion || project.packageManager !== 'npm')) {
         try {
           const version = await runProjectProcess([project.packageManager, '--version'], { cwd: dir, timeoutMs: 30_000, signal, env: { CI: '1' } }, request => prepareProjectProcess({ ...request, windowsProcessCompat: record.acceptance.runtime.windowsProcessCompat ?? 'auto' }, this.opts.prepareProjectProcess))
           signal.throwIfAborted()
@@ -348,7 +365,8 @@ export class Comparer {
       const result = await this.opts.runner.run({
         label: c.label,
         cwd: dir,
-        prompt: candidatePrompt(record.task, c.strategy, record.isolation, record.conversationContext?.text),
+        prompt: candidatePrompt(record.task, c.strategy, record.isolation, record.conversationContext?.text,
+          record.target ? { kind: 'folder' } : { kind: 'repository', ...(record.baseline.projectPath ? { projectPath: record.baseline.projectPath } : {}), answers: acceptsAnswers(record) }),
         route: c.route,
         signal: AbortSignal.any([signal, budget]),
         hostContext: lr.hostContext,
@@ -405,7 +423,9 @@ export class Comparer {
     if (!c.ownerToken) throw new StageFailure('sealing', '候选缺少副本归属凭据，拒绝封存')
     const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken }, yarnModern: record.acceptance.runtime.yarnModern }
     const change = await captureChange(dir, record.baseline.snapshotCommit, `agent-compare candidate ${record.runId}/${c.label}`, copy)
-    if (change.touched.length === 0) {
+    // Where the baseline has nothing to run, a complete reply is a result of its own.
+    const answer = change.touched.length === 0 && acceptsAnswers(record) && (c.summary ?? '').trim() !== ''
+    if (change.touched.length === 0 && !answer) {
       // The agent's own account is the only clue to why (e.g. sandbox denials); show its start.
       const why = (c.summary ?? '').replace(/```[\s\S]*?```/g, '').trim().slice(0, 600)
       const ended = c.generation?.ended === 'budget'
@@ -420,6 +440,7 @@ export class Comparer {
     c.touchedFiles = change.touched
     c.candidateCommit = change.commit
     c.candidateTree = change.tree
+    if (answer) c.result = 'answer'
     await pinRef(repo, `refs/agent-compare/${record.runId}/${c.label}`, change.commit)
     await this.verifyCandidate(lr, c, signal, enter)
   }
@@ -430,17 +451,21 @@ export class Comparer {
     if (!c.ownerToken || !c.candidateTree) throw new StageFailure('installing', '缺少封存内容或副本归属，不能重新验收')
     const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken }, yarnModern: record.acceptance.runtime.yarnModern }
     const artifacts = this.store.artifacts(record.runId)
-    const acc = await acceptanceChanges(repo, record.acceptance, record.baseline.snapshotTree, c.candidateTree)
+    const acc = await acceptanceChanges(repo, record.acceptance, record.baseline.snapshotTree, c.candidateTree, record.baseline.projectPath)
     c.acceptanceTouched = acc.touched
     c.dependencyChange = acc.dependencyChange
 
     const v = await this.verifyCopy(record.acceptance, dir, copy, c.candidateTree, path.join(artifacts, c.label), signal, enter, async evidence => {
       Object.assign(c, evidence)
       await this.persist(record)
-    })
+    }, { projectPath: record.baseline.projectPath, answerOnly: c.result === 'answer' })
     if (v.preview) lr.previews.set(c.label, v.preview.handle)
-    c.install = v.install
-    c.execution = v.execution
+    if (v.install) c.install = v.install
+    if (v.execution) c.execution = v.execution
+    if (v.result) c.result = v.result
+    else delete c.result
+    if (v.previewNote) c.previewNote = v.previewNote
+    else delete c.previewNote
     c.checks = v.checks
     c.checkedTree = v.checkedTree
     c.drift = v.drift
@@ -476,7 +501,9 @@ export class Comparer {
       ;(c.verificationHistory ??= []).push({ recordedAt: Date.now(), ...(durationMs === undefined ? {} : { durationMs }), ...(c.install ? { install: c.install } : {}), ...(c.checks ? { checks: c.checks } : {}), ...(c.error ? { error: c.error } : {}) })
       for (const stage of ['installing', 'verifying', 'previewing', 'ready'] as const) delete c.timings[stage]
       delete c.install; delete c.checks; delete c.checkedTree; delete c.drift; delete c.preview
-      delete c.screenshot; delete c.mobileScreenshot; delete c.verdict; delete c.execution; delete c.error
+      delete c.screenshot; delete c.mobileScreenshot; delete c.verdict; delete c.execution; delete c.error; delete c.previewNote
+      // An answer stays an answer; a files result is decided again by the new attempt.
+      if (c.result !== 'answer') delete c.result
       c.stage = 'installing'; c.timings.installing = { startedAt: Date.now() }
       record.state = 'running'; delete record.checksFavoured
       // Publish the new record atomically before replacing the live view. A
@@ -571,20 +598,87 @@ export class Comparer {
   }
 
   /**
-   * Install, run the shared commands, serve the build, and run the browser
-   * acceptance in `dir`, whose files must equal `sealedTree`. Used for each
-   * candidate and for the adoption rehearsal.
+   * Verify the copy `dir`, whose files must equal `sealedTree`, and serve it.
+   * Used for each candidate and for the adoption rehearsal.
+   *
+   * What runs follows the project in the copy (see `profileProject`): a Vite
+   * project installs, runs the shared commands and serves its build; another
+   * Node project installs and runs them, and serves its `dev`/`start` script;
+   * an HTML page is served as files; anything else has no live page. A result
+   * without a live page is judged by its files, or by the answer alone.
    */
-  private async verifyCopy(acceptance: Acceptance, dir: string, copy: OwnedCopy, sealedTree: string, shotBase: string, signal: AbortSignal, enter?: (s: CandidateStage) => Promise<void>, onEvidence?: (facts: Partial<Pick<Candidate, 'install' | 'checks' | 'execution'>>) => Promise<void>): Promise<{
-    install: NonNullable<Candidate['install']>
-    execution: NonNullable<Candidate['execution']>
+  private async verifyCopy(acceptance: Acceptance, dir: string, copy: OwnedCopy, sealedTree: string, shotBase: string, signal: AbortSignal, enter?: (s: CandidateStage) => Promise<void>, onEvidence?: (facts: Partial<Pick<Candidate, 'install' | 'checks' | 'execution'>>) => Promise<void>, scope: { projectPath?: string; answerOnly?: boolean } = {}): Promise<{
+    install?: NonNullable<Candidate['install']>
+    execution?: NonNullable<Candidate['execution']>
     checks: CheckResult[]
     checkedTree: string
     drift: string[]
     preview?: { info: PreviewInfo; handle: Preview }
     screenshot?: string
     mobileScreenshot?: string
+    result?: 'answer' | 'files'
+    previewNote?: string
   }> {
+    await enter?.('installing')
+    const checkedTree = await ownedCopyTree(dir, copy, sealedTree)
+    if (checkedTree !== sealedTree) throw new StageFailure('installing', '副本内容与封存的版本不一致，拒绝验收')
+    // Let Git exclude untracked output while retaining tracked source, even
+    // inside ignored folders. The baseline .gitignore is bound acceptance;
+    // folder names alone never justify skipping source changes.
+    const driftOf = async (): Promise<string[]> => changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy, sealedTree))
+    // A reply without files has nothing to install, check or serve.
+    if (scope.answerOnly) return { checks: [], checkedTree, drift: await driftOf(), result: 'answer' }
+    const projectDir = projectDirectory(dir, scope.projectPath)
+    const project = await profileProject(projectDir)
+    const usable = project.info.kind === 'vite' || project.info.node === true
+    const sharedCommands = acceptance.checks.commands.length > 0
+    // Installing serves the shared commands, or a server the project needs to show itself.
+    if (!usable || !(sharedCommands || project.profile === 'vite' || project.profile === 'node-web')) {
+      return this.serveFiles(acceptance, projectDir, dir, project, shotBase, signal, driftOf, checkedTree, enter, project.note)
+    }
+    return this.verifyNodeCopy(acceptance, dir, projectDir, copy, project, shotBase, signal, driftOf, checkedTree, enter, onEvidence)
+  }
+
+  /** No installation: serve an HTML page as files when there is one, otherwise keep the files as the result. */
+  private async serveFiles(acceptance: Acceptance, projectDir: string, dir: string, project: ProfiledProject, shotBase: string, signal: AbortSignal, driftOf: () => Promise<string[]>, checkedTree: string, enter?: (s: CandidateStage) => Promise<void>, note?: string): Promise<{ checks: CheckResult[]; checkedTree: string; drift: string[]; preview?: { info: PreviewInfo; handle: Preview }; screenshot?: string; mobileScreenshot?: string; result?: 'files'; previewNote?: string }> {
+    const entry = project.entry ?? await staticEntry(projectDir)
+    if (entry === undefined) {
+      return { checks: [], checkedTree, drift: await driftOf(), result: 'files', ...(note ? { previewNote: note } : {}) }
+    }
+    await enter?.('previewing')
+    let handle: Preview
+    try { handle = await startStaticPreview(projectDir, entry, { timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal }) }
+    catch (error) {
+      if (signal.aborted) throw error
+      return { checks: [], checkedTree, drift: await driftOf(), result: 'files', previewNote: `页面服务没有启动：${(error as Error).message}` }
+    }
+    const preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind: 'static' as const, cwd: projectDir } }
+    return this.finishPreview(acceptance, [], preview, shotBase, signal, driftOf, checkedTree, note)
+  }
+
+  /** Install, run the shared commands, then serve: Vite's build, or the project's server script. */
+  private async verifyNodeCopy(acceptance: Acceptance, dir: string, projectDir: string, copy: OwnedCopy, project: ProfiledProject, shotBase: string, signal: AbortSignal, driftOf: () => Promise<string[]>, checkedTree: string, enter?: (s: CandidateStage) => Promise<void>, onEvidence?: (facts: Partial<Pick<Candidate, 'install' | 'checks' | 'execution'>>) => Promise<void>): Promise<{
+    install?: NonNullable<Candidate['install']>
+    execution?: NonNullable<Candidate['execution']>
+    checks: CheckResult[]
+    checkedTree: string
+    drift: string[]
+    preview?: { info: PreviewInfo; handle: Preview }
+    screenshot?: string
+    mobileScreenshot?: string
+    result?: 'files'
+    previewNote?: string
+  }> {
+    const info = project.info
+    // With shared commands (or for Vite) an install problem fails the candidate,
+    // as it always has. Otherwise it only means there is no live server.
+    const strict = project.profile === 'vite' || acceptance.checks.commands.length > 0
+    // An install without a lockfile writes one; that file is install output, not a change to the result.
+    const inProject = path.relative(dir, projectDir).split(path.sep).filter(Boolean).join('/')
+    const written = info.lockfile === undefined ? new Set(LOCKFILES.map(file => inProject ? `${inProject}/${file}` : file)) : new Set<string>()
+    const sealedDriftOf = driftOf
+    driftOf = async () => (await sealedDriftOf()).filter(file => !written.has(file))
+    const degrade = async (note: string) => this.serveFiles(acceptance, projectDir, dir, project, shotBase, signal, driftOf, checkedTree, enter, note)
     let enforcement: 'full' | 'partial' | 'unknown' = 'full'
     const compatibility = new WindowsCompatObserver()
     const prepare: PrepareProjectProcess = async request => {
@@ -595,19 +689,14 @@ export class Comparer {
       await onEvidence?.({ execution: { enforcement } })
       return { ...prepared, observeStderr: chunk => { prepared.observeStderr?.(chunk); observe(chunk) } }
     }
-    await enter?.('installing')
-    const checkedTree = await ownedCopyTree(dir, copy, sealedTree)
-    if (checkedTree !== sealedTree) throw new StageFailure('installing', '副本内容与封存的版本不一致，拒绝验收')
-    const info = await inspectProject(dir)
-    if (info.kind === 'unsupported') throw new StageFailure('installing', info.reason ?? '改动后项目不再受支持')
     if (copy.yarnModern) {
-      // Remove only fixed root-level files in an ownership-checked copy. A
+      // Remove only fixed project-level files in an ownership-checked copy. A
       // model-written loader must not survive a frozen dependency install.
       await ownedWorktreeAdmin(copy.repo, dir, copy.owner)
-      for (const file of YARN_RUNTIME_FILES) await rm(path.join(dir, file), { force: true })
+      for (const file of YARN_RUNTIME_FILES) await rm(path.join(projectDir, file), { force: true })
     }
     const inst = installArgv(info)
-    const observed = await runProjectProcess([inst.argv[0]!, '--version'], { cwd: dir, timeoutMs: 10_000, signal, env: { CI: '1' } }, prepare).catch(error => {
+    const observed = await runProjectProcess([inst.argv[0]!, '--version'], { cwd: projectDir, timeoutMs: 10_000, signal, env: { CI: '1' } }, prepare).catch(error => {
       if (error instanceof ProcessStopError) throw error
       return undefined
     })
@@ -616,11 +705,15 @@ export class Comparer {
     const packageManagerVersion = observed?.code === 0 && !observed.truncated && reportedVersion && /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(reportedVersion) ? reportedVersion : undefined
     if (info.packageManagerVersion || info.packageManager !== 'npm') {
       const issue = managerVersionIssue(info, packageManagerVersion)
-      if (issue) throw new StageFailure('installing', issue.replace('；未请求模型。', '；未开始本次依赖安装。'))
+      if (issue) {
+        const message = issue.replace('；未请求模型。', '；未开始本次依赖安装。')
+        if (strict) throw new StageFailure('installing', message)
+        return degrade(message)
+      }
     }
     const runtime = { hostNode: process.version, platform: `${process.platform}-${process.arch}`, packageManager: inst.argv[0]!, ...(packageManagerVersion ? { packageManagerVersion } : {}) }
     const t0 = Date.now()
-    const r = await runProjectProcess(inst.argv, { cwd: dir, timeoutMs: 600_000, signal, env: { CI: '1' } }, prepare)
+    const r = await runProjectProcess(inst.argv, { cwd: projectDir, timeoutMs: 600_000, signal, env: { CI: '1' } }, prepare)
     const failure = r.code !== 0 || r.aborted || r.timedOut ? installFailure(r) : undefined
     const install: NonNullable<Candidate['install']> = { argv: inst.argv, frozen: inst.frozen, durationMs: Date.now() - t0, outcome: r.timedOut ? 'timeout' : r.aborted ? 'cancelled' : r.code === 0 ? 'passed' : 'failed', runtime, ...(failure ? { failure } : {}) }
     const currentInstall = (): NonNullable<Candidate['install']> => ({ ...install, runtime: { ...runtime, windowsProcessCompat: compatibility.snapshot() } })
@@ -628,28 +721,54 @@ export class Comparer {
     signal.throwIfAborted()
     if (r.code !== 0 || r.timedOut) {
       const reason = failure!
-      throw new StageFailure('installing', `${reason.summary}。${reason.hint}${inst.frozen ? `\n仍使用锁文件 ${info.lockfile} 冻结安装，不改用非冻结安装。` : ''}${reason.diagnostic ? `\n${reason.diagnostic}` : ''}`)
+      const message = `${reason.summary}。${reason.hint}${inst.frozen ? `\n仍使用锁文件 ${info.lockfile} 冻结安装，不改用非冻结安装。` : ''}${reason.diagnostic ? `\n${reason.diagnostic}` : ''}`
+      if (strict) throw new StageFailure('installing', message)
+      return { ...await degrade(`依赖安装失败，没有启动项目服务：${reason.summary}`), install: currentInstall(), execution: { enforcement } }
     }
 
     await enter?.('verifying')
-    const checks = await runCommandChecks(dir, acceptance.checks, signal, prepare)
+    const checks = await runCommandChecks(projectDir, acceptance.checks, signal, prepare)
     await onEvidence?.({ checks, install: currentInstall() })
     signal.throwIfAborted()
     const buildOk = checks.find((k) => k.name === 'build')?.outcome === 'passed'
 
     await enter?.('previewing')
     let preview: { info: PreviewInfo; handle: Preview } | undefined
-    try {
-      const kind = buildOk ? 'build' : 'dev'
-      const handle = await startVitePreview(dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal, prepareProjectProcess: prepare })
-      preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) } }
-    } catch (error) {
-      if (error instanceof ProcessStopError) throw error
-      if (signal.aborted) throw error
-      await onEvidence?.({ install: currentInstall() })
-      const log = error instanceof PreviewError ? `\n${diagnosticText(error.log, 1500)}` : ''
-      throw new StageFailure('previewing', `${(error as Error).message}${log}`)
+    let previewNote: string | undefined
+    const timeoutMs = this.opts.previewTimeoutMs ?? 60_000
+    if (project.profile === 'vite') {
+      try {
+        const kind = buildOk ? 'build' : 'dev'
+        const handle = await startVitePreview(projectDir, { kind, timeoutMs, signal, prepareProjectProcess: prepare })
+        preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: projectDir, ...(handle.launcher ? { launcher: handle.launcher } : {}) } }
+      } catch (error) {
+        if (error instanceof ProcessStopError) throw error
+        if (signal.aborted) throw error
+        await onEvidence?.({ install: currentInstall() })
+        const log = error instanceof PreviewError ? `\n${diagnosticText(error.log, 1500)}` : ''
+        throw new StageFailure('previewing', `${(error as Error).message}${log}`)
+      }
+    } else if (project.profile === 'node-web') {
+      try {
+        const handle = await startScriptPreview(projectDir, scriptArgv(info, project.script!), { timeoutMs, signal, prepareProjectProcess: prepare })
+        preview = { handle, info: { url: handle.url, port: handle.port, pid: handle.pid, kind: 'script', cwd: projectDir } }
+      } catch (error) {
+        if (error instanceof ProcessStopError) throw error
+        if (signal.aborted) throw error
+        // A script that is not a web server on PORT is not a failed candidate.
+        previewNote = `项目的 ${project.script} 脚本没有在预览端口提供页面：${(error as Error).message}`
+      }
     }
+    if (preview === undefined) {
+      const served = await this.serveFiles(acceptance, projectDir, dir, project, shotBase, signal, driftOf, checkedTree, undefined, previewNote ?? project.note)
+      return { ...served, checks: [...checks, ...served.checks], install: currentInstall(), execution: { enforcement } }
+    }
+    const finished = await this.finishPreview(acceptance, checks, preview, shotBase, signal, driftOf, checkedTree, previewNote)
+    return { ...finished, install: currentInstall(), execution: { enforcement } }
+  }
+
+  /** Run the page acceptance on a live preview; the preview stops if anything after it fails. */
+  private async finishPreview(acceptance: Acceptance, checks: CheckResult[], preview: { info: PreviewInfo; handle: Preview }, shotBase: string, signal: AbortSignal, driftOf: () => Promise<string[]>, checkedTree: string, previewNote?: string): Promise<{ checks: CheckResult[]; checkedTree: string; drift: string[]; preview: { info: PreviewInfo; handle: Preview }; screenshot?: string; mobileScreenshot?: string; previewNote?: string }> {
     let screenshot: string | undefined
     let mobileScreenshot: string | undefined
     try {
@@ -661,11 +780,8 @@ export class Comparer {
         mobileScreenshot = b.mobileScreenshot
       }
       signal.throwIfAborted()
-      // Let Git exclude untracked output while retaining tracked source, even
-      // inside ignored folders. The baseline .gitignore is bound acceptance;
-      // folder names alone never justify skipping source changes.
-      const drift = await changedPaths(copy.repo, sealedTree, await ownedCopyTree(dir, copy, sealedTree))
-      return { install: currentInstall(), execution: { enforcement }, checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}) }
+      const drift = await driftOf()
+      return { checks, checkedTree, drift, preview, ...(screenshot ? { screenshot } : {}), ...(mobileScreenshot ? { mobileScreenshot } : {}), ...(previewNote ? { previewNote } : {}) }
     } catch (error) {
       await preview.handle.stop()
       throw error
@@ -757,13 +873,48 @@ export class Comparer {
       if (c.dir === undefined || !existsSync(c.dir)) throw new Error('这个候选的副本已经清理，只能查看截图')
       if (!c.ownerToken) throw new Error('候选缺少副本归属凭据，拒绝重新打开预览')
       await ownedWorktreeAdmin(r.baseline.repoRoot, c.dir, { runId: r.runId, label: c.label, token: c.ownerToken })
-      const kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(c.dir, 'dist')) ? 'build' : 'dev'
-      const handle = await startVitePreview(c.dir, { kind, timeoutMs: this.opts.previewTimeoutMs ?? 60_000, signal: this.lifetime.signal, prepareProjectProcess: request => prepareProjectProcess({ ...request, windowsProcessCompat: lr.record.acceptance.runtime.windowsProcessCompat ?? 'auto' }, this.opts.prepareProjectProcess) })
+      if (c.result !== undefined) throw new Error('这个结果没有可打开的页面')
+      const projectDir = projectDirectory(c.dir, r.baseline.projectPath)
+      const project = await profileProject(projectDir)
+      const timeoutMs = this.opts.previewTimeoutMs ?? 60_000
+      const prepare: PrepareProjectProcess = request => prepareProjectProcess({ ...request, windowsProcessCompat: lr.record.acceptance.runtime.windowsProcessCompat ?? 'auto' }, this.opts.prepareProjectProcess)
+      let handle: Preview
+      let kind: PreviewInfo['kind']
+      if (project.profile === 'vite') {
+        kind = c.checks?.find((k) => k.name === 'build')?.outcome === 'passed' && existsSync(path.join(projectDir, 'dist')) ? 'build' : 'dev'
+        handle = await startVitePreview(projectDir, { kind, timeoutMs, signal: this.lifetime.signal, prepareProjectProcess: prepare })
+      } else if (project.profile === 'node-web' && existsSync(path.join(projectDir, 'node_modules'))) {
+        kind = 'script'
+        handle = await startScriptPreview(projectDir, scriptArgv(project.info, project.script!), { timeoutMs, signal: this.lifetime.signal, prepareProjectProcess: prepare })
+      } else {
+        const entry = project.entry ?? await staticEntry(projectDir)
+        if (entry === undefined) throw new Error('这个结果没有可打开的页面')
+        kind = 'static'
+        handle = await startStaticPreview(projectDir, entry, { timeoutMs, signal: this.lifetime.signal })
+      }
       lr.previews.set(label, handle)
-      c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: c.dir, ...(handle.launcher ? { launcher: handle.launcher } : {}) }
+      c.preview = { url: handle.url, port: handle.port, pid: handle.pid, kind, cwd: projectDir, ...(handle.launcher ? { launcher: handle.launcher } : {}) }
       await this.save(lr.record)
       return lr.record
     })
+  }
+
+  /**
+   * One file of a candidate's sealed result: its text (first 64 KB), or only
+   * its size when it is binary or larger than 4 MB. Deleted paths say so.
+   */
+  async readResultFile(runId: string, label: CandidateLabel, file: string): Promise<{ path: string; size: number; binary: boolean; deleted?: true; text?: string; truncated: boolean }> {
+    const r = await this.mustLoad(runId)
+    const c = r.candidates.find((x) => x.label === label)
+    if (c?.candidateTree === undefined || !(c.touchedFiles ?? []).includes(file)) throw new Error('这一版没有写这个文件')
+    const spec = `${c.candidateTree}:${file}`
+    const size = Number((await gitTry(r.baseline.repoRoot, ['cat-file', '-s', spec]))?.trim())
+    if (!Number.isSafeInteger(size)) return { path: file, size: 0, binary: false, deleted: true, truncated: false }
+    if (size > 4 * 1024 * 1024) return { path: file, size, binary: false, truncated: true }
+    const content = await git(r.baseline.repoRoot, ['cat-file', 'blob', spec])
+    // NUL bytes or many undecodable sequences: not text worth showing.
+    const binary = content.includes('\u0000') || (content.match(/�/g)?.length ?? 0) > Math.max(8, content.length / 100)
+    return { path: file, size, binary, ...(binary ? {} : { text: content.slice(0, 65_536) }), truncated: !binary && content.length > 65_536 }
   }
 
   /** Report-only adoption check: overlap, eligibility and whether a rehearsal will run. Writes nothing. */
@@ -775,6 +926,8 @@ export class Comparer {
     const r = await this.mustLoad(runId)
     const c = r.candidates.find((x) => x.label === r.choice?.pick)
     if (!c?.candidateCommit) return { ok: false, eligible: false, reasons: ['没有选中的候选'] }
+    if (r.target !== undefined) return { ok: false, eligible: c.verdict?.eligible === true, reasons: ['这次比较从非 Git 目录开始，请用「保存到当前目录」把选中的版本存成新文件夹'] }
+    if (c.result === 'answer') return { ok: false, eligible: false, reasons: ['这一版只有回答，没有可以写入的文件；回答已写入主对话'] }
     const nameStatus = await nameStatusOf(r.baseline.repoRoot, r.baseline.snapshotCommit, c.candidateCommit)
     const p = await preflight({ baseline: r.baseline, candidateCommit: c.candidateCommit, nameStatus, scratchDir: this.store.artifacts(runId) })
     const verdict = c.verdict ?? { eligible: false, reasons: ['没有验收结论'], warnings: [] }
@@ -795,7 +948,8 @@ export class Comparer {
    * `branch`: create a branch with the candidate, switching nothing. Allowed
    * for any finished candidate, so an unverified one can still be inspected.
    */
-  adopt(runId: string, mode: 'worktree' | 'branch' = 'worktree'): Promise<RunRecord> {
+  adopt(runId: string, mode: 'worktree' | 'branch' | 'folder' = 'worktree'): Promise<RunRecord> {
+    if (mode === 'folder') return this.operation(() => this.exportPick(runId), runId)
     const controller = new AbortController()
     return this.operation(() => this.adoptRun(runId, mode, controller), runId).finally(() => {
       if (this.adoptionControllers.get(runId)?.controller === controller) this.adoptionControllers.delete(runId)
@@ -815,6 +969,7 @@ export class Comparer {
 
   private async adoptRun(runId: string, mode: 'worktree' | 'branch', controller: AbortController): Promise<RunRecord> {
     const first = await this.mustLoad(runId)
+    if (first.target !== undefined) throw new AdoptError('state', '这次比较从非 Git 目录开始，请用「保存到当前目录」把选中的版本存成新文件夹')
     return withRepositoryWrite(first.baseline.repoRoot, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
       if (r.state !== 'revealed') throw new AdoptError('state', `现在不能采用（${r.state}）`)
@@ -822,6 +977,7 @@ export class Comparer {
       if (pick === undefined || pick === 'none') throw new AdoptError('state', '没有选中的候选')
       const c = r.candidates.find((x) => x.label === pick)!
       if (c.stage !== 'ready' || c.candidateCommit === undefined || c.candidateTree === undefined || c.patchFile === undefined || c.patchSha256 === undefined) throw new AdoptError('state', '这个候选没有可采用的结果')
+      if (c.result === 'answer') throw new AdoptError('state', '这一版只有回答，没有可以写入的文件；回答已写入主对话')
       if (!existsSync(c.patchFile) || (await readPatchSha(c.patchFile)) !== c.patchSha256) throw new AdoptError('integrity', '记录的补丁和验收时的不一致')
       if ((await treeOf(r.baseline.repoRoot, c.candidateCommit)) !== c.candidateTree) throw new AdoptError('integrity', '候选提交和封存的内容不一致')
       const repo = r.baseline.repoRoot
@@ -970,7 +1126,7 @@ export class Comparer {
       pinned = true
       await addOwnedWorktree(repo, dir, commit, { runId: r.runId, label: 'R', token })
       created = true
-      const v = await this.verifyCopy(r.acceptance, dir, { repo, owner: { runId: r.runId, label: 'R', token }, yarnModern: r.acceptance.runtime.yarnModern }, tree, path.join(this.store.artifacts(r.runId), 'R'), signal)
+      const v = await this.verifyCopy(r.acceptance, dir, { repo, owner: { runId: r.runId, label: 'R', token }, yarnModern: r.acceptance.runtime.yarnModern }, tree, path.join(this.store.artifacts(r.runId), 'R'), signal, undefined, undefined, { projectPath: r.baseline.projectPath })
       await v.preview?.handle.stop()
       const reasons = [
         ...v.checks.filter((k) => k.outcome === 'failed' || k.outcome === 'timeout').map((k) => `${k.name} 未通过${k.reason ? `（${k.reason.slice(0, 120)}）` : ''}`),
@@ -989,8 +1145,44 @@ export class Comparer {
   }
 
   /**
+   * Save the picked version of a folder comparison into a new subfolder of
+   * that folder. Existing files are never replaced: the subfolder is new, and
+   * its name gets a number when the first choice already exists.
+   */
+  private async exportPick(runId: string): Promise<RunRecord> {
+    const first = await this.mustLoad(runId)
+    return withRepositoryWrite(first.baseline.repoRoot, () => this.serial(runId, async () => {
+      const r = await this.fresh(runId)
+      if (r.state !== 'revealed') throw new AdoptError('state', `现在不能保存（${r.state}）`)
+      if (r.target === undefined) throw new AdoptError('state', '只有从非 Git 目录开始的比较可以保存到文件夹')
+      if (r.target.folder === undefined) throw new AdoptError('state', '这次比较没有关联的目录；可以在卡片里查看文件内容')
+      const pick = r.choice?.pick
+      if (pick === undefined || pick === 'none') throw new AdoptError('state', '没有选中的候选')
+      const c = r.candidates.find((x) => x.label === pick)!
+      if (c.stage !== 'ready' || c.candidateCommit === undefined || c.candidateTree === undefined) throw new AdoptError('state', '这个候选没有可保存的结果')
+      if (c.result === 'answer') throw new AdoptError('state', '这一版只有回答，没有文件；回答已写入主对话')
+      const repo = r.baseline.repoRoot
+      if ((await treeOf(repo, c.candidateCommit)) !== c.candidateTree) throw new AdoptError('integrity', '候选提交和封存的内容不一致')
+      if (!existsSync(r.target.folder)) throw new AdoptError('state', `目标目录不存在：${r.target.folder}`)
+      const target = freeFolder(r.target.folder, exportFolderName(r.task, r.runId))
+      const startedAt = Date.now()
+      const saved = await exportTree(repo, c.candidateTree, this.store.artifacts(runId), target)
+      r.adoption = {
+        label: c.label, mode: 'folder', state: 'adopted', startedAt, endedAt: Date.now(),
+        exportPath: saved.exportPath, exportDigests: saved.digests, writtenPaths: saved.written,
+        ...(r.adoption?.retainedExports?.length ? { retainedExports: r.adoption.retainedExports } : {}),
+        message: `已保存 ${saved.written.length} 个文件到 ${saved.exportPath}；没有改动目录里原有的文件${saved.skipped.length ? `。${saved.skipped.length} 个链接或特殊条目没有保存：${saved.skipped.slice(0, 5).join('、')}` : ''}`,
+      }
+      r.state = 'adopted'
+      await this.save(r)
+      return r
+    }))
+  }
+
+  /**
    * Undo a worktree adoption. Refuses (and lists the paths) when any touched
    * file was edited after adoption, so nothing the user wrote is overwritten.
+   * A folder save is undone the same way: only unchanged saved files go.
    */
   revert(runId: string): Promise<RunRecord> {
     return this.operation(() => this.revertRun(runId), runId)
@@ -1001,7 +1193,21 @@ export class Comparer {
     return withRepositoryWrite(first.baseline.repoRoot, () => this.serial(runId, async () => {
       const r = await this.fresh(runId)
       const a = r.adoption
-      if (r.state !== 'adopted' || a?.mode !== 'worktree' || a.preAdoptCommit === undefined || a.writtenPaths === undefined) throw new AdoptError('state', '只有写入工作区的采用可以撤销')
+      if (r.state === 'adopted' && a?.mode === 'folder' && a.exportPath && a.exportDigests) {
+        const retained = exportUndoDirectory(a.exportPath)
+        // Persist the location before moving any saved file, including an
+        // interrupted undo. Originals are never part of preview cleanup.
+        ;(a.retainedExports ??= []).push(retained)
+        await this.save(r)
+        const undo = await removeExport(a.exportPath, a.exportDigests, retained)
+        if (undo.changed.length > 0) throw new AdoptError('overlap', `保存之后你改过这些文件，为避免丢失，没有撤销：${undo.changed.slice(0, 10).join('、')}`)
+        a.state = 'reverted'
+        a.message = undo.folderRemoved ? `已撤销：删除了保存的 ${undo.removed.length} 个文件和文件夹` : `已撤销：删除了保存的 ${undo.removed.length} 个文件；文件夹里还有其它内容，予以保留`
+        r.state = 'revealed'
+        await this.save(r)
+        return r
+      }
+      if (r.state !== 'adopted' || a?.mode !== 'worktree' || a.preAdoptCommit === undefined || a.writtenPaths === undefined) throw new AdoptError('state', '只有写入工作区或保存到文件夹的采用可以撤销')
       const c = r.candidates.find((x) => x.label === a.label)!
       const repo = r.baseline.repoRoot
       const candidateTree = await treeOf(repo, c.candidateCommit!)
@@ -1417,6 +1623,20 @@ function uncoordinatedReason(r: RunRecord): string | undefined {
     return '这条旧记录没有宿主归属凭据，当前仅可查看。请先关闭旧版本实例，保留记录与副本，再处理其未完成资源；当前版本不会推断旧任务已经退出。'
   }
   return undefined
+}
+
+/** The project's directory inside a repository or a copy of it. */
+function projectDirectory(root: string, projectPath: string | undefined): string {
+  return projectPath ? path.join(root, ...projectPath.split('/')) : root
+}
+
+/**
+ * Whether a reply without written files counts as a result: the run started
+ * from a folder, or its baseline has no shared commands to run (no web
+ * project whose implementation would be expected).
+ */
+function acceptsAnswers(record: RunRecord): boolean {
+  return record.target !== undefined || record.acceptance.checks.commands.length === 0
 }
 
 function needsRecovery(r: RunRecord): boolean {

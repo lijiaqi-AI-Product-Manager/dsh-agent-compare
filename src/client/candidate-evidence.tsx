@@ -47,10 +47,13 @@ export function when(ts: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 export function StagePill({ c }: { c: Cand }): React.ReactElement {
-  const complete = Boolean(c.checks?.length && c.checks.every(check => check.outcome === 'passed'))
+  // An answer, or files with nothing to run, is judged by its content: there are no checks to miss.
+  const judgedByContent = c.result !== undefined && !(c.checks?.length)
+  const complete = judgedByContent || Boolean(c.checks?.length && c.checks.every(check => check.outcome === 'passed'))
   const kind = c.stage === 'ready' ? c.verdict?.eligible ? complete ? 'ok' : '' : c.verdict ? 'err' : '' : c.stage === 'failed' ? 'err' : c.stage === 'interrupted' ? 'warn' : busyStage(c.stage) ? 'brand' : ''
-  const availability = c.previewUrl ? t("可预览") : c.hasScreenshot || c.hasMobileScreenshot ? t("截图记录") : t("验收完成")
-  const title = c.stage === 'ready' ? `${availability} · ${c.verdict ? c.verdict.eligible ? complete ? t("检查通过") : t("部分检查未运行") : t("未通过检查") : t("检查状态未知")}` : t(STAGE_TEXT[c.stage])
+  const availability = c.previewUrl ? t("可预览") : c.hasScreenshot || c.hasMobileScreenshot ? t("截图记录") : c.result !== undefined ? t("已完成") : t("验收完成")
+  const status = judgedByContent ? t("按内容比较") : c.verdict ? c.verdict.eligible ? complete ? t("检查通过") : t("部分检查未运行") : t("未通过检查") : t("检查状态未知")
+  const title = c.stage === 'ready' ? `${availability} · ${status}` : t(STAGE_TEXT[c.stage])
   return (
     <span className={`ac-pill ${kind}`}>
       {busyStage(c.stage) ? <span className="ac-spin" /> : <span className="ac-dot" />}

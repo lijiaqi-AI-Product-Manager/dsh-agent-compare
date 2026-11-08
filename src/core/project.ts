@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { open, readFile } from 'node:fs/promises'
+import { open, readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { changedPaths, readBlob, treeBlobs } from './git.ts'
 import type { Acceptance, CheckCommand, ChecksSpec } from './types.ts'
@@ -19,6 +19,8 @@ export interface ProjectInfo {
   readonly scripts: Record<string, string>
   readonly reason?: string
   readonly warning?: string
+  /** A usable package.json whose only gap is Vite: installs and scripts still work. */
+  readonly node?: boolean
 }
 
 interface PackageJson {
@@ -68,7 +70,7 @@ export async function inspectProject(dir: string): Promise<ProjectInfo> {
     modernYarn = declaration ? Number(declaration[2]!.split('.')[0]) >= 2 : modernLock
     if (lock && declaration && modernLock !== modernYarn) return { kind: 'unsupported', ...base, reason: 'Yarn 锁文件格式与 packageManager 声明不一致，请先使用该版本生成并提交对应锁文件。' }
   }
-  if (deps.vite === undefined) return { kind: 'unsupported', ...base, reason: '目前只支持 Vite 项目（依赖里没有 vite）' }
+  if (deps.vite === undefined) return { kind: 'unsupported', ...base, ...(modernYarn === undefined ? {} : { modernYarn }), node: true, reason: '依赖里没有 vite' }
   let warning: string | undefined
   if (modernYarn) {
     const config = await readFile(path.join(dir, '.yarnrc.yml'), 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })
@@ -119,16 +121,71 @@ const PLACEHOLDER_TEST = /no test specified/i
  */
 export function defaultChecks(info: ProjectInfo): ChecksSpec {
   const commands: CheckCommand[] = []
+  // Commands exist only where the baseline can run them: a project without a
+  // usable package.json (a folder, a static site, another language) has none.
+  if (info.kind !== 'vite' && !info.node) return { commands, browser: { path: '/', failOnConsoleError: true } }
   for (const name of ['typecheck', 'lint', 'test']) {
     const body = info.scripts[name]
     if (body === undefined || PLACEHOLDER_TEST.test(body)) continue
     commands.push({ name, argv: scriptArgv(info, name), timeoutMs: name === 'test' ? 300_000 : 180_000 })
   }
-  commands.push(info.scripts.build !== undefined
-    ? { name: 'build', argv: scriptArgv(info, 'build'), timeoutMs: 300_000 }
-    : { name: 'build', argv: info.modernYarn ? ['yarn', 'exec', 'vite', 'build'] : ['node', VITE_BIN, 'build'], timeoutMs: 300_000 })
+  if (info.scripts.build !== undefined) commands.push({ name: 'build', argv: scriptArgv(info, 'build'), timeoutMs: 300_000 })
+  else if (info.kind === 'vite') commands.push({ name: 'build', argv: info.modernYarn ? ['yarn', 'exec', 'vite', 'build'] : ['node', VITE_BIN, 'build'], timeoutMs: 300_000 })
   return { commands, browser: { path: '/', failOnConsoleError: true } }
 }
+
+/**
+ * How a project directory is installed, checked and shown:
+ * - `vite`: a Vite project (frozen install, shared checks, built preview).
+ * - `node-web`: a usable package.json with a `dev` or `start` script.
+ * - `node`: a usable package.json without a server script (checks only).
+ * - `static`: an HTML page with no usable package.json, served as files.
+ * - `files`: anything else; the written files and the answer are the result.
+ */
+export type ProjectProfile = 'vite' | 'node-web' | 'node' | 'static' | 'files'
+
+export interface ProfiledProject {
+  readonly profile: ProjectProfile
+  readonly info: ProjectInfo
+  /** The server script of `node-web`. */
+  readonly script?: 'dev' | 'start'
+  /** The page `static` serves at `/`. */
+  readonly entry?: string
+  /** Why a package.json could not be used (its install and scripts are skipped). */
+  readonly note?: string
+}
+
+/** The page a static site opens with: `index.html`, else the first top-level HTML file. */
+export async function staticEntry(dir: string): Promise<string | undefined> {
+  if (existsSync(path.join(dir, 'index.html'))) return 'index.html'
+  let names: string[]
+  try { names = await readdir(dir) } catch { return undefined }
+  return names.filter(name => /\.html?$/i.test(name)).sort((a, b) => a.localeCompare(b))[0]
+}
+
+export async function profileProject(dir: string): Promise<ProfiledProject> {
+  const info = await inspectProject(dir)
+  if (info.kind === 'vite') return { profile: 'vite', info }
+  if (info.node) {
+    const script = info.scripts.dev !== undefined ? 'dev' : info.scripts.start !== undefined ? 'start' : undefined
+    if (script) return { profile: 'node-web', info, script }
+    const entry = await staticEntry(dir)
+    return entry ? { profile: 'static', info, entry } : { profile: 'node', info }
+  }
+  const entry = await staticEntry(dir)
+  const note = existsSync(path.join(dir, 'package.json')) ? info.reason : undefined
+  return { profile: entry ? 'static' : 'files', info, ...(entry ? { entry } : {}), ...(note ? { note } : {}) }
+}
+
+/** Whether a profile installs dependencies and runs package scripts. */
+export const installsDependencies = (profile: ProjectProfile): boolean => profile === 'vite' || profile === 'node-web' || profile === 'node'
+
+/** `file` relative to the project directory, or undefined when it lies outside it. */
+export function projectRelative(projectPath: string | undefined, file: string): string | undefined {
+  if (!projectPath) return file
+  return file.startsWith(`${projectPath}/`) ? file.slice(projectPath.length + 1) : undefined
+}
+const inProject = (projectPath: string | undefined, file: string): string => projectPath ? `${projectPath}/${file}` : file
 
 /** The optional repository file that defines the acceptance (read from the baseline tree). */
 export const ACCEPTANCE_FILE = '.agent-compare.json'
@@ -158,13 +215,17 @@ const isTest = (p: string): boolean => TEST_PATTERNS.some((re) => re.test(p))
 const isConfig = (p: string): boolean => !isTest(p) && CONFIG_PATTERNS.some((re) => re.test(p))
 export const isBound = (p: string): boolean => isConfig(p) || isTest(p)
 
-/** Build the acceptance for a baseline tree. `override` (tests, API) replaces the derived checks. */
-export async function buildAcceptance(repo: string, tree: string, info: ProjectInfo, override?: ChecksSpec, windowsProcessCompat?: 'auto' | 'off'): Promise<Acceptance> {
+/**
+ * Build the acceptance for a baseline tree. `override` (tests, API) replaces
+ * the derived checks. `projectPath` names the project directory inside the
+ * repository; verification files are recognised relative to it.
+ */
+export async function buildAcceptance(repo: string, tree: string, info: ProjectInfo, override?: ChecksSpec, windowsProcessCompat?: 'auto' | 'off', projectPath?: string): Promise<Acceptance> {
   let checks = override ?? defaultChecks(info)
   if (checks.browser !== undefined) checks = { ...checks, browser: parseBrowserCheck(checks.browser) }
   let source: Acceptance['source'] = 'defaults'
   let protectedFiles: readonly string[] = []
-  const fileText = override === undefined ? await readBlob(repo, tree, ACCEPTANCE_FILE) : undefined
+  const fileText = override === undefined ? await readBlob(repo, tree, inProject(projectPath, ACCEPTANCE_FILE)) : undefined
   if (fileText !== undefined) {
     let parsed: AcceptanceConfig
     try {
@@ -181,8 +242,11 @@ export async function buildAcceptance(repo: string, tree: string, info: ProjectI
   // Lifecycle and nested script calls can affect verification even when the
   // directly invoked script body is unchanged.
   const scripts = { ...info.scripts }
-  const bound = await treeBlobs(repo, tree, p => isBound(p) || protectedFiles.includes(p))
-  for (const file of protectedFiles) if (!Object.hasOwn(bound, file)) throw new Error(`${ACCEPTANCE_FILE} protectedFiles：基线中不存在 ${file}`)
+  const bound = await treeBlobs(repo, tree, p => {
+    const relative = projectRelative(projectPath, p)
+    return relative !== undefined && (isBound(relative) || protectedFiles.includes(relative))
+  })
+  for (const file of protectedFiles) if (!Object.hasOwn(bound, inProject(projectPath, file))) throw new Error(`${ACCEPTANCE_FILE} protectedFiles：基线中不存在 ${file}`)
   const runtime = { node: process.version, packageManager: info.packageManagerSpec ?? info.packageManager, platform: `${process.platform}-${process.arch}`, ...(info.modernYarn ? { yarnModern: true } : {}), ...(windowsProcessCompat === undefined ? {} : { windowsProcessCompat }) }
   const body = { checks, scripts, bound, runtime, ...(info.lockfile === undefined ? {} : { lockfile: info.lockfile }) }
   return {
@@ -197,13 +261,27 @@ export async function buildAcceptance(repo: string, tree: string, info: ProjectI
  * changed dependencies. Returned paths read like `tsconfig.json` or
  * `package.json scripts.test`.
  */
-export async function acceptanceChanges(repo: string, acceptance: Acceptance, baseTree: string, candTree: string): Promise<{ touched: string[]; dependencyChange: boolean }> {
+export async function acceptanceChanges(repo: string, acceptance: Acceptance, baseTree: string, candTree: string, projectPath?: string): Promise<{ touched: string[]; dependencyChange: boolean }> {
   const changed = await changedPaths(repo, baseTree, candTree)
-  const touched = changed.filter((p) => Object.hasOwn(acceptance.bound, p) || isConfig(p))
-  let dependencyChange = changed.some((p) => (LOCKFILES as readonly string[]).includes(p))
-  if (changed.includes('package.json')) {
-    const before = parsePkg(await readBlob(repo, baseTree, 'package.json'))
-    const after = parsePkg(await readBlob(repo, candTree, 'package.json'))
+  // Without shared commands there is nothing a new config file or script could
+  // weaken: only the baseline's own verification files stay bound.
+  const protects = acceptance.checks.commands.length > 0
+  const touched = changed.filter((p) => {
+    if (Object.hasOwn(acceptance.bound, p)) return true
+    const relative = projectRelative(projectPath, p)
+    return protects && relative !== undefined && isConfig(relative)
+  })
+  let dependencyChange = changed.some((p) => (LOCKFILES as readonly string[]).includes(projectRelative(projectPath, p) ?? ''))
+  const manifest = inProject(projectPath, 'package.json')
+  if (changed.includes(manifest)) {
+    const before = parsePkg(await readBlob(repo, baseTree, manifest))
+    const after = parsePkg(await readBlob(repo, candTree, manifest))
+    if (!protects) {
+      for (const k of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
+        if (JSON.stringify(before[k] ?? {}) !== JSON.stringify(after[k] ?? {})) dependencyChange = true
+      }
+      return { touched, dependencyChange }
+    }
     for (const name of new Set([...Object.keys(before.scripts ?? {}), ...Object.keys(after.scripts ?? {})])) if (after.scripts?.[name] !== before.scripts?.[name]) touched.push(`package.json scripts.${name}`)
     for (const key of ['type', 'packageManager', 'engines', 'imports', 'exports', 'eslintConfig', 'jest', 'browserslist'] as const) {
       if (JSON.stringify((before as Record<string, unknown>)[key]) !== JSON.stringify((after as Record<string, unknown>)[key])) touched.push(`package.json ${key}`)

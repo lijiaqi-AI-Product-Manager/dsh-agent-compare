@@ -155,8 +155,11 @@ export interface PreviewInfo {
     readonly url: string;
     readonly port: number;
     readonly pid: number;
-    /** `build`: the built artifact the checks passed on. `dev`: dev server, shown only when the build failed. */
-    readonly kind: 'build' | 'dev';
+    /**
+     * `build`: the built artifact the checks passed on. `dev`: dev server, shown only when the build failed.
+     * `static`: the files served as they are. `script`: the project's own `dev` or `start` script.
+     */
+    readonly kind: 'build' | 'dev' | 'static' | 'script';
     /** Directory the server runs in; part of the ownership proof before any later kill. */
     readonly cwd: string;
     /** Modern Yarn starts Vite through its project-aware dependency loader. */
@@ -233,6 +236,13 @@ export interface Candidate {
     /** Non-ignored paths that differed from the sealed tree after the checks. */
     drift?: string[];
     preview?: PreviewInfo;
+    /**
+     * How a result without a live page is judged: `answer` (a reply, no files
+     * written) or `files` (written files, nothing to serve). Absent: a live page.
+     */
+    result?: 'answer' | 'files';
+    /** Why no live page was started for a result that has files. */
+    previewNote?: string;
     screenshot?: string;
     mobileScreenshot?: string;
     verdict?: Verdict;
@@ -251,6 +261,17 @@ export interface Baseline {
     readonly snapshotCommit: string;
     readonly snapshotTree: string;
     readonly dirty: boolean;
+    /** The project's directory inside the repository (POSIX, no leading or trailing slash); absent: the root. */
+    readonly projectPath?: string;
+}
+/**
+ * A comparison started from a folder outside Git runs in a private, empty
+ * repository. `folder` is where the picked version can be saved; absent when
+ * the conversation had no directory.
+ */
+export interface FolderTarget {
+    readonly kind: 'folder';
+    readonly folder?: string;
 }
 export interface Choice {
     readonly pick: CandidateLabel | 'none';
@@ -278,7 +299,13 @@ export type AdoptionState =
  | 'needs-recovery' | 'reverted';
 export interface Adoption {
     readonly label: CandidateLabel;
-    readonly mode: 'worktree' | 'branch';
+    /** `folder`: the picked files were saved into a new subfolder of the comparison's folder. */
+    readonly mode: 'worktree' | 'branch' | 'folder';
+    /** `folder` mode: the new subfolder, and the SHA-256 of every file written there. */
+    exportPath?: string;
+    exportDigests?: Record<string, string>;
+    /** Same-volume retained files captured by folder undo, including interrupted attempts. */
+    retainedExports?: string[];
     state: AdoptionState;
     readonly startedAt: number;
     endedAt?: number;
@@ -347,6 +374,8 @@ export interface RunRecord {
     };
     /** Main-conversation excerpt the user chose; both candidates receive exactly this text. */
     readonly conversationContext?: ConversationContextRecord;
+    /** Present when the comparison started from a folder outside Git (see FolderTarget). */
+    readonly target?: FolderTarget;
     readonly baseline: Baseline;
     readonly acceptance: Acceptance;
     /**

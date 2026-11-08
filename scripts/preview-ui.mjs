@@ -70,6 +70,12 @@ const states = {
   'interrupted-peer': [{ ...base, state: 'judging', candidates: [A, { ...B, stage: 'interrupted', previewUrl: undefined, error: { stage: 'generating', message: '宿主在这一步进行时停止了' }, salvageable: true }] }],
   cleanup: [{ ...base, state: 'adopted', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', message: '已采用' }, leftovers: ['候选 A 预览未停止：resource is busy'], candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   recovery: [{ ...base, state: 'recovery', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'needs-recovery', mode: 'worktree', message: '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。', attention: ['src/App.tsx'] }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
+  // A folder outside Git: one version answered, the other wrote files with no page.
+  folder: [{ ...base, runId: '0f0f0f0f', state: 'judging', task: '写一个统计单词数的小脚本', target: { kind: 'folder', folder: 'D:\\Notes' }, baseline: { dirty: true, repoRoot: 'C:\\Users\\me\\.dsh\\agent-compare\\ws\\0f0f0f0f' }, acceptance: { source: 'defaults', checks: ['browser'], steps: 0, frozenInstall: false, sha256: 'def' }, conversationContext: undefined, candidates: [
+    { label: 'A', stage: 'ready', result: 'answer', answer: '可以用一行命令统计：\nwc -w notes.txt\n\n它会输出单词总数。', timings: done, verdict: { eligible: true, reasons: [], warnings: [] }, checks: [], hasScreenshot: false },
+    { label: 'B', stage: 'ready', result: 'files', resultFiles: ['README.md', 'count_words.py'], timings: done, verdict: { eligible: true, reasons: [], warnings: [] }, checks: [], hasScreenshot: false },
+  ] }],
+  'folder-start': [],
   'undo-recovery': [{ ...base, state: 'recovery', choice: { pick: 'A' }, adoption: { state: 'needs-recovery', mode: 'worktree', transferDirection: 'undo', retainedDirectory: 'D:/Projects/demo-shop/.agent-compare-transfer-1234567890abcdef1234567890abcdef', message: '撤销过程中宿主停止了。可以回退未完成的撤销，或保留当前文件。' }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
 }
 
@@ -153,6 +159,9 @@ window.fetch = async (url, init) => {
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
   let value = m[1] === 'latest' ? listHistory(body).runs[0] ?? null
     : m[1] === 'list' ? listHistory(body)
+    : m[1] === 'candidateFile' ? {path:body.path,size:42,binary:false,text:'# '+body.path+'\\nprint(len(open("notes.txt").read().split()))\\n',truncated:false}
+    : m[1] === 'enableGit' ? (body.check ? {ok:true,folder:'D:/Notes',files:12,bytes:34567} : (window.__gitEnabled=true, {path:'D:/Notes',supported:true,workspace:'repository',profile:'static'}))
+    : m[1] === 'setup' && ${JSON.stringify(state.startsWith('folder'))} ? {projectProcess:{platform:'win32',windowsCompatControl:true},current:{provider:'deepseek',model:'deepseek-chat'},project:window.__gitEnabled?{path:'D:/Notes',supported:true,workspace:'repository',profile:'static'}:{path:'D:/Notes',supported:true,workspace:'folder',canEnableGit:true},dshVersion:'0.2.2-rc.1',capabilities:{ok:true,missing:[],warnings:[]},generationMinutes:30}
     : m[1] === 'setup' ? {projectProcess:{platform:'win32',windowsCompatControl:true},current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)},warning:${JSON.stringify(error === 'manager-warning' ? 'Yarn PnP 与 TypeScript 7 组合仍有限制，失败检查不会被跳过。' : undefined)}},dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true,...(${JSON.stringify(error)}==='old-apply-host'?{}:{protectedWorktreeApply:true})}
@@ -163,7 +172,7 @@ window.fetch = async (url, init) => {
     : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method==='choose')?.error) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
-  if (m[1] === 'adopt' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method==='adopt')?.error) { const rehearsal=window.__actionPlans.find(plan=>plan.method==='adopt')?.rehearsal; runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:rehearsal?'adopting':'adopted',control:rehearsal?{allowed:true,canCancelAdoption:true,adoptionCancellationRequested:false}:runs[selected].control,adoption:{state:rehearsal?'rehearsing':'adopted',mode:body.mode,message:rehearsal?'正在预演':'已采用'}}; value=runs[selected]; }
+  if (m[1] === 'adopt' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method==='adopt')?.error) { const rehearsal=window.__actionPlans.find(plan=>plan.method==='adopt')?.rehearsal; runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:rehearsal?'adopting':'adopted',control:rehearsal?{allowed:true,canCancelAdoption:true,adoptionCancellationRequested:false}:runs[selected].control,adoption:{state:rehearsal?'rehearsing':'adopted',mode:body.mode,message:rehearsal?'正在预演':'已采用',...(body.mode==='folder'?{exportPath:'D:\\\\Notes\\\\写一个统计单词数的小脚本-0f0f0f0f',writtenPaths:['README.md','count_words.py']}:{})}}; value=runs[selected]; }
   if (m[1] === 'cancelAdoption' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method==='cancelAdoption')?.error) {runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',control:{allowed:true},adoption:{state:'blocked',mode:'worktree',message:'已停止采用预演，候选成果仍保留。尚未写入任何文件。'}};value=runs[selected];}
   if (m[1] === 'retryVerification' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method===m[1])?.error) {
     runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,state:'judging',candidates:runs[selected].candidates.map(c=>c.label===body.label?{...c,...${JSON.stringify({ A, B })}[c.label],usage:c.usage,install:{argv:['npm','ci'],frozen:true,durationMs:1000,outcome:'passed'},error:undefined,canRetryVerification:false,verificationHistory:[...(c.verificationHistory??[]),{recordedAt:Date.now(),durationMs:10000,install:c.install,error:c.error}]}:c)};
@@ -232,7 +241,7 @@ window.__ModuleLoader__ = {load:({factory})=>{
   window.__switchComposer=(sessionId,isBlank)=>{for(const [slot,id]of [['conversation.input.left','mode'],['conversation.input.dock','settings']]){const item=regs[slot];composerRoots[id].render(React.createElement(item.C,{...item.spec.inject(sessionId),session:{blank:isBlank}}))}};
   window.__switchComposer('s1',blank);
   if(${JSON.stringify(state==='inline')}) renderCommand({kind:'success',text:'A|B 比较已开始 · 运行 0a1b2c3d'});
-  else if(${JSON.stringify(!['start','closed','compose','blank','blank-history'].includes(state))}) {
+  else if(${JSON.stringify(!['start','closed','compose','blank','blank-history','folder-start'].includes(state))}) {
     const ready = selector => new Promise((resolve, reject) => {
       const find=()=>document.querySelector(selector);if(find())return resolve(find());
       const timer=setTimeout(()=>{observer.disconnect();reject(new Error('Harness element unavailable: '+selector))},10000);

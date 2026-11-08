@@ -37,6 +37,8 @@ export declare class RunStore {
     artifacts(runId: string): string;
     /** Where `own-root` copies of one run live. */
     copies(runId: string): string;
+    /** The private repository of a run that started from a folder outside Git. */
+    workspace(runId: string): string;
     /**
      * Atomically write `record`, refusing when the stored copy has moved on
      * since `record` was read (another process or a concurrent operation saved

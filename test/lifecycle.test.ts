@@ -43,7 +43,9 @@ describe('comparison lifecycle', () => {
     const entered = latch(), gate = latch()
     const lookup = vi.spyOn(gitModule, 'repoRoot').mockImplementation(async () => { entered.release(); await gate.promise; return 'unused' })
     const comparer = new Comparer({ version: 'test', runner: edits, prepareProjectProcess: prepareFixtureProcess })
-    const start = comparer.start({ repo: 'unused', task: 'start' })
+    // An existing directory: discovery of a missing one fails before the repository lookup.
+    const repo = await tmp('ac-lifecycle-discovery')
+    const start = comparer.start({ repo, task: 'start' })
     void start.catch(() => {})
     try {
       await observed(entered.promise, 'repository discovery')
@@ -53,7 +55,7 @@ describe('comparison lifecycle', () => {
       void disposal.then(() => { settled = true })
       await tick()
       expect(settled).toBe(false)
-      await expect(comparer.start({ repo: 'unused', task: 'late' })).rejects.toBeInstanceOf(BusyError)
+      await expect(comparer.start({ repo, task: 'late' })).rejects.toBeInstanceOf(BusyError)
       expect(lookup).toHaveBeenCalledTimes(1)
       gate.release()
       await expect(start).rejects.toBeInstanceOf(BusyError)

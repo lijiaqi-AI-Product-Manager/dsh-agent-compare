@@ -1,4 +1,4 @@
-import type { Acceptance, AgentRoute, Candidate, CandidateLabel, CandidateStage, CheckResult, RunRecord, Strategy, Usage, Verdict } from './types.ts';
+import type { Acceptance, AgentRoute, Candidate, CandidateLabel, CandidateStage, CheckResult, PreviewInfo, RunRecord, Strategy, Usage, Verdict } from './types.ts';
 /** Shared by every sealing failure that found no change in the copy. */
 export declare const NO_CHANGES = "\u6CA1\u6709\u6539\u52A8\u4EFB\u4F55\u6587\u4EF6";
 export declare function canRetryVerification(r: RunRecord, c: Candidate): boolean;
@@ -10,7 +10,14 @@ export interface PublicCandidate {
     readonly label: CandidateLabel;
     readonly stage: CandidateStage;
     readonly previewUrl?: string;
-    readonly previewKind?: 'build' | 'dev';
+    readonly previewKind?: PreviewInfo['kind'];
+    /** A result without a live page: an answer, or written files. */
+    readonly result?: 'answer' | 'files';
+    readonly previewNote?: string;
+    /** The reply of an `answer` result. It is the result itself, so it is shown before the reveal. */
+    readonly answer?: string;
+    /** Paths a `files` result wrote; they are what the user judges, so they are listed before the reveal. */
+    readonly resultFiles?: string[];
     readonly checks?: Candidate['checks'];
     readonly execution?: Candidate['execution'];
     readonly patchStats?: Candidate['patchStats'];
@@ -42,6 +49,7 @@ export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance'
         dirty: boolean;
         headCommit?: string;
         repoRoot: string;
+        projectPath?: string;
     };
     acceptance: {
         source: Acceptance['source'];
@@ -50,7 +58,7 @@ export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance'
         sha256: string;
         frozenInstall: boolean;
     };
-    adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers'> & {
+    adoption?: Omit<NonNullable<RunRecord['adoption']>, 'rehearsal' | 'preAdoptCommit' | 'expectedTree' | 'headBefore' | 'stagedBefore' | 'fileTransfer' | 'transferReturn' | 'retainedTransfers' | 'exportDigests' | 'retainedExports'> & {
         rehearsed?: boolean;
         rehearsalChecks?: CheckResult[];
         retainedDirectory?: string;

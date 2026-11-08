@@ -75,27 +75,41 @@ const files = (paths: readonly string[] | undefined): string => (paths && paths.
 export function memoryNote(r: RunRecord): string | undefined {
   const m = milestoneOf(r)
   if (m === undefined) return undefined
-  const head = `[AgentCompare run ${r.runId}] Task: ${r.task.slice(0, 400)}\nTarget repository: ${r.baseline.repoRoot}`
+  // A folder comparison ran in a private workspace; the user's folder is what matters to them.
+  const folder = r.target !== undefined
+  const head = `[AgentCompare run ${r.runId}] Task: ${r.task.slice(0, 400)}\n${folder ? `Folder: ${r.target!.folder ?? '(none: the conversation has no directory)'}` : `Target repository: ${r.baseline.repoRoot}`}`
+  const place = folder ? 'folder' : 'project'
   if (m === 'judging') {
     const lines = publicView(r).candidates.map((c) => {
       if (c.stage !== 'ready') return `- ${c.label}: did not produce a result (${c.error?.message.split('\n')[0] ?? c.stage})`
+      if (c.result === 'answer') return `- ${c.label}: replied with an answer and wrote no files`
       const v = c.verdict
-      return `- ${c.label}: ${v?.eligible ? 'passed the shared acceptance' : `did not pass (${v?.reasons.join('; ') ?? 'no verdict'})`}`
+      const kind = c.result === 'files' ? `wrote ${c.resultFiles?.length ?? 'some'} file(s), no live page; ` : ''
+      return `- ${c.label}: ${kind}${v?.eligible ? 'passed the shared acceptance' : `did not pass (${v?.reasons.join('; ') ?? 'no verdict'})`}`
     })
-    return `${head}\nBoth candidates have finished in isolated copies; nothing in the project has changed yet. The user tries both in the A|B card and chooses; do not choose for them or reveal strategies.\n${lines.join('\n')}`
+    return `${head}\nBoth candidates have finished in isolated copies; nothing in the ${place} has changed yet. The user compares both in the A|B card and chooses; do not choose for them or reveal strategies.\n${lines.join('\n')}`
   }
   if (m.startsWith('choice:')) {
     const pick = r.choice!.pick
-    if (pick === 'none') return `${head}\nThe user rejected both versions. The project is unchanged.`
+    if (pick === 'none') return `${head}\nThe user rejected both versions. The ${place} is unchanged.`
     const c = r.candidates.find((x) => x.label === pick)!
     const route = c.actualRoute ?? c.route
     const revised = r.choice!.initialPick !== undefined ? ` after the reveal (blind pick: ${r.choice!.initialPick === 'none' ? 'neither' : r.choice!.initialPick})` : ''
-    return `${head}\nThe user picked ${pick}${revised} (strategy: ${c.strategy.title}${route.model ? `; model: ${route.model}` : ''}). It is not adopted yet; the project is unchanged.`
+    const picked = `The user picked ${pick}${revised} (strategy: ${c.strategy.title}${route.model ? `; model: ${route.model}` : ''}).`
+    // An answer is the whole result: the conversation keeps the picked text itself.
+    if (c.result === 'answer') return `${head}\n${picked} It is an answer with no files; nothing needs to be written. The picked answer:\n${(c.summary ?? '').slice(0, 2000)}${(c.summary ?? '').length > 2000 ? '\n[…]' : ''}`
+    if (folder) return `${head}\n${picked} Its files are not saved yet; the folder is unchanged. Files: ${files(c.touchedFiles)}.`
+    return `${head}\n${picked} It is not adopted yet; the project is unchanged.`
   }
-  if (m === 'abandoned') return `${head}\nThe comparison was ended without adopting anything. The project is unchanged.`
+  if (m === 'abandoned') return `${head}\nThe comparison was ended without adopting anything. The ${place} is unchanged.`
   const a = r.adoption!
   const c = r.candidates.find((x) => x.label === a.label)
   const touched = a.writtenPaths ?? c?.touchedFiles
+  if (a.mode === 'folder') {
+    if (a.state === 'adopted') return `${head}\nCandidate ${a.label}'s files were saved into the new folder ${a.exportPath ?? '(unknown)'}; nothing else in the folder changed. Files: ${files(touched)}.`
+    if (a.state === 'reverted') return `${head}\nThe saved folder ${a.exportPath ?? '(unknown)'} was removed again; nothing else changed.`
+    return undefined
+  }
   switch (a.state) {
     case 'adopted':
     case 'needs-attention':

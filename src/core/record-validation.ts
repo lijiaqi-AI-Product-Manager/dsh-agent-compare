@@ -76,7 +76,7 @@ const check = shape({
   screenshot: optional(absolutePath), mobileScreenshot: optional(absolutePath),
 })
 const preview: Rule = (value, field) => {
-  shape({ url: text(32768, false), port: count(1, 65535), pid: count(1), kind: oneOf('build', 'dev'), cwd: absolutePath, launcher: optional(oneOf('yarn')) })(value, field)
+  shape({ url: text(32768, false), port: count(1, 65535), pid: count(1), kind: oneOf('build', 'dev', 'static', 'script'), cwd: absolutePath, launcher: optional(oneOf('yarn')) })(value, field)
   const raw = value as { url: string; port: number }
   try {
     parsePreviewUrl(raw.url, raw.port)
@@ -102,25 +102,27 @@ const candidate = shape({
   install: optional(install),
   verificationHistory: optional(array(shape({ recordedAt: count(), durationMs: optional(count()), install: optional(install), checks: optional(array(check, 256)), error: optional(shape({ stage, message: text() })) }), 100)),
   execution: optional(shape({ enforcement: oneOf('full', 'partial', 'unknown') })), checks: optional(array(check, 256)), checkedTree: optional(gitObject), drift: optional(paths),
-  preview: optional(preview), screenshot: optional(absolutePath), mobileScreenshot: optional(absolutePath),
+  preview: optional(preview), result: optional(oneOf('answer', 'files')), previewNote: optional(text(4000)), screenshot: optional(absolutePath), mobileScreenshot: optional(absolutePath),
   verdict: optional(shape({ eligible: boolean, reasons: array(text(), 10000), warnings: array(text(), 10000) })),
   timings: dictionary(timing, stage), error: optional(shape({ stage, message: text() })), stopUnconfirmed: optional(boolean),
 })
 const adoption = shape({
-  label, mode: oneOf('worktree', 'branch'), state: oneOf('rehearsing', 'blocked', 'writing', 'reverting', 'adopted', 'needs-attention', 'rolled-back', 'needs-recovery', 'reverted'),
+  label, mode: oneOf('worktree', 'branch', 'folder'), exportPath: optional(absolutePath), exportDigests: optional(dictionary(sha256, repositoryPath)), state: oneOf('rehearsing', 'blocked', 'writing', 'reverting', 'adopted', 'needs-attention', 'rolled-back', 'needs-recovery', 'reverted'),
   startedAt: count(), endedAt: optional(count()), preAdoptCommit: optional(gitObject), expectedTree: optional(gitObject), headBefore: optional(gitObject), stagedBefore: optional(sha256),
   rehearsal: optional(shape({ reused: boolean, tree: gitObject, checks: optional(array(check, 256)), dir: optional(absolutePath), ownerToken: optional(pattern(/^[0-9a-f]{24}$/)), stopUnconfirmed: optional(boolean) })),
   writtenPaths: optional(paths), branch: optional(pathText), message: optional(text()), attention: optional(array(text())),
   fileTransfer: optional(shape({ id: pattern(/^[0-9a-f]{32}$/), token: pattern(/^[0-9a-f]{32}$/) })), transferDirection: optional(oneOf('apply', 'undo')),
   transferReturn: optional(oneOf('adopted', 'recovery')),
   retainedTransfers: optional(array(shape({ id: pattern(/^[0-9a-f]{32}$/), token: pattern(/^[0-9a-f]{32}$/) }))),
+  retainedExports: optional(array(absolutePath)),
 })
 const record = shape({
   coordination: optional(oneOf(RUN_COORDINATION)),
   schema: oneOf(RUN_SCHEMA), producer: shape({ name: oneOf('dsh-agent-compare'), version: text(200, false) }), runId: identifier, createdAt: count(), updatedAt: count(), rev: count(), task: text(1048576, false),
   sessionId: optional(text(500, false)), follows: optional(identifier), origin: optional(shape({ kind: oneOf('command', 'tool', 'panel'), id: optional(text(1000, false)) })),
   conversationContext: optional(shape({ mode: oneOf('recent', 'selected'), messages: count(1, 1000), chars: count(1, 65536), truncated: boolean, sha256: pattern(/^[0-9a-f]{64}$/), text: text(65536, false) })),
-  baseline: shape({ repoRoot: absolutePath, headCommit: optional(gitObject), snapshotCommit: gitObject, snapshotTree: gitObject, dirty: boolean }),
+  target: optional(shape({ kind: oneOf('folder'), folder: optional(absolutePath) })),
+  baseline: shape({ repoRoot: absolutePath, headCommit: optional(gitObject), snapshotCommit: gitObject, snapshotTree: gitObject, dirty: boolean, projectPath: optional(repositoryPath) }),
   acceptance: shape({
     checks: shape({ commands: array(command, 256), browser: optional(browser) }), scripts: dictionary(text()), bound: dictionary(gitObject, repositoryPath), lockfile: optional(repositoryPath),
     runtime: shape({ node: text(200, false), packageManager: text(200, false), platform: text(200, false), yarnModern: optional(boolean), windowsProcessCompat: optional(oneOf('auto', 'off')) }), source: oneOf('defaults', 'repository'), sha256,
