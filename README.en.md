@@ -39,7 +39,7 @@ AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-har
 
 [![Fixed-candidate workflow: interact with both apps, check, choose and adopt](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Interface languages: Simplified Chinese and English, selectable in DSH Desktop and Web.
+Controlled-candidate recording of the public 1.1.0 artifact, with its Chinese interface. Both applications, shared checks, adoption and undo execute for real. The video cuts waiting; the GIF replays interaction at 0.5×. Local paths are hidden.
 
 [Full video (29 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -49,7 +49,7 @@ Interface languages: Simplified Chinese and English, selectable in DSH Desktop a
 
 ## Install
 
-Interface language in 1.0: Simplified Chinese. Both DSH Desktop and Web are supported; the documentation languages are independent of the interface language.
+Interface languages: Simplified Chinese and English, selectable in DSH Desktop and Web.
 
 These commands target a self-managed DSH Web profile. The desktop application's `desktop` profile is app-managed; use its Plugins page.
 

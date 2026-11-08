@@ -37,7 +37,7 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 [![두 앱을 사용하고 확인한 뒤 적용하는 고정 후보 예시](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-인터페이스 언어는 중국어 간체와 영어입니다. DSH Desktop과 Web에서 전환할 수 있습니다.
+공개된 1.1.0 패키지의 고정 후보 시연이며 화면은 중국어입니다. 두 앱 실행, 공통 검사, 적용과 되돌리기는 실제로 수행합니다. 영상은 대기 구간을 편집했고 GIF는 조작 장면을 0.5배속으로 재생합니다. 로컬 경로는 숨겼습니다.
 
 [전체 영상(29초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -45,11 +45,11 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 ## 설치
 
-1.0 화면 언어는 중국어 간체만 지원합니다. DSH Desktop과 Web을 지원하며 문서 언어와 화면 언어는 별개입니다.
+인터페이스 언어는 중국어 간체와 영어입니다. DSH Desktop과 Web에서 전환할 수 있습니다.
 
 아래 명령은 직접 실행하는 DSH Web 프로필용입니다. 데스크톱의 `desktop` 프로필은 앱이 관리하므로 앱의 플러그인 페이지를 사용하세요.
 
-개발 기준은 Node 26.13.0, npm 12.2.1입니다. 공식 최신 DSH 패키지 0.2.1-rc.5로 검증합니다. 이미 사용하는 DSH 프로필을 확인하세요.
+개발 기준은 Node 26.13.0, npm 12.2.2입니다. 공식 최신 DSH 패키지 0.2.1-rc.5로 검증합니다. 이미 사용하는 DSH 프로필을 확인하세요.
 
 npm 패키지를 기본 Web 프로필에 추가합니다. 공개 상태는 위의 npm 배지에서 확인하세요.
 

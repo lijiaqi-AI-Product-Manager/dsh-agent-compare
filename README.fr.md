@@ -37,7 +37,7 @@ AgentCompare est une extension de [DeepSeek Harness](https://github.com/deepseek
 
 [![Exemple à candidats fixes : essayer, vérifier, choisir et appliquer](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-L’interface est disponible en chinois simplifié et en anglais, au choix dans DSH Desktop et Web.
+Démonstration à candidats fixes du paquet public 1.1.0, avec son interface chinoise. Les applications, vérifications communes, adoption et annulation sont réellement exécutées. La vidéo coupe les attentes ; le GIF rejoue les interactions à 0,5×. Les chemins locaux sont masqués.
 
 [Vidéo complète (29 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -45,11 +45,11 @@ L’interface est disponible en chinois simplifié et en anglais, au choix dans 
 
 ## Installation
 
-Dans la version 1.0, l’interface est uniquement en chinois simplifié. DSH Desktop et Web sont pris en charge ; les langues de la documentation sont indépendantes.
+L’interface est disponible en chinois simplifié et en anglais, au choix dans DSH Desktop et Web.
 
 Les commandes ci-dessous concernent un profil DSH Web géré par l’utilisateur. Le profil `desktop` est géré par l’application de bureau ; utilisez sa page de plugins.
 
-La référence de développement est Node 26.13.0 et npm 12.2.1. Les vérifications actuelles utilisent le paquet officiel DSH 0.2.1-rc.5. Repérez le profil DSH que vous utilisez déjà.
+La référence de développement est Node 26.13.0 et npm 12.2.2. Les vérifications actuelles utilisent le paquet officiel DSH 0.2.1-rc.5. Repérez le profil DSH que vous utilisez déjà.
 
 Installez le paquet npm dans le profil Web par défaut. Le badge npm indique son état de publication :
 

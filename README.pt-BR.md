@@ -37,7 +37,7 @@ AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 [![Exemplo com candidatos fixos: experimentar, verificar, escolher e aplicar](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-A interface está disponível em chinês simplificado e inglês, selecionáveis no DSH Desktop e Web.
+Demonstração com candidatos fixos do pacote público 1.1.0, com interface em chinês. Aplicações, verificações comuns, adoção e reversão são executadas de fato. O vídeo corta a espera; o GIF reproduz a interação a 0,5×. Caminhos locais estão ocultos.
 
 [Vídeo completo (29 segundos)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Condições e resultados](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -45,11 +45,11 @@ A interface está disponível em chinês simplificado e inglês, selecionáveis 
 
 ## Instalação
 
-A interface da versão 1.0 está disponível apenas em chinês simplificado. Compatível com DSH Desktop e Web; os idiomas da documentação são independentes.
+A interface está disponível em chinês simplificado e inglês, selecionáveis no DSH Desktop e Web.
 
 Os comandos abaixo são para um perfil DSH Web gerenciado pelo usuário. O perfil `desktop` é gerenciado pelo aplicativo de desktop; use a página de plugins do aplicativo.
 
-A referência de desenvolvimento é Node 26.13.0 com npm 12.2.1. As verificações atuais usam o pacote oficial DSH 0.2.1-rc.5. Identifique o perfil que você já utiliza no DSH.
+A referência de desenvolvimento é Node 26.13.0 com npm 12.2.2. As verificações atuais usam o pacote oficial DSH 0.2.1-rc.5. Identifique o perfil que você já utiliza no DSH.
 
 Instale o pacote npm no perfil Web padrão. O selo do npm indica o estado de publicação:
 

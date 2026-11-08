@@ -37,7 +37,7 @@ AgentCompare ist ein Plugin für [DeepSeek Harness](https://github.com/deepseek-
 
 [![Beispiel mit festen Kandidaten: ausprobieren, prüfen, auswählen und übernehmen](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Oberflächensprachen: vereinfachtes Chinesisch und Englisch, in DSH Desktop und Web umschaltbar.
+Aufzeichnung mit festen Kandidaten aus dem veröffentlichten Paket 1.1.0 und chinesischer Oberfläche. Anwendungen, gemeinsame Prüfungen, Übernahme und Rücknahme werden tatsächlich ausgeführt. Das Video lässt Wartezeiten aus; das GIF zeigt die Bedienung mit 0,5-facher Geschwindigkeit. Lokale Pfade sind ausgeblendet.
 
 [Vollständiges Video (29 Sekunden)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Bedingungen und Ergebnisse](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -45,11 +45,11 @@ Oberflächensprachen: vereinfachtes Chinesisch und Englisch, in DSH Desktop und 
 
 ## Installation
 
-Die Oberfläche von 1.0 ist nur auf vereinfachtem Chinesisch verfügbar. DSH Desktop und Web werden unterstützt; die Dokumentationssprachen sind davon unabhängig.
+Oberflächensprachen: vereinfachtes Chinesisch und Englisch, in DSH Desktop und Web umschaltbar.
 
 Die folgenden Befehle gelten für ein selbst verwaltetes DSH-Web-Profil. Das Profil `desktop` wird von der Desktop-App verwaltet; verwenden Sie deren Plugin-Seite.
 
-Entwicklungsgrundlage sind Node 26.13.0 und npm 12.2.1. Die aktuellen Prüfungen verwenden das offizielle DSH-Paket 0.2.1-rc.5. Ermittle den Namen deines vorhandenen DSH-Profils.
+Entwicklungsgrundlage sind Node 26.13.0 und npm 12.2.2. Die aktuellen Prüfungen verwenden das offizielle DSH-Paket 0.2.1-rc.5. Ermittle den Namen deines vorhandenen DSH-Profils.
 
 Installiere das npm-Paket im voreingestellten Web-Profil. Das npm-Badge zeigt den Veröffentlichungsstatus:
 
