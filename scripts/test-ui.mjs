@@ -909,6 +909,7 @@ try {
 
   await open('folder')
   const answer = page.getByRole('region', { name: '候选 A 的回答' })
+  check((await page.locator('.ac-compare-tools').innerText()).includes('按内容比较') && await page.getByLabel('预览尺寸', { exact: true }).count() === 0, 'content results must not show unavailable-preview hints or page-only viewport controls')
   check((await answer.innerText()).includes('wc -w notes.txt'), 'an answer must be readable before the pick')
   check(await answer.locator('table th').count() === 2 && await answer.locator('pre code').innerText() === 'wc -w notes.txt' && await answer.locator('strong').innerText() === '单词总数', 'an answer must render its Markdown table, code block and emphasis')
   check(!/\*\*|\|:?---|```/.test(await answer.innerText()), 'rendered answers must not show raw Markdown markers')

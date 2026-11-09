@@ -359,6 +359,7 @@ export const messages: Readonly<Record<string, string>> = {
   "部分候选可交互 · 查看各候选状态": "Some candidates are interactive · see each candidate's status",
   "验收截图 · 静态记录，不可交互": "Saved acceptance screenshots · static, not interactive",
   "预览尚不可用 · 查看各候选状态": "Previews are not available yet · see each candidate's status",
+  "按内容比较 · 没有实时页面": "Compare by content · No live page",
   "相同视口 · 按可用宽度缩放": "Matching viewports · scaled to available width",
   "预览环境与限制": "Preview environment and limits",
   "候选使用独立本地地址，避免同名 Cookie 相互影响。": "Candidates use distinct local addresses to avoid cookie-name collisions.",
