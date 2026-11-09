@@ -19,7 +19,7 @@ import { runIdFromToolResult } from './tool-result.js'
 import { clientCapabilities } from './capabilities.js'
 import { WindowsProcessControl, WindowsProcessEvidence } from './windows-compat.js'
 import { ConversationContextControl, type ContextMode } from './conversation-context.js'
-import { ProjectNotes, ResultView } from './results.js'
+import { CopyButton, ProjectNotes, ResultView } from './results.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
 interface SlotsLike {
@@ -137,7 +137,7 @@ async function executeComparison(sessionId: string, task: string, example = fals
   if (!support.canExecute || (!example && !support.ok)) return { kind: 'error', text: clientSupportMessage(sessionId) ?? t("会话命令执行接口不可用，请检查 DSH 版本。") }
   const setup = await call<Setup>('setup', { sessionId })
   if (setup.capabilities?.ok === false) return { kind: 'error', text: t("当前 DSH ") + (setup.dshVersion ?? t("（版本未知）")) + t(" 缺少比较所需接口：") + setup.capabilities.missing.join('、') + t("。请升级或回退至已验证的版本；草稿保留。") }
-  if (!example && setup.project?.supported === false) return { kind: 'error', text: t("当前项目不受支持：") + (setup.project.reason ?? t("请使用仓库根目录的 Vite 项目。")) + t(" 草稿保留，也可以试跑内置示例。") }
+  if (!example && setup.project?.supported === false) return { kind: 'error', text: t("当前项目不受支持：") + (setup.project.reason ?? t("这个项目暂时无法比较。")) + t(" 草稿保留，也可以试跑内置示例。") }
   const remote = clientCtx?.remote?.commands
   if (!remote) throw new Error(t("会话命令执行器不可用，请重新打开对话"))
   const contextIds = !example && (preferences.contextMode ?? 'recent') === 'selected' ? { contextIds: mode.contextIds } : {}
@@ -273,6 +273,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         <div className="ac-row">
           <span className="ac-label">{c.label}</span>
           <StagePill c={c} />
+          {picked && <span className="ac-pill brand ac-picked">{t("你的选择")}</span>}
           {c.previewKind === 'dev' && live && run.acceptance.checks.includes('build') && <span className="ac-pill warn" title={t("构建没有通过，这是开发模式，只供观察")}>{t("开发模式")}</span>}
           {c.stage === 'ready' && c.result === 'answer' && <span className="ac-pill">{t("回答")}</span>}
           {c.stage === 'ready' && c.result === 'files' && <span className="ac-pill">{t("文件")}</span>}
@@ -314,7 +315,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         </div>
       )}
       <div className="ac-card-evidence">
-        <details className="ac-details ac-evidence"><summary>{revealed ? t("检查依据与用量") : t("检查依据 · 盲选中")}{c.verdict ? c.verdict.eligible ? t(" · 已通过配置检查") : t(" · 存在采用阻碍") : ''}</summary><Verdict c={c} />
+        <details className="ac-details ac-evidence"><summary>{revealed ? t("检查依据与用量") : t("检查依据 · 盲选中")}{c.verdict ? c.verdict.eligible ? c.result !== undefined && !c.checks?.length ? t(" · 没有可运行的检查") : t(" · 已通过配置检查") : t(" · 存在采用阻碍") : ''}</summary><Verdict c={c} />
         {!revealed && <div className="ac-meta">{t("模型、策略、用量、改动规模和详细日志在选择后显示。")}</div>}
         {c.execution && <div className="ac-meta">{t("项目命令：")}{c.execution.enforcement === 'full' ? t("宿主报告完整文件写入约束") : c.execution.enforcement === 'partial' ? t("宿主报告部分文件写入约束") : t("约束完整性未知")}{t("。不包含文件读取与网络隔离。")}</div>}
         {c.install?.runtime && <div className="ac-meta">{t("验收宿主 Node ")}{c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? t("版本未记录")}</div>}
@@ -392,7 +393,7 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {setup?.capabilities?.ok === false && <div className="ac-feedback" role="alert">{t("当前 DSH ")}{setup.dshVersion ?? t("（版本未知）")}{t(" 缺少比较所需接口：")}{setup.capabilities.missing.join('、')}{t("。请升级或回退至已验证版本；比较记录和草稿保留。")}</div>}
     {setup?.capabilities?.warnings.includes('sessionController.resolveAgent') && <div className="ac-feedback" role="status">{t("当前 DSH 缺少会话恢复接口：sessionController.resolveAgent。已打开的对话仍可使用；历史对话请先在 DSH 中重新打开。")}</div>}
     {/* One text run: inline pieces must not become separate flex columns. */}
-    {setup?.project?.supported === false && <div className="ac-feedback" role="status"><span>{t("当前项目不受支持：")}<Diagnostic text={setup.project.reason ?? t("请使用仓库根目录的 Vite 项目。")} />{t(" 草稿保留，可试跑内置示例。")}</span></div>}
+    {setup?.project?.supported === false && <div className="ac-feedback" role="status"><span>{t("当前项目不受支持：")}<Diagnostic text={setup.project.reason ?? t("这个项目暂时无法比较。")} />{t(" 草稿保留，可试跑内置示例。")}</span></div>}
     {setup?.project?.supported && setup.project.warning && <div className="ac-feedback" role="status"><Diagnostic text={setup.project.warning} /></div>}
     {setup?.project?.supported && !mode.collapsed && <ProjectNotes project={setup.project} sessionId={sessionId} call={call} disabled={busy} onChanged={() => setSetupRetry(value => value + 1)} />}
     {!mode.collapsed && <>
@@ -407,8 +408,7 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
       onMode={contextMode => saveMode(sessionId, { ...p, contextMode })} onTurns={contextTurns => saveMode(sessionId, { ...p, contextTurns })}
       onSelected={ids => { mode.contextIds = ids; publishMode(mode) }} />
     {setup?.projectProcess?.platform === 'win32' && setup.projectProcess.windowsCompatControl && <WindowsProcessControl mode={p.windowsProcessCompat} disabled={busy || !mode.loaded} onChange={windowsProcessCompat => saveMode(sessionId, { ...p, windowsProcessCompat })} />}
-    <div className="ac-settings-foot">{t("到时验收已写的改动 · 两版分别消耗用量 · 示例也使用真实模型，生成耗时随模型与环境变化 · ")}{mode.saving ? t("正在保存设置…") : t("设置已保存在此对话")}</div></>}
-    {!mode.collapsed && (p.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}
+    <div className="ac-settings-foot"><span>{t("到时验收已写的改动 · 两版分别消耗用量 · 示例也使用真实模型，生成耗时随模型与环境变化 · ")}{mode.saving ? t("正在保存设置…") : t("设置已保存在此对话")}</span>{(p.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}</div></>}
     {setupError && !mode.collapsed && <div className="ac-feedback" role="alert"><span>{t("无法读取当前模型与项目：")}<Diagnostic text={setupError} /></span><button className="ac-text-btn" onClick={() => { setSetupError(undefined); setSetupRetry(value => value + 1) }}>{t("重新读取模型与项目")}</button></div>}
     {(error || mode.error) && <div className="ac-feedback" role="alert"><Diagnostic text={error ?? mode.error} /><button className="ac-text-btn" onClick={() => { void loadMode(sessionId); setError(undefined) }}>{t("重新读取设置")}</button></div>}
   </section>
@@ -526,7 +526,7 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: {
       const folder = run.target !== undefined
       const answer = picked?.result === 'answer'
       const text = pick === 'none' || picked === undefined ? alternatives.length ? t("这次两版都没选。揭晓后仍可改选一版，或用同一需求再比较一次。") : t("这次两版都没选。可以换个描述再来一次。")
-        : answer ? t("你选的是这一版的回答，它已经写入主对话；没有需要保存的文件。")
+        : answer ? <><strong>{t("你选了 {0} 的回答。", { 0: pick })}</strong>{t("接着在主对话里提问就会用上它，没有需要保存的文件。")}</>
         : folder ? run.target?.folder ? t("选中的文件还没有保存。保存时会在 {0} 里新建一个文件夹，不改动原有文件。", { 0: run.target.folder }) : t("这条对话没有目录；选中的文件可以在卡片里查看。")
         : eligible ? t("先核对目标与改动，必要时在副本中预演；确认后才写入。") : alternativeEligible ? t("这一版没有通过共同验收，不能写入工作区。可以改选通过验收的另一版，或另存为分支查看。") : t("这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。")
       return (
@@ -534,7 +534,9 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: {
           <span className="ac-bar-text">{text}</span>
           {alternatives.map(c => <button key={c.label} className={`ac-btn${!eligible && c.verdict?.eligible ? ' primary' : ''}`} disabled={busy} onClick={() => act('choose', { pick: c.label })} title={t("揭晓后改选；最初的盲选结果仍保留在记录中。")}>{t("改选 {0}", { 0: c.label })}</button>)}
           {(pick === 'none' || picked === undefined || (!eligible && !folder && !answer)) && <RerunControl run={run} sessionId={sessionId} busy={busy} act={act} />}
-          <button className="ac-btn" disabled={busy} onClick={() => act('reviewCopyCleanup')}>{t("整理工作副本")}</button>
+          {!answer && <button className="ac-btn" disabled={busy} onClick={() => act('reviewCopyCleanup')}>{t("整理工作副本")}</button>}
+          {answer && picked?.answer && <CopyButton className="ac-btn" text={picked.answer} label={t("复制回答")} title={t("复制选中回答的原文")} />}
+          {answer && onContinue && <button className="ac-btn primary" disabled={busy} onClick={onContinue} title={t("退出比较模式，在原输入框中继续。比较记录仍然保留。")}>{t("继续主对话")}</button>}
           {picked !== undefined && !folder && !answer && <button className="ac-btn" disabled={busy} onClick={() => act('adopt', { mode: 'branch' })} title={t("只新建分支（含一个提交），不切换、不改当前文件")}>{t("另存为分支")}</button>}
           {picked !== undefined && !folder && !answer && eligible && <button className="ac-btn primary" disabled={busy} onClick={() => act('reviewAdoption')}>{t("审查并采用 ")}{pick}</button>}
           {picked !== undefined && folder && !answer && run.target?.folder && <button className="ac-btn primary" disabled={busy} onClick={() => act('adopt', { mode: 'folder' })} title={t("新建一个文件夹保存选中的文件；不会覆盖或改动已有文件，之后可以撤销")}>{t("保存到当前目录")}</button>}
@@ -557,9 +559,10 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: {
       return (
         <div className="ac-bar" {...(busy && pending ? { role: 'status', 'aria-label': t("采用操作状态") } : {})}>
           <span className="ac-bar-text">{busy && pending ? <><span className="ac-spin" style={{ display: 'inline-block', marginRight: 8 }} />{pending === 'adopt' ? t("改动已写入，正在整理记录、预览与副本；完成后可撤销或继续。") : pending === 'revert' ? t("正在撤销采用并核对项目，请稍候…") : t("正在处理这次比较，请稍候…")}</>
-            : run.adoption?.mode === 'folder' ? <>{t("已保存到新文件夹。")}{' '}<span className="ac-project-path">{run.adoption.exportPath}</span> <StarNudge /></>
+            : run.adoption?.mode === 'folder' ? <><strong>{t("已保存到新文件夹")}</strong><code className="ac-path-chip" title={run.adoption.exportPath}>{run.adoption.exportPath}</code><StarNudge /></>
             : <>{t("采用记录已保存。")}{' '}<span className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的仓库")}</span> <StarNudge /></>}</span>
           {run.adoption?.mode === 'worktree' && <button className="ac-btn" disabled={busy} onClick={() => act('revert')}>{t("撤销采用")}</button>}
+          {run.adoption?.mode === 'folder' && run.adoption.exportPath && <CopyButton className="ac-btn" text={run.adoption.exportPath} label={t("复制路径")} title={t("复制保存的文件夹路径")} />}
           {run.adoption?.mode === 'folder' && <button className="ac-btn" disabled={busy} onClick={() => act('revert')} title={t("只删除保存后没有改过的文件；改过的文件会保留")}>{t("撤销保存")}</button>}
           {onContinue && <button className="ac-btn primary" disabled={busy} onClick={onContinue} title={t("退出比较模式，在原输入框中继续。比较记录仍然保留。")}>{t("继续主对话")}</button>}
           {onDone && <button className="ac-btn" disabled={busy} onClick={onDone}>{t("完成")}</button>}

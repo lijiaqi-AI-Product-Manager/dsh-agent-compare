@@ -25,6 +25,14 @@
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一需求，独立完成两版回答、文件或网页。有可运行页面时实际预览；没有可运行项目时按内容比较，不宣称通过功能测试。先体验再选，选后揭晓模型或策略；采用前核对当前项目与候选改动，确认后写回。
 
+| 你想要 | 在哪里用 | 卡片里会看到 |
+|---|---|---|
+| 网页或界面改版 | Git 仓库里的 Vite、Node 或静态网页项目，也包括子目录 | 两个能直接点击、输入的实时页面，以及共同验收 |
+| 脚本、文档或其它文件 | 任何目录，包括 DSH 默认工作区 | 两版写出的文件，盲选前就能逐个打开 |
+| 一个回答 | 任何对话 | 两份排好版的回答并排，可一键复制；选中的那份进入主对话记忆 |
+
+**30 秒上手：** 桌面版在应用的「插件 → 添加插件」里安装 `dsh-agent-compare`（Web 版见[安装](#install)）→ 点输入框左下角的 **A|B** → 像平常一样写需求并发送。
+
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
 <p align="center">
@@ -291,7 +299,8 @@ npm run test:runtime
 
 ## 已知限制
 
-- 只支持 Vite 项目；必须是至少有一次提交的 Git 仓库。
+- 回答和文件按内容比较。实时预览和页面验收需要可运行的网页项目；其它语言的测试只在基线的 package 脚本里运行时才会执行。
+- 非 Git 目录里，两版从空白目录开始，不会读入已有文件。要修改已有文件，请先在设置条里「在此目录启用 Git」；用户主目录、磁盘根目录、系统目录，以及超过 5,000 个文件或 300 MB 的目录不能启用。
 - npm 12 的安装脚本策略可能拦截依赖脚本；需要原生安装步骤的项目须先按项目自身策略允许相关脚本。
 - 单次比较的结果不代表模型或策略的整体优劣。
 
