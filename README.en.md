@@ -19,21 +19,16 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.3.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
+> **2.0.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare 2–4 versions of answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
 
-**On main, coming with 1.4.0:**
-- Compare **2, 3 or 4 versions** at once.
-- Give each version a **style**:
-  - approach: Conservative, Bold;
-  - look: Minimal, Polished, Vibrant;
-  - priority: Friendly, Rigorous, Lean;
-  - or a one-line custom style.
-- Compare **blind** (styles revealed after the pick) or **open** (styles shown from the start).
-- With three or four versions, **set versions aside** one at a time so the rest move up side by side.
-- Press 1–4 in the card to focus a version.
-- The settings show the styles you pick most.
+**New in 2.0.0:**
+- **2–4 versions, with styles.** Eight presets or a one-line custom style; different models can share one style.
+- **Blind or open comparison.** Try each version, set it aside and restore it; use 1–4 to focus and 0 to show all.
+- **Answers, files and live pages.** Read formatted Markdown and copy answers, code, file contents or saved paths. Your pick is clearly marked.
+- **Stay in the conversation.** Comparisons, picks, adoption and undo enter the current conversation's memory so you can keep working.
+- **Desktop + Web, Chinese + English.** Reuse configured models; review changes before confirming adoption, with undo and recovery available.
 
-Since 1.3.0, any folder works, including repository subfolders, non-Vite Node projects and static sites, and answers and files can be compared too. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#unreleased) for scope and limits.
+Since 1.3.0, any folder works, including repository subfolders, non-Vite Node projects and static sites, and answers and files can be compared too. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#200) for scope and limits.
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin that completes 2–4 versions of a task as answers, files or web pages. Runnable pages get live previews. Content-only comparison does not claim arbitrary-language execution or functional test coverage. You try every version before choosing; in a blind comparison, the model and style are revealed only after the pick. Before adoption, you review the combination with your current project.
 
@@ -62,7 +57,7 @@ AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-har
 
 [![Fixed-candidate workflow: four live pomodoro pages, two set aside, C picked and the styles revealed](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-A controlled-candidate recording in a real DSH host, from the 1.4.0 release-candidate source with the Chinese interface:
+A controlled-candidate recording in a real DSH host, from the 2.0.0 release-candidate source with the Chinese interface:
 - Four versions each build a pomodoro page in a plain folder, and all four live pages can be used.
 - Two are set aside, and the remaining two move up side by side.
 - The pick reveals every style.
@@ -85,7 +80,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm package into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.3.0
+dsh plugin --profile web add dsh-agent-compare@2.0.0
 ```
 
 For another self-managed profile, replace `web` with its actual name.
@@ -103,7 +98,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.3.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:

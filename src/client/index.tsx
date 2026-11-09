@@ -862,11 +862,10 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const restore = (label: Label): void => setExcluded(previous => { const next = new Set(previous); next.delete(label); return next })
   const keyboard = (event: React.KeyboardEvent): void => {
     // Digits focus a version, 0 shows them all; typing in a field is never taken over.
-    if (event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented) return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented || event.nativeEvent.isComposing || !/^[0-4]$/.test(event.key)) return
     const target = event.target as HTMLElement
-    if (target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+    if (target.isContentEditable || target.closest('input, textarea, select, [role="textbox"]')) return
     const index = Number(event.key)
-    if (!Number.isInteger(index) || event.key.length !== 1) return
     if (index === 0) { setLayout('side'); event.preventDefault(); return }
     const candidate = run.candidates[index - 1]
     if (candidate && !excluded.has(candidate.label)) { setLayout(candidate.label); event.preventDefault() }
@@ -1040,7 +1039,7 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
       <li><b>{t("选择并审查")}</b><p>{t("选择后揭晓模型和策略。查看代码改动、程序检查与未验证的部分；一次偏好选择不代表模型的整体排名。")}</p></li>
       <li><b>{t("采用结果")}</b><p>{t("采用前检查目标是否变化；必要时在临时副本中预演。工作区采用不自动提交；另存分支会明确创建一个提交。")}</p></li>
     </ol>
-    <div className="ac-case"><div><b>{t("试跑真实的示例商店")}</b><span>{t("新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前模型与时长设置，两版分别消耗用量；任务、结果和选择保留在主对话。")}</span><label className="ac-budget">{t("示例范围 ")}<select aria-label={t("内置示例范围")} disabled={busy || !mode.loaded} value={mode.preferences.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...mode.preferences, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">{t("基础 · 搜索与清空")}</option><option value="full">{t("完整 · 组合筛选与手机适配")}</option></select></label></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? t("正在创建…") : t("试跑内置示例")}</button></div>
+    <div className="ac-case"><div><b>{t("试跑真实的示例商店")}</b><span>{t("新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前比较与时长设置，各版分别消耗用量；任务、结果和选择保留在主对话。")}</span><label className="ac-budget">{t("示例范围 ")}<select aria-label={t("内置示例范围")} disabled={busy || !mode.loaded} value={mode.preferences.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...mode.preferences, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">{t("基础 · 搜索与清空")}</option><option value="full">{t("完整 · 组合筛选与手机适配")}</option></select></label></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? t("正在创建…") : t("试跑内置示例")}</button></div>
     {error && <div className="ac-feedback" role="alert"><Diagnostic text={error} /></div>}
     {(mode.preferences.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}
     <button className="ac-btn" onClick={() => { mode.collapsed = false; if (enterMode(sessionId)) saveMode(sessionId, { ...modeFor(sessionId).preferences, enabled: true }); returnToComposer(sessionId) }}>{t("回到输入框，开启 A|B")}</button><div className="ac-note">{t("支持范围：仓库根目录中的本地 Vite 前端。页面检查通过只代表配置的步骤通过，仍需实际体验需求和边界情况。")}</div>

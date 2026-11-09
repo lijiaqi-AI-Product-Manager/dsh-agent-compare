@@ -19,9 +19,14 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.3.0 · 정식 버전.** DSH Desktop과 Web, 중국어·영어 인터페이스를 지원합니다. 어느 폴더에서든 기본 대화 안에서 답변, 파일 또는 웹 페이지를 비교하고 설정된 모델을 재사용합니다.
+> **2.0.0 · 정식 버전.** DSH Desktop과 Web, 중국어·영어 인터페이스를 지원합니다. 어느 폴더에서든 기본 대화 안에서 답변, 파일 또는 웹 페이지를 비교하고 설정된 모델을 재사용합니다.
 
-**main 브랜치에 포함, 1.4.0에서 공개 예정:** 한 번에 **2~4개 버전**을 비교합니다. 버전마다 **스타일**을 고를 수 있습니다(변경 폭: 안정·대담 / 분위기: 미니멀·세련·활기 / 우선순위: 친절·엄밀·가벼움, 또는 한 줄 직접 입력). **블라인드**(선택 후 공개)와 **공개 비교**(처음부터 표시) 중에서 선택합니다. 3~4개 버전일 때는 제외할 버전을 **빼두고** 나머지를 나란히 비교할 수 있으며, 카드에서 1~4 키로 한 버전에 집중할 수 있습니다.
+**2.0.0의 새로운 기능:** 한 번에 **2~4개 버전**을 비교합니다. 버전마다 **스타일**을 고를 수 있습니다(변경 폭: 안정·대담 / 분위기: 미니멀·세련·활기 / 우선순위: 친절·엄밀·가벼움, 또는 한 줄 직접 입력). **블라인드**(선택 후 공개)와 **공개 비교**(처음부터 표시) 중에서 선택합니다. 3~4개 버전일 때는 제외할 버전을 **빼두고** 나머지를 나란히 비교할 수 있으며, 카드에서 1~4 키로 한 버전에 집중할 수 있습니다.
+- **스타일별 2–4개 버전.** 8개 프리셋이나 한 줄 사용자 지정 스타일을 선택하고, 서로 다른 모델에 같은 스타일을 적용할 수 있습니다.
+- **블라인드 또는 공개 비교.** 각 버전을 사용해 보고 제외·복원합니다. 1–4로 집중 보기, 0으로 전체 보기가 가능합니다.
+- **답변·파일·실행 페이지.** Markdown을 읽고 답변, 코드, 파일 내용, 저장 경로를 복사합니다. 선택한 버전이 명확히 표시됩니다.
+- **주 대화에서 계속.** 비교, 선택, 적용과 실행 취소가 현재 대화 기억에 남아 이어서 수정할 수 있습니다.
+- **Desktop + Web, 중국어·영어 UI.** 설정된 모델을 재사용하고 변경을 검토한 뒤 적용합니다. 실행 취소와 복구도 지원합니다.
 
 AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH) 플러그인입니다. 하나의 작업으로 독립된 2~4개 구현을 만들고 의존성 설치, 빌드, 공통 검사를 실행합니다. 실제 페이지를 사용해 본 뒤 하나를 고르거나 모두 선택하지 않을 수 있습니다. 블라인드 비교에서는 선택한 뒤에 모델과 스타일이 공개됩니다. 적용 전에는 현재 프로젝트와 합친 상태를 검증합니다.
 
@@ -39,7 +44,7 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 [![4개의 뽀모도로 페이지를 동시에 실행하고 2개를 뺀 뒤 C를 골라 스타일을 공개하는 고정 후보 예시](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-실제 DSH 호스트에서 녹화한 고정 후보 시연입니다(1.4.0 릴리스 후보 소스, 화면은 중국어). 일반 폴더에서 4개 버전이 각각 뽀모도로 페이지를 만들고, 4개의 라이브 페이지를 바로 사용할 수 있습니다. 2개를 빼고 나머지를 나란히 비교한 뒤, 선택하면 각 스타일이 공개되고, 새 폴더에 저장한 다음 대화를 이어 갑니다. 대기 구간만 편집했고 나머지는 원래 속도입니다. 로컬 경로는 숨겼습니다.
+실제 DSH 호스트에서 녹화한 고정 후보 시연입니다(2.0.0 릴리스 후보 소스, 화면은 중국어). 일반 폴더에서 4개 버전이 각각 뽀모도로 페이지를 만들고, 4개의 라이브 페이지를 바로 사용할 수 있습니다. 2개를 빼고 나머지를 나란히 비교한 뒤, 선택하면 각 스타일이 공개되고, 새 폴더에 저장한 다음 대화를 이어 갑니다. 대기 구간만 편집했고 나머지는 원래 속도입니다. 로컬 경로는 숨겼습니다.
 
 [전체 영상(37초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -56,7 +61,7 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 npm 패키지를 기본 Web 프로필에 추가합니다. 공개 상태는 위의 npm 배지에서 확인하세요.
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.3.0
+dsh plugin --profile web add dsh-agent-compare@2.0.0
 ```
 
 다른 자체 관리 프로필을 쓰면 `web`을 실제 이름으로 바꾸세요.
@@ -73,7 +78,7 @@ npm pack
 `<your-profile>`을 실제 프로필 이름으로 바꿉니다.
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.3.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
 ```
 
 DSH를 다시 시작합니다. 업데이트 전에는 같은 기록을 사용하는 이전 인스턴스의 작업을 끝내고 닫으세요. 서로 다른 플러그인 버전의 동시 변경은 지원하지 않습니다.

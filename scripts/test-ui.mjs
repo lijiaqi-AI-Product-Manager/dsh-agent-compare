@@ -921,6 +921,25 @@ try {
   await answer.locator('.ac-md-code').getByRole('button', { name: '复制', exact: true }).click()
   await answer.locator('.ac-md-code').getByRole('button', { name: '已复制', exact: true }).waitFor()
   check(await page.evaluate(() => window.__copied) === 'wc -w notes.txt', 'copying a code block must copy only its code')
+  for (const outcome of ['copied', 'refused', 'threw']) {
+    await page.evaluate(outcome => {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new DOMException('Denied', 'NotAllowedError') } } })
+      window.__originalExecCommand ??= document.execCommand
+      document.execCommand = command => {
+        if (command !== 'copy') throw new Error('Unexpected clipboard command')
+        if (outcome === 'threw') throw new Error('Clipboard unavailable')
+        window.__copied = document.querySelector('body > textarea[readonly]')?.value
+        return outcome === 'copied'
+      }
+    }, outcome)
+    const copy = answer.locator('.ac-copy').first()
+    await copy.focus(); await page.keyboard.press('Enter')
+    await page.waitForFunction(() => !document.querySelector('body > textarea[readonly]'))
+    check(await copy.evaluate(el => document.activeElement === el), `fallback copy must preserve keyboard focus when ${outcome}`)
+    check(await page.locator('body > textarea[readonly]').count() === 0, `fallback copy must remove its temporary field when ${outcome}`)
+    if (outcome === 'copied') check((await page.evaluate(() => window.__copied)).startsWith('## 用一行命令统计'), 'fallback copy must preserve the original answer too')
+  }
+  await page.evaluate(() => { document.execCommand = window.__originalExecCommand })
   const cardHeights = await page.locator('.ac-grid > .ac-card').evaluateAll(cards => cards.map(card => Math.round(card.getBoundingClientRect().height)))
   check(cardHeights.length === 2 && Math.abs(cardHeights[0] - cardHeights[1]) <= 1, `result cards side by side must share one height: ${cardHeights}`)
   const written = page.getByRole('region', { name: '候选 B 写出的文件' })
@@ -1017,6 +1036,22 @@ try {
   check(await four.getByRole('button', { name: '专注 C', exact: true }).getAttribute('aria-pressed') === 'true', 'pressing 3 in the card focuses version C')
   await page.keyboard.press('0')
   check(await four.getByRole('button', { name: '全部并排', exact: true }).getAttribute('aria-pressed') === 'true', 'pressing 0 shows every version again')
+  const focusC = four.getByRole('button', { name: '专注 C', exact: true })
+  await focusC.click()
+  const editable = await four.getByRole('region', { name: '候选 C', exact: true }).evaluateHandle(card => {
+    const field = document.createElement('div'); field.contentEditable = 'plaintext-only'; field.textContent = '123'; card.appendChild(field); field.focus(); return field
+  })
+  await page.keyboard.press('0')
+  check(await focusC.getAttribute('aria-pressed') === 'true', 'typing in a plaintext-only editable area must not switch layouts')
+  await editable.evaluate(el => el.remove()); await editable.dispose()
+  const excludeC = four.getByRole('region', { name: '候选 C', exact: true }).getByRole('button', { name: '排除', exact: true })
+  await excludeC.focus()
+  await excludeC.evaluate(el => el.dispatchEvent(new KeyboardEvent('keydown', { key: '0', isComposing: true, bubbles: true })))
+  check(await focusC.getAttribute('aria-pressed') === 'true', 'composition keys must not switch comparison layouts')
+  await page.keyboard.press('Space')
+  await four.getByRole('button', { name: '恢复 C', exact: true }).waitFor()
+  check(await four.getByRole('button', { name: '选 C', exact: true }).count() === 0, 'Space must activate the focused button rather than become digit 0')
+  await four.getByRole('button', { name: '恢复 C', exact: true }).click()
   await four.getByRole('button', { name: '选 C', exact: true }).click()
   await four.getByRole('region', { name: '候选 C', exact: true }).locator('.ac-picked').waitFor()
   check((await four.getByRole('region', { name: '候选 C', exact: true }).innerText()).includes('极简 · Minimal'), 'the pick reveals the style of the picked version')

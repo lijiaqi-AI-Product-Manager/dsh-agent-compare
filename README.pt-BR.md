@@ -19,9 +19,14 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.3.0 · Versão estável.** DSH Desktop e Web, com interface em chinês e inglês. Compare respostas, arquivos ou páginas web na conversa principal a partir de qualquer pasta, reutilizando os modelos configurados.
+> **2.0.0 · Versão estável.** DSH Desktop e Web, com interface em chinês e inglês. Compare respostas, arquivos ou páginas web na conversa principal a partir de qualquer pasta, reutilizando os modelos configurados.
 
-**No main, chega com a 1.4.0:** compare **2, 3 ou 4 versões** de uma vez. Cada versão pode ter um **estilo** (alcance: conservador, ousado; aparência: minimalista, refinado, vibrante; prioridade: amigável, rigoroso, leve; ou uma linha própria). Compare **às cegas** (estilos revelados na escolha) ou **abertamente** (estilos visíveis desde o início). Com três ou quatro versões, **deixe de lado** as que descartou para comparar o restante lado a lado; no cartão, as teclas 1–4 focam uma versão.
+**Novidades da versão 2.0.0:** compare **2, 3 ou 4 versões** de uma vez. Cada versão pode ter um **estilo** (alcance: conservador, ousado; aparência: minimalista, refinado, vibrante; prioridade: amigável, rigoroso, leve; ou uma linha própria). Compare **às cegas** (estilos revelados na escolha) ou **abertamente** (estilos visíveis desde o início). Com três ou quatro versões, **deixe de lado** as que descartou para comparar o restante lado a lado; no cartão, as teclas 1–4 focam uma versão.
+- **2–4 versões com estilos.** Oito estilos prontos ou uma descrição em uma linha; modelos diferentes podem usar o mesmo estilo.
+- **Comparação cega ou aberta.** Experimente, separe e restaure versões; 1–4 foca uma versão e 0 mostra todas.
+- **Respostas, arquivos e páginas reais.** Leia Markdown e copie respostas, código, conteúdos ou caminhos. Sua escolha fica marcada.
+- **Continue na conversa.** Comparações, escolhas, adoção e desfazer ficam na memória da conversa atual.
+- **Desktop + Web, interface em chinês e inglês.** Reutilize modelos configurados e revise antes de adotar, com desfazer e recuperação disponíveis.
 
 AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), ou DSH. De 2 a 4 agentes trabalham em cópias independentes da mesma tarefa. O plugin instala dependências, compila, serve cada aplicação e executa critérios comuns de verificação. Você testa as páginas antes de escolher uma ou nenhuma; numa comparação às cegas, o modelo e o estilo são revelados na escolha. Antes de aplicar uma versão, ele verifica a combinação com o estado atual do seu projeto.
 
@@ -39,7 +44,7 @@ AgentCompare é um plugin do [DeepSeek Harness](https://github.com/deepseek-ai/d
 
 [![Exemplo com candidatos fixos: quatro páginas pomodoro ao vivo, duas deixadas de lado, C escolhida e os estilos revelados](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Gravação com candidatos fixos em um host DSH real, a partir do código candidato da 1.4.0, com interface em chinês. Quatro versões criam uma página pomodoro numa pasta comum, e as quatro páginas ao vivo podem ser usadas. Duas são deixadas de lado, o restante fica lado a lado, a escolha revela cada estilo e o resultado é salvo numa pasta nova antes de continuar a conversa. O vídeo corta a espera e mantém o restante em velocidade normal. Caminhos locais estão ocultos.
+Gravação com candidatos fixos em um host DSH real, a partir do código candidato da 2.0.0, com interface em chinês. Quatro versões criam uma página pomodoro numa pasta comum, e as quatro páginas ao vivo podem ser usadas. Duas são deixadas de lado, o restante fica lado a lado, a escolha revela cada estilo e o resultado é salvo numa pasta nova antes de continuar a conversa. O vídeo corta a espera e mantém o restante em velocidade normal. Caminhos locais estão ocultos.
 
 [Vídeo completo (37 segundos)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Condições e resultados](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
@@ -56,7 +61,7 @@ A referência de desenvolvimento é Node 26.13.0 com npm 12.2.2. As verificaçõ
 Instale o pacote npm no perfil Web padrão. O selo do npm indica o estado de publicação:
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.3.0
+dsh plugin --profile web add dsh-agent-compare@2.0.0
 ```
 
 Para outro perfil gerenciado por você, substitua `web` pelo nome real.
@@ -73,7 +78,7 @@ npm pack
 Substitua `<your-profile>` pelo nome real do seu perfil:
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.3.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
 ```
 
 Reinicie o DSH. Antes de atualizar, finalize as comparações ativas e feche instâncias antigas que usam os mesmos registros. Não há suporte a alterações simultâneas por versões diferentes do plugin.

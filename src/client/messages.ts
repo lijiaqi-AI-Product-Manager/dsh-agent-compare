@@ -426,7 +426,7 @@ export const messages: Readonly<Record<string, string>> = {
   "采用结果": "Adopt the result",
   "采用前检查目标是否变化；必要时在临时副本中预演。工作区采用不自动提交；另存分支会明确创建一个提交。": "The target is checked before adoption, with rehearsal in a temporary copy when necessary. Workspace adoption does not commit; saving a branch explicitly creates one commit.",
   "试跑真实的示例商店": "Try the real example shop",
-  "新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前模型与时长设置，两版分别消耗用量；任务、结果和选择保留在主对话。": "Create an independent repository without changing your project. The quick task adds search and clear; the full task adds combined filters and phone layout. Both use the current model and time settings and consume tokens separately. Tasks, results and choices remain in this conversation.",
+  "新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前比较与时长设置，各版分别消耗用量；任务、结果和选择保留在主对话。": "Create an independent repository without changing your project. The quick task adds search and clear; the full task adds combined filters and phone layout. Each version uses the current comparison and time settings and consumes tokens separately. Tasks, results and choices remain in this conversation.",
   "示例范围": "Example scope",
   "正在创建…": "Creating…",
   "回到输入框，开启 A|B": "Return to composer and enable A|B",

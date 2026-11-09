@@ -27,10 +27,14 @@ async function copyText(text: string): Promise<void> {
   area.setAttribute('readonly', '')
   area.style.position = 'fixed'; area.style.opacity = '0'; area.style.pointerEvents = 'none'
   document.body.appendChild(area)
-  area.select()
-  const copied = document.execCommand('copy')
-  area.remove()
-  if (!copied) throw new Error('copy')
+  const previous = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+  try {
+    area.select()
+    if (!document.execCommand('copy')) throw new Error('copy')
+  } finally {
+    area.remove()
+    if (previous?.isConnected && document.activeElement !== previous) previous.focus({ preventScroll: true })
+  }
 }
 
 /** A button that copies `text` and says so for a moment. */

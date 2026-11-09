@@ -19,21 +19,16 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.3.0 · 正式版。** DSH 桌面端与 Web 端，中英双语。在主对话内比较两版回答、文件或网页；普通文件夹也能开始，复用已配置模型。
+> **2.0.0 · 正式版。** DSH 桌面端与 Web 端，中英双语。在主对话内比较 2–4 版回答、文件或网页；普通文件夹也能开始，复用已配置模型。
 
-**main 分支已包含、即将随 1.4.0 发布：**
-- 一次比较 **2、3 或 4 版**。
-- 每一版可以选一种**风格**：
-  - 改动幅度：稳妥、大胆；
-  - 视觉气质：极简、精致、活力；
-  - 优先目标：易用、严谨、轻快；
-  - 也可以用一句话自定义。
-- 可以**盲选**（选完再揭晓），也可以**公开对比**（一开始就显示每版的风格）。
-- 3–4 版时可以逐版**排除**，剩下的版本并排细看。
-- 在卡片里按 1–4 键可以专注某一版。
-- 设置条会显示你最常选的风格。
+**2.0.0 新增：**
+- **2–4 版，按风格比较。** 八种预设或一句话自定义；也可让不同模型使用同一风格。
+- **盲选或公开对比。** 逐版体验，暂时排除后可恢复，用 1–4 专注、0 回到全部。
+- **回答、文件、网页都可看。** Markdown 排版，复制回答、代码、文件内容和保存路径；明确标记你的选择。
+- **留在主对话。** 比较、选择、采用与撤销写入当前对话记忆；继续交流时可接着修改。
+- **Desktop + Web，中英双语。** 沿用已配置模型；有改动时先审查，再确认采用，并保留撤销与恢复入口。
 
-1.3.0 起，普通文件夹、项目子目录、非 Vite 的 Node 项目、静态网页都能比较，回答和文件也能比较。范围与限制见[更新记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#unreleased)。
+1.3.0 起，普通文件夹、项目子目录、非 Vite 的 Node 项目、静态网页都能比较，回答和文件也能比较。范围与限制见[更新记录](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#200)。
 
 AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件：同一需求，独立完成 2–4 版回答、文件或网页。有可运行页面时实际预览；没有可运行项目时按内容比较，不宣称通过功能测试。先体验再选；盲选时选后才揭晓模型和风格。采用前核对当前项目与候选改动，确认后才写回。
 
@@ -62,7 +57,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 [![固定候选流程示例：4 版番茄钟页面同时实时运行，排除两版后选择 C，揭晓风格](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-在真实 DSH 宿主里录制的固定候选演示（1.4.0 发布候选源码，中文界面）：
+在真实 DSH 宿主里录制的固定候选演示（2.0.0 发布候选源码，中文界面）：
 - 在普通文件夹里让 4 版各写一个番茄钟页面，4 个实时页面都能直接操作；
 - 排除两版后，剩下的并排比较；
 - 选择后揭晓每版的风格；
@@ -83,7 +78,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 安装 npm 包到默认 Web profile（公开发布状态见顶部 npm 徽章）：
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.3.0
+dsh plugin --profile web add dsh-agent-compare@2.0.0
 ```
 
 如使用其他自行运行的 profile，请将 `web` 换成实际名称。
@@ -101,7 +96,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-1.3.0.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-2.0.0.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：

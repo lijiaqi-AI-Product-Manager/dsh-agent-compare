@@ -1,7 +1,7 @@
 {
   "name": "dsh-agent-compare",
-  "version": "1.3.0",
-  "description": "同一需求，两版真跑：在 DSH 对话里比较、验证并审查采用。A DeepSeek Harness plugin for two implementations, live previews, shared checks and reviewed adoption.",
+  "version": "2.0.0",
+  "description": "同一需求，2–4 版真跑：在 DSH 主对话里比较回答、文件与网页，选风格，盲选或公开对比，再审查采用。Compare 2–4 answers, files or live pages in DSH Desktop and Web, then review and adopt.",
   "type": "module",
   "packageManager": "npm@12.2.2",
   "license": "MIT",
