@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare：同一需求，2–4 版真跑。选风格，盲选或公开对比，再采用。支持 DSH 桌面端与浏览器 / One task. Up to four live builds. Pick styles, blind or open, then adopt. DSH Desktop + Web."></a>
+  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare 2.0：在主对话里比较 2–4 版回答、文件与网页。Desktop + Web，中英双语，选择后继续对话 / Compare 2–4 answers, files and live pages in the main conversation. Styles, blind or open comparison, reviewed adoption and conversation memory. Product illustration."></a>
 </p>
 
 # AgentCompare
@@ -33,7 +33,7 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
 <p align="center">
-  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp" width="1200" alt="真跑，才好选；看清，再采用。选版本数与风格，并行真跑，体验后排除并选择，揭晓后审查采用 / Run them all. Then choose. Review. Then adopt. Pick versions and styles, run in parallel, try, set aside and pick, then reveal and adopt."></a>
+  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp" width="1200" alt="设定 2–4 版与风格，并行实跑，体验后选择，审查并继续主对话 / Set up, run, choose, review and continue. Answers, files, live pages and conversation memory. Product illustration."></a>
 </p>
 
 <p align="center"><sub>功能示意 / Product illustrations · <a href="#demo">查看真实演示 / Watch the recorded workflow</a></sub></p>
@@ -46,7 +46,14 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 실제 DSH 호스트에서 녹화한 고정 후보 시연입니다(2.0.0 릴리스 후보 소스, 화면은 중국어). 일반 폴더에서 4개 버전이 각각 뽀모도로 페이지를 만들고, 4개의 라이브 페이지를 바로 사용할 수 있습니다. 2개를 빼고 나머지를 나란히 비교한 뒤, 선택하면 각 스타일이 공개되고, 새 폴더에 저장한 다음 대화를 이어 갑니다. 대기 구간만 편집했고 나머지는 원래 속도입니다. 로컬 경로는 숨겼습니다.
 
-[전체 영상(37초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[전체 영상(11초)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [조건과 결과](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+
+<details>
+<summary>English answers · 390 px</summary>
+
+<p align="center"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/13-english-answers.webp" width="840" alt="Three English answers with Markdown, code copying and fully translated style labels; controlled candidates in a real DSH host."> <img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/14-phone-answer.webp" width="260" alt="390-pixel English answer result with the chosen version and a visible Continue conversation action; controlled candidates in a real DSH host."></p>
+
+</details>
 
 <a id="install"></a>
 

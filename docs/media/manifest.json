@@ -1,59 +1,93 @@
 {
   "schema": "agentcompare.demo/v1",
   "source": {
-    "version": "1.4.0 release candidate",
-    "commit": "c7cbb8f6a92643e392435438a8a29f0c99597659",
-    "archiveSha256": "52accfd3ef80924b6e1cd0849be53620a771677b39a18961ad278160b19f1fdb",
-    "archiveNote": "Packed from the commit above for an isolated test profile. The public 1.4.0 archive is built later from the release commit, which changes only version fields.",
+    "version": "2.0.0 release candidate",
+    "commit": "d36bdb0e4146afa83d624679225ad2c8f5674bd2",
+    "archiveSha256": "5d013ddf0d9cc90cbdf8f9f3ba8fa9fbdb3ce1e18a32e45118aa110589c85b6e",
+    "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
     "host": "0.2.2-rc.1",
     "browser": "Microsoft Edge 156.0.4314.58 (headless)",
-    "platform": "Windows",
-    "encoder": "ffmpeg 9.0.2"
+    "os": "Windows",
+    "capturedAt": "2026-11-09T13:12:40.963Z",
+    "ffmpeg": "ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\r",
+    "candidate": "Local controlled model uses the native DSH write tool. No external model request.",
+    "task": "Four pomodoro pages in a folder outside Git; choose, save, undo, compare three English answers and continue the main conversation."
   },
-  "capturedAt": "2026-11-09T09:06:00.000Z",
-  "method": "Controlled candidates: a local scripted model writes one page per style through DSH's own write tool. Four real copies, static previews, shared page checks, a blind pick, a save into a new folder and continuing the conversation execute for real. No external model request.",
-  "task": "做一个番茄钟网页 (a pomodoro timer page), four versions, blind, styles Conservative, Bold, Minimal and Vibrant",
   "editing": {
-    "rawSeconds": 67.72,
-    "workflowSeconds": 36.88,
-    "workflowSegments": [[12.64, 21.32], [21.63, 24.83], [43.22, 68.22]],
+    "rawSeconds": 50.8,
+    "workflowSeconds": 10.64,
+    "workflowSegments": [
+      [
+        2.63,
+        4.72
+      ],
+      [
+        28.25,
+        36.82
+      ]
+    ],
     "workflowPlaybackRate": 1,
-    "previewSeconds": 13.56,
-    "previewSegment": [48.02, 61.58],
+    "previewSeconds": 6.5,
+    "previewSegment": [
+      29.74,
+      36.269999999999996
+    ],
     "previewPlaybackRate": 1,
-    "previewFrameRate": 10,
+    "previewFps": 6,
+    "previewCrop": {
+      "x": 12,
+      "y": 48,
+      "width": 1576,
+      "height": 1152
+    },
+    "previewWidth": 720,
+    "previewHeaderAdded": true,
     "waitingPeriodsCut": true,
     "localPathsHidden": true,
-    "captionsAdded": true,
-    "pointerAdded": true,
-    "executionOutcomesEdited": false
+    "visibleCaption": true
   },
-  "result": {
-    "versions": 4,
-    "blind": true,
-    "assignment": { "A": "Vibrant", "B": "Bold", "C": "Minimal", "D": "Conservative" },
-    "setAside": ["B", "D"],
+  "proof": {
+    "assignment": {
+      "A": "活力 · Vibrant",
+      "B": "稳妥 · Conservative",
+      "C": "大胆 · Bold",
+      "D": "极简 · Minimal"
+    },
+    "setAside": [
+      "B",
+      "D"
+    ],
     "picked": "C",
-    "pageChecks": { "A": "passed", "B": "passed", "C": "passed", "D": "passed" },
+    "pageChecks": {
+      "A": "passed",
+      "B": "passed",
+      "C": "passed",
+      "D": "passed"
+    },
     "savedToNewFolder": true,
+    "saveUndone": true,
+    "englishAnswerVersions": 3,
+    "phoneWidth": 390,
+    "mainConversationMemory": true,
     "pageErrors": 0,
-    "controlledProvider": true
+    "controlledProvider": true,
+    "nativeWriteCalls": 4
   },
   "files": [
     {
       "path": "comparison-workflow.mp4",
-      "bytes": 613443,
-      "sha256": "4a62ddbcae023dea114c34c3711eb774114077c9074f79d21e5608b366882fa4"
+      "bytes": 549857,
+      "sha256": "f7eea8fd2a701c922a59d4f2690db247431fba54620ff154b67bbb5da87f2fa4"
     },
     {
       "path": "comparison-preview.gif",
-      "bytes": 856475,
-      "sha256": "7510054d6067145cf4f902bbf609859befd8d51fb0d9cb82b5804f2f2af23404"
+      "bytes": 795725,
+      "sha256": "88a8a4ba81dc3791160efa55d6615a7f692f205ef0b20d665567274e367fd42b"
     },
     {
       "path": "social-preview.png",
-      "bytes": 401055,
-      "sha256": "86d7a0c3d8a5f4979059c27a70c0c8932b7af3894c5cb7cf87cc62f57627e51f"
+      "bytes": 619630,
+      "sha256": "3bf82920bc458bbdb186483d495d3448729493024db93bf2551ca00a7ffad433"
     }
   ]
 }

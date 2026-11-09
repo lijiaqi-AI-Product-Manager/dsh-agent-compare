@@ -1,24 +1,24 @@
 {
   "schema": "agentcompare.screenshots/v1",
-  "capturedAt": "2026-11-09T09:06:00.000Z",
-  "packageVersion": "1.4.0",
-  "sourceCommit": "c7cbb8f6a92643e392435438a8a29f0c99597659",
-  "packageArchiveSha256": "52accfd3ef80924b6e1cd0849be53620a771677b39a18961ad278160b19f1fdb",
-  "archiveNote": "Release candidate source, packed for an isolated test profile; the public 1.4.0 archive is built later from the release commit, which changes only version fields.",
+  "capturedAt": "2026-11-09T13:12:40.963Z",
+  "packageVersion": "2.0.0",
+  "sourceCommit": "d36bdb0e4146afa83d624679225ad2c8f5674bd2",
+  "packageArchiveSha256": "5d013ddf0d9cc90cbdf8f9f3ba8fa9fbdb3ce1e18a32e45118aa110589c85b6e",
+  "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
   "hostVersion": "0.2.2-rc.1",
-  "scenario": "Controlled candidates; four live versions of one page, a blind pick, the reveal and a save into a new folder. No external model request.",
+  "scenario": "Controlled candidates; four independently interactive pages, a blind pick and a save into a new folder. Save undo, English answers, phone interaction and main-conversation context were separately verified in the same recording. No external model request.",
   "privatePathsHidden": true,
   "captionsAdded": true,
   "files": [
     {
       "path": "docs/media/screenshots/11-live-comparison.png",
-      "bytes": 103451,
-      "sha256": "72e216b01a07e16cab2ebf6dcc9852ab5863adc89ce1cad9f60c0a86de9dfc88"
+      "bytes": 106972,
+      "sha256": "14ccc2e6996af5378164b7b8d4d0b4b592571298ab0766e0148c8edac2f9fae0"
     },
     {
       "path": "docs/media/screenshots/12-reviewed-adoption.png",
-      "bytes": 103718,
-      "sha256": "a3ed92c8dcf01a27696cf37cc9d60b0da3ea1910ebf05ff377358a70d508df63"
+      "bytes": 106943,
+      "sha256": "c5eee184f5228320d5dfd6788447c03ca19b5b77b8e842d477a85cacff9873ee"
     }
   ]
 }
