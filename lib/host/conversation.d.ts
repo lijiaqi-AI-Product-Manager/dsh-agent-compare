@@ -9,11 +9,13 @@ export interface AbInput {
     readonly task: string;
     readonly example: boolean;
     readonly minutes?: number;
-    /** Two routes: a cross-model comparison. */
-    readonly models?: readonly [AgentRoute, AgentRoute];
+    /** 2–4 routes: a cross-model comparison. */
+    readonly models?: readonly AgentRoute[];
+    /** 2–4 versions with the saved styles. */
+    readonly versions?: number;
 }
 /**
- * `/ab [--example] [--minutes N] [--models provider/model,provider/model] <task>`.
+ * `/ab [--example] [--minutes N] [--versions N] [--models provider/model,provider/model[,…]] <task>`.
  * Flags may appear anywhere; everything else is the task, kept verbatim.
  */
 export declare function parseAbInput(raw: string): AbInput;

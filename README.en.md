@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare：同一需求，两版真跑。支持 DSH 桌面端与浏览器 / One task. Two live builds. DSH Desktop + Web."></a>
+  <a href="#install"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/hero-bilingual.webp" width="1200" alt="AgentCompare 2.0：在主对话里比较 2–4 版回答、文件与网页。Desktop + Web，中英双语，选择后继续对话 / Compare 2–4 answers, files and live pages in the main conversation. Styles, blind or open comparison, reviewed adoption and conversation memory. Product illustration."></a>
 </p>
 
 # AgentCompare
@@ -13,30 +13,40 @@
 
 [中文](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.md) · **English** · [日本語](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.ja.md) · [한국어](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.ko.md) · [Español](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.es.md) · [Português (Brasil)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.pt-BR.md) · [Français](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.fr.md) · [Deutsch](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/README.de.md)
 
-**Same task. Two live builds. Pick blind.**
+**Same task. Up to four live builds. Pick styles, compare blind or open, then adopt.**
 
 **DSH 桌面端 + 浏览器 / Desktop + Web**
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **1.3.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
+> **2.0.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare 2–4 versions of answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
 
-1.3.0 adds folder mode, subfolder projects, non-Vite Node projects, static sites, and answer/file comparison. Outside Git, both versions start in a private empty workspace. Save the pick into a new subfolder and undo it later. Main-conversation memory, context selection and blind picking remain available. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#130) for scope and limits.
+**New in 2.0.0:**
+- **2–4 versions, with styles.** Eight presets or a one-line custom style; different models can share one style.
+- **Blind or open comparison.** Try each version, set it aside and restore it; use 1–4 to focus and 0 to show all.
+- **Answers, files and live pages.** Read formatted Markdown and copy answers, code, file contents or saved paths. Your pick is clearly marked.
+- **Stay in the conversation.** Comparisons, picks, adoption and undo enter the current conversation's memory so you can keep working.
+- **Desktop + Web, Chinese + English.** Reuse configured models; review changes before confirming adoption, with undo and recovery available.
 
-AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: complete two versions of a task as answers, files or web pages. Runnable pages get live previews; content-only comparison does not claim arbitrary-language execution or functional test coverage. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
+Since 1.3.0, any folder works, including repository subfolders, non-Vite Node projects and static sites, and answers and files can be compared too. See the [changelog](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/CHANGELOG.md#200) for scope and limits.
+
+AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin that completes 2–4 versions of a task as answers, files or web pages. Runnable pages get live previews. Content-only comparison does not claim arbitrary-language execution or functional test coverage. You try every version before choosing; in a blind comparison, the model and style are revealed only after the pick. Before adoption, you review the combination with your current project.
 
 | You want | Where it works | What the card shows |
 |---|---|---|
-| A page or UI change | Vite, Node or static-site projects in a Git repository, including subfolders | Two live pages you can click and type into, plus shared checks |
-| A script, document or other files | Any folder, including the DSH default workspace | Both versions' files, each one openable before the pick |
-| An answer | Any conversation | Two formatted answers side by side with one-click copy; the picked one enters the conversation's memory |
+| A page or UI change | Vite, Node or static-site projects in a Git repository, including subfolders | 2–4 live pages you can click and type into, plus shared checks |
+| A script, document or other files | Any folder, including the DSH default workspace | Each version's files, each one openable before the pick |
+| An answer | Any conversation | Formatted answers side by side with one-click copy; the picked one enters the conversation's memory |
 
-**Start in 30 seconds:** in DSH Desktop, install `dsh-agent-compare` from **Plugins → Add plugin** (for Web, see [Install](#install)) → click **A|B** at the bottom left of the composer → write the task and send, as usual.
+**Start in 30 seconds:**
+1. In DSH Desktop, install `dsh-agent-compare` from **Plugins → Add plugin** (for Web, see [Install](#install)).
+2. Click **A|B** at the bottom left of the composer, then pick the number of versions and their styles.
+3. Write the task and send, as usual.
 
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
 <p align="center">
-  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp" width="1200" alt="真跑，才好选；看清，再采用。同一任务独立运行，审查选中候选后确认写回 / Run it. Then choose. Review. Then adopt. Run separately and inspect the selected candidate before applying."></a>
+  <a href="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/comparison-workflow.webp" width="1200" alt="设定 2–4 版与风格，并行实跑，体验后选择，审查并继续主对话 / Set up, run, choose, review and continue. Answers, files, live pages and conversation memory. Product illustration."></a>
 </p>
 
 <p align="center"><sub>功能示意 / Product illustrations · <a href="#demo">查看真实演示 / Watch the recorded workflow</a></sub></p>
@@ -45,13 +55,26 @@ AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-har
 
 ## Watch the complete workflow
 
-[![Fixed-candidate workflow: interact with both apps, check, choose and adopt](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
+[![Fixed-candidate workflow: four live pomodoro pages, two set aside, C picked and the styles revealed](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Controlled-candidate recording of the public 1.1.0 artifact, with its Chinese interface. Both applications, shared checks, adoption and undo execute for real. The video cuts waiting; the GIF replays interaction at 0.5×. Local paths are hidden.
+A controlled-candidate recording in a real DSH host, from the 2.0.0 release-candidate source with the Chinese interface:
+- Four versions each build a pomodoro page in a plain folder, and all four live pages can be used.
+- Two are set aside, and the remaining two move up side by side.
+- The pick reveals every style.
+- The pick is saved into a new folder, and the conversation continues.
 
-[Full video (29 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+The video cuts waiting and keeps the rest at the original speed. Local paths are hidden.
+
+[Full video (11 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 [Four-step quick start](docs/quickstart.en.md) · [Troubleshooting a run](docs/runs-and-recovery.en.md)
+
+<details>
+<summary>English answers · 390 px</summary>
+
+<p align="center"><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/13-english-answers.webp" width="840" alt="Three English answers with Markdown, code copying and fully translated style labels; controlled candidates in a real DSH host."> <img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/14-phone-answer.webp" width="260" alt="390-pixel English answer result with the chosen version and a visible Continue conversation action; controlled candidates in a real DSH host."></p>
+
+</details>
 
 <a id="install"></a>
 
@@ -64,7 +87,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm package into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@1.3.0
+dsh plugin --profile web add dsh-agent-compare@2.0.0
 ```
 
 For another self-managed profile, replace `web` with its actual name.
@@ -82,43 +105,65 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-1.3.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:
 
-1. A settings strip opens above the existing input. Choose one model with two strategies, or select two configured models. The default reuses the current model.
-2. Select a per-candidate generation limit (5–120 minutes) and the **main-conversation context** both versions see: none, the recent exchanges (3 by default) or messages you tick. The strip shows the complete excerpt both will receive. Settings are retained for this conversation across reopening.
-3. Write the task in the original composer and send. No flags to type. Mode switching changes only its command chip, preserving the draft, references, and attachments. Unsupported attachment submissions are refused by the host while retaining the originals.
-4. The conversation renders a persistent A|B card with two **live, interactive applications**. In a new conversation without a chat timeline, the same record appears above the composer. Adaptive views support direct interaction; matching desktop/phone sizes and focused A/B views are available. Expand the card for closer inspection.
-5. Choose, reveal, and review source changes. Adoption displays its target repository and preflight result before a separate confirmation writes anything. Recovery actions stay at the top. **Continue conversation** exits comparison mode and focuses the original composer, retaining the record.
+1. A settings strip opens above the existing input. Choose **one model · different styles** (the default, reusing the current model) or **different models · one style** (a configured model for each version, all with the same style).
+2. Choose 2, 3 or 4 versions, and blind or open. With one model, pick a style for each version or describe your own in one line. The strip notes that more versions use more.
+3. Select a per-version generation limit (5–120 minutes) and the **main-conversation context** every version sees: none, the recent exchanges (3 by default) or messages you tick. The strip shows the complete excerpt they will receive. Settings are retained for this conversation across reopening.
+4. Write the task in the original composer and send. No flags to type. Mode switching changes only its command chip, preserving the draft, references, and attachments. Unsupported attachment submissions are refused by the host while retaining the originals.
+5. The conversation renders a persistent A|B card where every version is a **live, interactive application**. In a new conversation without a chat timeline, the same record appears above the composer. Adaptive views support direct interaction. Matching desktop/phone sizes are available, and you can focus one version (press 1–4 in the card, 0 for all). With three or four versions, **Set aside** the ones you have ruled out so the rest move up side by side. Expand the card for closer inspection.
+6. In a blind comparison, the pick reveals models and styles; an open comparison shows them from the start. Review source changes, then **Review and adopt**: the target repository and preflight result appear before a separate confirmation writes anything. Recovery actions stay at the top. **Continue conversation** exits comparison mode and focuses the original composer, retaining the record.
 
-The example selector offers a smaller search-and-clear case or the full filtering/mobile case and remembers the choice. It creates a separate repository in the same conversation, preserving unrelated drafts; adoption targets that example repository. Both candidates use the configured real model and consume usage. Smaller scope is not a fixed-time guarantee. [Example scope and timing](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/first-use.md).
+The example selector offers a smaller search-and-clear case or the full filtering/mobile case and remembers the choice. It creates a separate repository in the same conversation, preserving unrelated drafts; adoption targets that example repository. Every version uses the configured real model and consumes usage. Smaller scope is not a fixed-time guarantee. [Example scope and timing](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/first-use.md).
 
 Use **comparison records** and **tutorial** at the upper right of new or existing conversations. History retains the task, checks, choice, adoption and undo. When previews stop, verification screenshots remain available.
 
 [Records, restarts and recovery](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/runs-and-recovery.en.md) · [Supported scope](#compatibility) · [Custom acceptance](#repository-acceptance-agent-comparejson)
 
-Results, your pick, adoption and undo enter this conversation's memory. You can then ask how the comparison went, or keep working on the adopted version. After the reveal and before adopting, you can switch to the other finished version; when neither is usable, use **Compare again**. See [conversation memory and context](docs/conversation-memory.md#english).
+Results, your pick, adoption and undo enter this conversation's memory. You can then ask how the comparison went, or keep working on the adopted version. After the reveal and before adopting, you can switch to another finished version; when none is usable, use **Compare again**. See [conversation memory and context](docs/conversation-memory.md#english).
 
 [Windows process compatibility settings](docs/windows-process-compat.en.md) offer automatic/off controls that preserve host confinement and show observed hooks after reveal.
 
-In 1.3.0, A|B works in any folder. A folder outside Git, including the DSH default workspace, compares both versions' pages, files or answers from an empty folder and saves the pick into a new folder there. Subfolder projects, non-Vite Node projects and static sites are supported too. See [folders and project types](docs/workspaces-and-projects.md#english).
+In 1.3.0, A|B works in any folder. A folder outside Git, including the DSH default workspace, compares each version's pages, files or answers from an empty folder and saves the pick into a new folder there. Subfolder projects, non-Vite Node projects and static sites are supported too. See [folders and project types](docs/workspaces-and-projects.md#english).
 
 ## What it is for
 
 UI and interaction tasks, where quality is judged by using it and tests can only tell whether something was delivered: search and filters, form flows, landing pages, dashboard layouts, component redesigns. Bug fixes and refactors with one right answer are better served by a single agent plus tests.
 
-| Mode | Same on both sides | Different |
+Both modes run 2–4 versions, blind or open:
+
+| Mode | Same for every version | Different |
 |---|---|---|
-| One model, two strategies (default) | model, task, acceptance | "Conservative" (reuse what exists) vs "Bold" (rethink the interaction) |
-| Two models, one brief | task, acceptance, instructions | the model (any two configured in DSH) |
+| One model · different styles (default) | model, task, acceptance | the style (by default Conservative + Bold for two, plus Minimal for three, plus Vibrant for four) |
+| Different models · one style | task, acceptance, style (Balanced by default) | the model (one configured in DSH per version, no repeats) |
+
+<a id="styles"></a>
+
+Eight styles in three groups. Every style must still deliver every requirement of the task:
+
+| Group | Style | For a page or a project change | For an answer or written files |
+|---|---|---|---|
+| Approach | Conservative | Reuse existing components and patterns; smallest change | Conventional and direct |
+| | Bold | Rethink layout and interaction | A fresh, creative angle |
+| Look | Minimal | Few elements, generous whitespace, clear at a glance | Only what is asked |
+| | Polished | Professional finish, clear hierarchy, complete states | Structured and thorough |
+| | Vibrant | Colour, motion and personality | Warm tone, vivid examples |
+| Priority | Friendly | Beginner-friendly, accessible, phone-first | Step by step, plain words |
+| | Rigorous | Validation, edge cases and tests | States assumptions, covers exceptions |
+| | Lean | Little code, fast to load, no dependencies | As short as possible |
+
+A custom style is a one-line description of up to 120 characters. It is given to every version as a description of the style and cannot change the task or the rules. A style can be chosen more than once, which runs the same brief several times.
+
+A blind comparison shuffles the chosen styles across A–D at the start and reveals them after the pick. An open comparison keeps them in order as A–D and shows them while you compare.
 
 ## What it does for you
 
-- Both versions start from **the same baseline**, including uncommitted work, without touching your index or files.
+- Every version starts from **the same baseline**, including uncommitted work, without touching your index or files.
 - Each candidate requests the host's write policy rooted in its own copy; the host's enforcement limits are disclosed.
-- Two installs, two builds, two ports, **running at once**.
+- One install, one build and one port per version, **all running at once**.
 - **One fixed, content-bound acceptance**: a candidate that edits the test script, configs or existing tests does not count as passing.
 - Adoption checks the result **together with what you changed meanwhile**, and stops when the checked target changes before a pending write.
 
@@ -131,7 +176,7 @@ UI and interaction tasks, where quality is judged by using it and tests can only
 5. **Seal** — the session is closed and the change frozen as a commit plus a full binary patch (SHA-256); `node_modules` is always excluded.
 6. **Verify** — copy equals the sealed tree → **frozen install** (a failure fails; there is no unlocked retry) → acceptance commands → serve the **build output** with `vite preview` → page acceptance in a fresh headless browser context (loads, no console errors, scripted steps, desktop and phone screenshots) → the copy still equals the sealed tree. When the build fails, only a dev-server preview is offered, marked "for observation only".
 7. **Verdict** — adoption requires recorded checks without failures or timeouts, unchanged verification definitions and a checked tree matching the sealed tree. An unrun scripted page acceptance blocks direct adoption. A skipped basic page-load check remains an explicit warning, not a verified check. Dependency changes and missing lockfiles are also disclosed.
-8. **Blind pick** — two iframes show the running builds as A and B. Choosing reveals strategy, actual model and token usage at once, and whether your pick matches what the checks favoured.
+8. **Pick** — 2–4 iframes show the running builds. A blind comparison labels them only A–D, with the styles shuffled at the start; choosing reveals style, actual model and token usage at once. An open comparison shows them from the start. Either way, the result shows whether your pick matches what the checks favoured.
 9. **Adopt** (adoptable candidates only):
    - Compute the exact tree your checkout will have: your current files plus the candidate's touched paths. If you edited any of those paths since the baseline, stop — nothing is written.
    - If you changed other files meanwhile, **rehearse** that combination in a scratch copy with the full acceptance; if it fails, stop — nothing is written.
@@ -262,9 +307,11 @@ The host dependency directory is ignored and excluded from the plugin package. T
 ## Known limitations
 
 - Answers and files are compared by their content. Live previews and page checks need a runnable web project; other languages' tests run only when the baseline's package scripts run them.
-- In a folder outside Git, both versions start from an empty folder and do not read the files already there. To change existing files, enable Git in that folder from the settings strip first; the home folder, drive roots, system folders and folders over 5,000 files or 300 MB are refused.
+- In a folder outside Git, every version starts from an empty folder and does not read the files already there. To change existing files, enable Git in that folder from the settings strip first; the home folder, drive roots, system folders and folders over 5,000 files or 300 MB are refused.
+- Each extra version adds a model session, an install and a preview. Four versions use about four times the usage of one, and more disk and memory in projects with heavy dependencies.
+- Release 1.3.0 and earlier list a record with three or four versions as one to handle and do not act on it; after upgrading it reads normally.
 - npm 12 installation policy can block dependency scripts; projects requiring native installation steps must first allow them under their own policy.
-- One comparison says nothing about a model's or strategy's overall quality.
+- One comparison says nothing about a model's or style's overall quality.
 
 ## Development
 

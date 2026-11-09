@@ -2,7 +2,7 @@ import { canRetryVerification, favoured, verdictOf } from './run-view.ts'
 export { publicView, verdictOf, type PublicCandidate, type PublicRun } from './run-view.ts'
 import { planCopyCleanup, type CopyCleanupPlan } from './copy-resources.ts'
 import path from 'node:path'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, rm, rmdir } from 'node:fs/promises'
 import { addOwnedWorktree, ALWAYS_EXCLUDED, YARN_RUNTIME_FILES, captureChange, changedPaths, commitTree, dropRefs, ensureWorktreePool, git, gitTry, headCommit, ownedCopyTree, ownedWorktreeAdmin, pinRef, readPatchSha, removeOwnedWorktree, snapshotTree, treeOf, withRepositoryWrite, writePatch, type OwnedCopy } from './git.ts'
@@ -21,7 +21,7 @@ import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
 import type { FileLease } from './file-lock.ts'
 import { isRunId } from './record-validation.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
-import { RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type FolderTarget, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
+import { CANDIDATE_LABELS, MAX_CANDIDATES, MIN_CANDIDATES, RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type FolderTarget, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
 
 export interface AgentRunRequest {
   readonly label: CandidateLabel
@@ -65,11 +65,16 @@ export interface AgentRunner {
 export interface StartInput {
   readonly repo: string
   readonly task: string
-  /** `same-model` (default): one route, two strategies. `cross-model`: two routes, one brief. */
+  /** `same-model` (default): one route, a style per candidate. `cross-model`: a route per candidate, one shared style. */
   readonly mode?: 'same-model' | 'cross-model'
-  readonly strategies?: readonly [Strategy, Strategy]
-  /** same-model: routes[0] for both. cross-model: two different routes (required). */
-  readonly routes?: readonly [AgentRoute, AgentRoute]
+  /** Number of candidates, 2–4. Default: the number of strategies (same-model) or routes (cross-model), else 2. */
+  readonly candidates?: number
+  /** same-model: one strategy per candidate. cross-model: the shared strategy is `strategies[0]` (default balanced). */
+  readonly strategies?: readonly Strategy[]
+  /** same-model: routes[0] for every candidate. cross-model: one distinct route per candidate (required). */
+  readonly routes?: readonly AgentRoute[]
+  /** `false`: an open comparison (identities shown, order kept). Default: blind. */
+  readonly blind?: boolean
   readonly checks?: ChecksSpec
   readonly sessionId?: string
   readonly follows?: string
@@ -78,7 +83,7 @@ export interface StartInput {
   readonly windowsProcessCompat?: WindowsProcessCompatMode
   /** Main-conversation excerpt for both candidates; recorded with the run. */
   readonly conversationContext?: RunRecord['conversationContext']
-  /** Fixed A/B assignment for tests; production shuffles. */
+  /** Fixed assignment for tests; a blind comparison shuffles, an open one keeps the chosen order. */
   readonly assignment?: 'fixed' | 'shuffle'
   /** Handed to every AgentRunner call; never persisted. */
   readonly hostContext?: unknown
@@ -109,6 +114,28 @@ interface LiveRun {
   readonly perCandidate: Map<CandidateLabel, AbortController>
   readonly previews: Map<string, Preview>
   done: Promise<void>
+}
+
+/**
+ * The candidates a start asks for: how many, and the route and strategy of
+ * each, in the order the user chose them.
+ */
+export function candidatePlan(input: Pick<StartInput, 'mode' | 'candidates' | 'strategies' | 'routes'>): { mode: 'same-model' | 'cross-model'; routes: AgentRoute[]; strategies: Strategy[] } {
+  const mode = input.mode ?? 'same-model'
+  const count = input.candidates ?? (mode === 'cross-model' ? input.routes?.length : input.strategies?.length) ?? 2
+  if (!Number.isSafeInteger(count) || count < MIN_CANDIDATES || count > MAX_CANDIDATES) throw new Error(`版本数需要在 ${MIN_CANDIDATES} 到 ${MAX_CANDIDATES} 之间`)
+  if (mode === 'cross-model') {
+    const routes = [...(input.routes ?? [])]
+    if (routes.length !== count || routes.some(route => route.model === undefined)) throw new Error(`多个模型模式需要为 ${count} 个版本分别选择模型`)
+    const keys = routes.map(route => `${route.provider ?? ''}\u0000${route.model}\u0000${route.reasoningEffort ?? ''}`)
+    if (new Set(keys).size !== keys.length) throw new Error('多个模型模式需要选择互不相同的模型')
+    const shared = input.strategies?.[0] ?? BALANCED
+    return { mode, routes, strategies: routes.map(() => shared) }
+  }
+  const route = input.routes?.[0] ?? {}
+  const strategies = [...(input.strategies ?? DEFAULT_STRATEGIES)]
+  if (strategies.length !== count) throw new Error(`需要为 ${count} 个版本各选一种风格`)
+  return { mode, routes: strategies.map(() => route), strategies }
 }
 
 /** A reply can be the whole result (an answer), so it is kept in full up to this bound. */
@@ -175,20 +202,8 @@ export class Comparer {
     }
     const info = await inspectProject(projectDirectory(root, projectPath))
 
-    const mode = input.mode ?? 'same-model'
-    let routes: [AgentRoute, AgentRoute]
-    let strategies: readonly [Strategy, Strategy]
-    if (mode === 'cross-model') {
-      const [a, b] = input.routes ?? [{}, {}]
-      if (a.model === undefined || b.model === undefined) throw new Error('两个模型模式需要分别选择两个模型')
-      if (a.provider === b.provider && a.model === b.model && a.reasoningEffort === b.reasoningEffort) throw new Error('两个模型模式需要选择两个不同的模型')
-      routes = [a, b]
-      strategies = [BALANCED, BALANCED]
-    } else {
-      const r = input.routes?.[0] ?? {}
-      routes = [r, r]
-      strategies = input.strategies ?? DEFAULT_STRATEGIES
-    }
+    const { mode, routes, strategies } = candidatePlan(input)
+    const blind = input.blind !== false
 
     const scratch = this.store.artifacts(runId)
     await mkdir(scratch, { recursive: true })
@@ -198,7 +213,11 @@ export class Comparer {
     const acceptance = await buildAcceptance(root, tree, info, input.checks, input.windowsProcessCompat ?? 'auto', projectPath)
     const snapshotCommit = await commitTree(root, tree, [head], `agent-compare baseline ${runId}`)
 
-    const order: [number, number] = input.assignment === 'fixed' || Math.random() < 0.5 ? [0, 1] : [1, 0]
+    // A blind comparison must not let the settings' order reveal who is who.
+    const order = strategies.map((_, i) => i)
+    if (blind && input.assignment !== 'fixed') {
+      for (let i = order.length - 1; i > 0; i--) { const j = randomInt(i + 1); [order[i], order[j]] = [order[j]!, order[i]!] }
+    }
     const mk = (label: CandidateLabel, i: number): Candidate => ({ label, strategy: strategies[i]!, route: routes[i]!, stage: 'queued', timings: {} })
     const record: RunRecord = {
       schema: RUN_SCHEMA,
@@ -215,10 +234,11 @@ export class Comparer {
       baseline: { repoRoot: root, headCommit: head, snapshotCommit, snapshotTree: tree, dirty, ...(projectPath ? { projectPath } : {}) },
       acceptance,
       mode,
+      ...(blind ? {} : { blind: false as const }),
       isolation: this.opts.runner.isolation,
       budget: { generationMs: input.generationMs ?? this.opts.generationMs ?? DEFAULT_GENERATION_MS },
       state: 'running',
-      candidates: [mk('A', order[0]), mk('B', order[1])],
+      candidates: order.map((source, i) => mk(CANDIDATE_LABELS[i]!, source)),
       rev: 0,
       updatedAt: Date.now(),
     }
@@ -366,7 +386,8 @@ export class Comparer {
         label: c.label,
         cwd: dir,
         prompt: candidatePrompt(record.task, c.strategy, record.isolation, record.conversationContext?.text,
-          record.target ? { kind: 'folder' } : { kind: 'repository', ...(record.baseline.projectPath ? { projectPath: record.baseline.projectPath } : {}), answers: acceptsAnswers(record) }),
+          record.target ? { kind: 'folder' } : { kind: 'repository', ...(record.baseline.projectPath ? { projectPath: record.baseline.projectPath } : {}), answers: acceptsAnswers(record) },
+          { candidates: record.candidates.length, blind: record.blind !== false }),
         route: c.route,
         signal: AbortSignal.any([signal, budget]),
         hostContext: lr.hostContext,

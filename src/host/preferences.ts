@@ -2,7 +2,8 @@ import { createHash, randomBytes } from 'node:crypto'
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { RunStore } from '../core/run-store.ts'
-import type { AgentRoute } from '../core/types.ts'
+import { defaultStyleChoices, parseStyleChoice, strategyFor, type StyleChoice } from '../core/styles.ts'
+import { MAX_CANDIDATES, MIN_CANDIDATES, type AgentRoute, type Strategy } from '../core/types.ts'
 
 export interface AbPreferences {
   readonly enabled: boolean
@@ -10,7 +11,16 @@ export interface AbPreferences {
   readonly generationMinutes: number
   readonly exampleKind?: 'quick' | 'full'
   readonly windowsProcessCompat?: 'auto' | 'off'
-  readonly models: readonly [AgentRoute, AgentRoute]
+  /** One slot per possible version (2–4); only the first `versions` are used in cross-model mode. */
+  readonly models: readonly AgentRoute[]
+  /** Number of versions, 2–4. Absent: 2. */
+  readonly versions?: number
+  /** Same-model mode: one style per version. Absent: the defaults for `versions`. */
+  readonly styles?: readonly StyleChoice[]
+  /** Cross-model mode: the style every model receives. Absent: balanced. */
+  readonly crossStyle?: StyleChoice
+  /** `false`: open comparison. Absent: blind. */
+  readonly blind?: boolean
   /** Main-conversation context given to both candidates. Absent means the recent default. */
   readonly contextMode?: ConversationContextMode
   /** Exchanges included by `recent`. */
@@ -48,15 +58,63 @@ export function parsePreferences(value: unknown): AbPreferences {
   if (p.windowsProcessCompat !== undefined && p.windowsProcessCompat !== 'auto' && p.windowsProcessCompat !== 'off') throw new Error('Windows 进程兼容设置无效')
   if (p.contextMode !== undefined && p.contextMode !== 'none' && p.contextMode !== 'recent' && p.contextMode !== 'selected') throw new Error('主对话上下文设置无效')
   if (p.contextTurns !== undefined && !(CONTEXT_TURNS as readonly unknown[]).includes(p.contextTurns)) throw new Error('主对话上下文轮数无效')
-  if (!Array.isArray(p.models) || p.models.length !== 2) throw new Error('模型设置需要两个位置')
+  if (!Array.isArray(p.models) || p.models.length < MIN_CANDIDATES || p.models.length > MAX_CANDIDATES) throw new Error(`模型设置需要 ${MIN_CANDIDATES} 到 ${MAX_CANDIDATES} 个位置`)
   const models = p.models.map((value: unknown): AgentRoute => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('模型设置无效')
     const r = value as Record<string, unknown>
     if (r.provider === undefined && r.model === undefined) return {}
     if (typeof r.provider !== 'string' || !r.provider.trim() || typeof r.model !== 'string' || !r.model.trim()) throw new Error('请选择包含服务与模型的完整配置')
     return { provider: r.provider, model: r.model }
-  }) as [AgentRoute, AgentRoute]
-  return { enabled: p.enabled, mode: p.mode as AbPreferences['mode'], generationMinutes: p.generationMinutes, models, ...(p.exampleKind === undefined ? {} : { exampleKind: p.exampleKind as 'quick' | 'full' }), ...(p.windowsProcessCompat === undefined ? {} : { windowsProcessCompat: p.windowsProcessCompat as 'auto' | 'off' }), ...(p.contextMode === undefined ? {} : { contextMode: p.contextMode as ConversationContextMode }), ...(p.contextTurns === undefined ? {} : { contextTurns: p.contextTurns as number }) }
+  })
+  if (p.versions !== undefined && (typeof p.versions !== 'number' || !Number.isSafeInteger(p.versions) || p.versions < MIN_CANDIDATES || p.versions > MAX_CANDIDATES)) throw new Error(`版本数需要在 ${MIN_CANDIDATES} 到 ${MAX_CANDIDATES} 之间`)
+  const versions = (p.versions as number | undefined) ?? MIN_CANDIDATES
+  let styles: StyleChoice[] | undefined
+  if (p.styles !== undefined) {
+    if (!Array.isArray(p.styles) || p.styles.length !== versions) throw new Error('每一版都需要选择一种风格')
+    styles = p.styles.map(parseStyleChoice)
+  }
+  const crossStyle = p.crossStyle === undefined ? undefined : parseStyleChoice(p.crossStyle)
+  if (p.blind !== undefined && typeof p.blind !== 'boolean') throw new Error('盲选设置无效')
+  return {
+    enabled: p.enabled, mode: p.mode as AbPreferences['mode'], generationMinutes: p.generationMinutes, models,
+    ...(p.versions === undefined ? {} : { versions }),
+    ...(styles === undefined ? {} : { styles }),
+    ...(crossStyle === undefined ? {} : { crossStyle }),
+    ...(p.blind === undefined ? {} : { blind: p.blind as boolean }),
+    ...(p.exampleKind === undefined ? {} : { exampleKind: p.exampleKind as 'quick' | 'full' }), ...(p.windowsProcessCompat === undefined ? {} : { windowsProcessCompat: p.windowsProcessCompat as 'auto' | 'off' }), ...(p.contextMode === undefined ? {} : { contextMode: p.contextMode as ConversationContextMode }), ...(p.contextTurns === undefined ? {} : { contextTurns: p.contextTurns as number }),
+  }
+}
+
+/** What a start asks for, from saved settings and any explicit override. */
+export interface ComparisonPlan {
+  readonly mode: 'same-model' | 'cross-model'
+  readonly candidates: number
+  readonly strategies: Strategy[]
+  readonly routes: AgentRoute[]
+  readonly blind: boolean
+}
+
+/**
+ * The comparison the saved settings describe. Same-model: the current route
+ * for every version, one style each. Cross-model: one complete, distinct
+ * model per version and one shared style.
+ */
+export function comparisonPlan(saved: AbPreferences, current: AgentRoute, override: { mode?: 'same-model' | 'cross-model'; models?: readonly AgentRoute[]; versions?: number } = {}): ComparisonPlan {
+  const mode = override.models ? 'cross-model' : override.mode ?? saved.mode
+  const versions = override.models?.length ?? override.versions ?? saved.versions ?? MIN_CANDIDATES
+  if (!Number.isSafeInteger(versions) || versions < MIN_CANDIDATES || versions > MAX_CANDIDATES) throw new Error(`版本数需要在 ${MIN_CANDIDATES} 到 ${MAX_CANDIDATES} 之间`)
+  const blind = saved.blind !== false
+  if (mode === 'cross-model') {
+    const routes = [...(override.models ?? saved.models.slice(0, versions))]
+    if (routes.length !== versions || routes.some(route => !route.model || !route.provider)) throw new Error(`请在比较设置中为 ${versions} 个版本各选一个完整的模型配置`)
+    const keys = routes.map(route => `${route.provider}/${route.model}`)
+    if (new Set(keys).size !== keys.length) throw new Error('多个模型模式需要选择互不相同的模型')
+    return { mode, candidates: versions, routes, strategies: [strategyFor(saved.crossStyle ?? { id: 'balanced' })], blind }
+  }
+  if (!current.model) throw new Error('当前对话尚未选择模型，请先在输入框右下角选择模型。')
+  // Saved styles describe the saved number of versions; a different count takes its own defaults.
+  const styles = saved.styles?.length === versions ? saved.styles : defaultStyleChoices(versions)
+  return { mode, candidates: versions, routes: styles.map(() => current), strategies: styles.map(strategyFor), blind }
 }
 
 export class PreferencesStore {

@@ -20,6 +20,8 @@ import { clientCapabilities } from './capabilities.js'
 import { WindowsProcessControl, WindowsProcessEvidence } from './windows-compat.js'
 import { ConversationContextControl, type ContextMode } from './conversation-context.js'
 import { CopyButton, ProjectNotes, ResultView } from './results.js'
+import { BlindControl, MAX_VERSIONS, MIN_VERSIONS, revealedStyleName, Segmented, StyleHabit, StylePicker, StyleSlots, stylesFor, VersionsControl, type StyleChoice } from './style-picker.js'
+import { LABELS, type Label, type StyleStat } from './model.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
 interface SlotsLike {
@@ -85,7 +87,13 @@ function returnToComposer(sessionId: string): void {
   if (openSession) { focusComposerOnClose = sessionId; setOpen(undefined) }
   else inputShell(sessionId)?.focus?.()
 }
-interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: [Route, Route]; exampleKind?: 'quick' | 'full'; windowsProcessCompat?: 'auto' | 'off'; contextMode?: ContextMode; contextTurns?: number }
+interface AbPreferences { enabled: boolean; mode: 'same-model' | 'cross-model'; generationMinutes: number; models: Route[]; versions?: number; styles?: StyleChoice[]; crossStyle?: StyleChoice; blind?: boolean; exampleKind?: 'quick' | 'full'; windowsProcessCompat?: 'auto' | 'off'; contextMode?: ContextMode; contextTurns?: number }
+const versionsOf = (p: AbPreferences): number => Math.min(MAX_VERSIONS, Math.max(MIN_VERSIONS, p.versions ?? MIN_VERSIONS))
+/** Saved settings with a new number of versions: styles and model slots follow. */
+function withVersions(p: AbPreferences, versions: number): AbPreferences {
+  const models = Array.from({ length: Math.max(MIN_VERSIONS, versions, p.models.length) }, (_, i) => p.models[i] ?? {}).slice(0, MAX_VERSIONS)
+  return { ...p, versions, styles: stylesFor(versions, p.styles), models }
+}
 /** `contextIds`: main-conversation entries ticked for the next submission; kept per conversation in memory only. */
 interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; autoCollapsedRunId?: string; contextIds: number[]; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
@@ -229,10 +237,11 @@ function Screenshots({ runId, c, busy, act, device }: { runId: string; c: Cand; 
 }
 /** What the agent is doing right now, so a slow run reads as slow rather than stuck. */
 type PreviewDevice = 'adaptive' | 'desktop' | 'phone'
-function LivePreview({ c, device, compact }: { c: Cand; device: PreviewDevice; compact: boolean }): React.ReactElement {
+function LivePreview({ c, device, compact, dense = false }: { c: Cand; device: PreviewDevice; compact: boolean; dense?: boolean }): React.ReactElement {
   const holder = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
-  const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: compact ? 320 : 480 } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
+  // Three or four versions side by side get shorter adaptive pages, so every one stays in view.
+  const size = device === 'adaptive' ? { width: Math.max(240, width - 24), height: compact ? (dense ? 300 : 320) : (dense ? 300 : 480) } : device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 800 }
   useLayoutEffect(() => {
     const el = holder.current
     if (!el) return
@@ -247,7 +256,7 @@ function LivePreview({ c, device, compact }: { c: Cand; device: PreviewDevice; c
     <iframe className="ac-frame" title={t("候选 {0} 的运行页面", { 0: c.label })} src={c.previewUrl} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
   </div></div>
 }
-function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): React.ReactElement {
+function PatchReview({ runId, label }: { runId: string; label: Label }): React.ReactElement {
   const [patch, setPatch] = useState<{ text: string; sha256?: string; truncated: boolean }>()
   const [error, setError] = useState<string>()
   const read = (): void => { setError(undefined); call<NonNullable<typeof patch>>('patch', { runId, label }).then(setPatch, (e: Error) => setError(e.message)) }
@@ -258,7 +267,13 @@ function PatchReview({ runId, label }: { runId: string; label: 'A' | 'B' }): Rea
     </>}
   </details>
 }
-function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, hidden }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; compact: boolean; hidden?: boolean }): React.ReactElement {
+/** A candidate set aside while narrowing down: one line, restorable. Nothing in the record changes. */
+function ExcludedCard({ c, onRestore }: { c: Cand; onRestore(): void }): React.ReactElement {
+  return <section className="ac-card ac-card-excluded" aria-label={t("候选 {0}（已排除）", { 0: c.label })}>
+    <div className="ac-row"><span className="ac-label">{c.label}</span><span className="ac-meta">{t("已排除，暂不比较")}</span><span className="ac-spacer" /><button type="button" className="ac-text-btn" onClick={onRestore}>{t("恢复 {0}", { 0: c.label })}</button></div>
+  </section>
+}
+function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, hidden, onExclude, dense = false }: { run: Run; c: Cand; revealed: boolean; picked: boolean; busy: boolean; act: Act; device: PreviewDevice; compact: boolean; hidden?: boolean; onExclude?: () => void; dense?: boolean }): React.ReactElement {
   const usage = !revealed ? undefined : c.usage?.kind !== 'reported' ? t("用量未知") : [
     c.usage.totalTokens === undefined ? t("总用量未知") : `${c.usage.totalTokens.toLocaleString(currentLocale())} tokens`,
     ...([['inputTokens', t("未缓存输入")], ['outputTokens', t("输出")], ['cacheReadTokens', t("缓存读取")], ['cacheWriteTokens', t("缓存写入")]] as const)
@@ -279,8 +294,9 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
           {c.stage === 'ready' && c.result === 'files' && <span className="ac-pill">{t("文件")}</span>}
           <span className="ac-meta">{c.verificationHistory?.length ? t("本次验收 ") : ''}{fmt(elapsed(c))}</span>
           {run.state === 'running' && busyStage(c.stage) && c.stage !== 'stopping' && <button className="ac-btn sm" disabled={busy} onClick={() => act('cancel', { label: c.label })}>{t("停止这一版")}</button>}
+          {onExclude && <button type="button" className="ac-text-btn ac-exclude" disabled={busy} onClick={onExclude} title={t("先把这一版放到一边，剩下的版本重新排布；随时可以恢复")}>{t("排除")}</button>}
           {live && <a className="ac-icon-btn ac-preview-open" href={c.previewUrl} target="_blank" rel="noreferrer" title={t("在浏览器标签页中打开 {0}；Cookie 与存储上下文可能和嵌入预览不同", { 0: c.previewUrl })} aria-label={t("在浏览器中打开 {0}", { 0: c.label })}><IconExternal /></a>}
-          {revealed && c.strategy && <span className="ac-strategy">{c.strategy.title}{model ? ` · ${model}` : ''}</span>}
+          {revealed && c.strategy && <span className="ac-strategy">{revealedStyleName(c.strategy)}{model ? ` · ${model}` : ''}</span>}
         </div>
         {busyStage(c.stage) && <Track c={c} />}
         {step > 0 && <div className="ac-meta">{t("第 ")}{step}/{PIPELINE.length}{t(" 步 · ")}{t(STAGE_TEXT[c.stage])}</div>}
@@ -289,7 +305,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
       </div>
       {live ? (
         <div className="ac-browser">
-          <LivePreview c={c} device={device} compact={compact} />
+          <LivePreview c={c} device={device} compact={compact} dense={dense} />
         </div>
       ) : c.error || c.canRetryVerification ? (
         <div className={`ac-fail${c.stage === 'interrupted' ? ' interrupted' : ''}`}>
@@ -316,7 +332,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
       )}
       <div className="ac-card-evidence">
         <details className="ac-details ac-evidence"><summary>{revealed ? t("检查依据与用量") : t("检查依据 · 盲选中")}{c.verdict ? c.verdict.eligible ? c.result !== undefined && !c.checks?.length ? t(" · 没有可运行的检查") : t(" · 已通过配置检查") : t(" · 存在采用阻碍") : ''}</summary><Verdict c={c} />
-        {!revealed && <div className="ac-meta">{t("模型、策略、用量、改动规模和详细日志在选择后显示。")}</div>}
+        {!revealed && <div className="ac-meta">{t("风格、模型、用量、改动规模和详细日志在选择后显示。")}</div>}
         {c.execution && <div className="ac-meta">{t("项目命令：")}{c.execution.enforcement === 'full' ? t("宿主报告完整文件写入约束") : c.execution.enforcement === 'partial' ? t("宿主报告部分文件写入约束") : t("约束完整性未知")}{t("。不包含文件读取与网络隔离。")}</div>}
         {c.install?.runtime && <div className="ac-meta">{t("验收宿主 Node ")}{c.install.runtime.hostNode} · {c.install.runtime.platform} · {c.install.runtime.packageManager} {c.install.runtime.packageManagerVersion ?? t("版本未记录")}</div>}
         {revealed && <WindowsProcessEvidence value={c.install?.runtime?.windowsProcessCompat} failed={c.stage === 'failed'} />}
@@ -386,10 +402,14 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     catch (e) { setError((e as Error).message) }
     finally { setBusy(false) }
   }
-  const validPair = p.models.every(m => m.provider && m.model) && JSON.stringify(p.models[0]) !== JSON.stringify(p.models[1])
+  const versions = versionsOf(p)
+  const slots = Array.from({ length: versions }, (_, i) => p.models[i] ?? {})
+  const validPair = slots.every(m => m.provider && m.model) && new Set(slots.map(m => `${m.provider}/${m.model}`)).size === slots.length
+  const styles = p.styles?.length === versions ? p.styles : stylesFor(versions, p.styles)
+  const blind = p.blind !== false
   if (!enabled && !mode.error) return null
   return <section lang={currentLocale()} className="ac-root ac-composer-settings" aria-label={t("A|B 比较设置")}><Styles />
-    <div className="ac-settings-head"><span className="ac-logo">A|B</span><div><b>{t("对比模式")}</b><span>{mode.collapsed ? t("{0} · 每版 {1} 分钟", { 0: p.mode === 'same-model' ? t("同一模型 · 两种策略") : t("两个模型 · 同一要求"), 1: p.generationMinutes }) : t("在下方写需求，发送后在这条对话里运行两版。")}</span></div><button className="ac-text-btn" onClick={() => { mode.collapsed = !mode.collapsed; publishMode(mode) }}>{mode.collapsed ? t("展开设置") : t("收起")}</button><button className="ac-icon-btn" onClick={close} disabled={busy} aria-label={t("退出 A|B 模式")}><IconClose /></button></div>
+    <div className="ac-settings-head"><span className="ac-logo">A|B</span><div><b>{t("对比模式")}</b><span>{mode.collapsed ? t("{0} · {1} 版 · {2} · 每版 {3} 分钟", { 0: p.mode === 'same-model' ? t("同一模型 · 不同风格") : t("不同模型 · 同一风格"), 1: versions, 2: blind ? t("盲选") : t("公开对比"), 3: p.generationMinutes }) : t("在下方写需求，发送后在这条对话里同时运行各版。")}</span></div><button className="ac-text-btn" onClick={() => { mode.collapsed = !mode.collapsed; publishMode(mode) }}>{mode.collapsed ? t("展开设置") : t("收起")}</button><button className="ac-icon-btn" onClick={close} disabled={busy} aria-label={t("退出 A|B 模式")}><IconClose /></button></div>
     {setup?.capabilities?.ok === false && <div className="ac-feedback" role="alert">{t("当前 DSH ")}{setup.dshVersion ?? t("（版本未知）")}{t(" 缺少比较所需接口：")}{setup.capabilities.missing.join('、')}{t("。请升级或回退至已验证版本；比较记录和草稿保留。")}</div>}
     {setup?.capabilities?.warnings.includes('sessionController.resolveAgent') && <div className="ac-feedback" role="status">{t("当前 DSH 缺少会话恢复接口：sessionController.resolveAgent。已打开的对话仍可使用；历史对话请先在 DSH 中重新打开。")}</div>}
     {/* One text run: inline pieces must not become separate flex columns. */}
@@ -397,18 +417,31 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {setup?.project?.supported && setup.project.warning && <div className="ac-feedback" role="status"><Diagnostic text={setup.project.warning} /></div>}
     {setup?.project?.supported && !mode.collapsed && <ProjectNotes project={setup.project} sessionId={sessionId} call={call} disabled={busy} onChanged={() => setSetupRetry(value => value + 1)} />}
     {!mode.collapsed && <>
-    <div className="ac-settings-row"><div className="ac-seg" role="group" aria-label={t("比较方式")}><button className={p.mode === 'same-model' ? 'on' : ''} aria-pressed={p.mode === 'same-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'same-model' })}>{t("同一模型 · 两种策略")}</button><button className={p.mode === 'cross-model' ? 'on' : ''} aria-pressed={p.mode === 'cross-model'} onClick={() => saveMode(sessionId, { ...p, mode: 'cross-model' })}>{t("两个模型 · 同一要求")}</button></div>
+    <div className="ac-settings-row">
+      <Segmented label={t("比较方式")} value={p.mode} onChange={value => saveMode(sessionId, { ...p, mode: value })} options={[{ value: 'same-model', text: t("同一模型 · 不同风格") }, { value: 'cross-model', text: t("不同模型 · 同一风格") }]} />
+      <VersionsControl value={versions} disabled={busy || !mode.loaded} onChange={n => saveMode(sessionId, withVersions(p, n))} />
+      <BlindControl blind={blind} disabled={busy || !mode.loaded} onChange={value => saveMode(sessionId, { ...p, blind: value })} />
       <label className="ac-budget">{t("每版上限 ")}<select aria-label={t("每版生成上限")} value={p.generationMinutes} onChange={e => saveMode(sessionId, { ...p, generationMinutes: Number(e.target.value) })}>{[...new Set([5, 15, 30, 60, 90, 120, p.generationMinutes])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m}{t(" 分钟")}</option>)}</select></label>
+    </div>
+    {p.mode === 'cross-model' ? <div className="ac-models" role="group" aria-label={t("各版模型")}>{slots.map((slot, i) => <label key={i}><span className="ac-style-badge" aria-hidden="true">{blind ? i + 1 : LABELS[i]}</span><select aria-label={t("第 {0} 个模型", { 0: i + 1 })} disabled={loading || busy} value={slot.model ? `${slot.provider}/${slot.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const next = slots.map((value, at) => at === i ? (item ? { provider: item.provider, model: item.id } : {}) : value); saveMode(sessionId, { ...p, versions, models: next }) }}><option value="">{t("选择已配置的模型")}</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={slots.some((other, at) => at !== i && other.provider === m.provider && other.model === m.id)}>{m.name} · {m.providerName}</option>)}</select></label>)}
+      <StylePicker index={0} shared open={!blind} choice={p.crossStyle ?? { id: 'balanced' }} disabled={busy || !mode.loaded} onChange={crossStyle => saveMode(sessionId, { ...p, crossStyle })} />
+      {loading ? <span className="ac-meta" role="status">{t("正在读取模型…")}</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>{t("重试模型列表")}</button></span> : models.length < versions ? <span className="ac-meta">{t("当前可读取的模型不足 {0} 个，可减少版本数，或使用同一模型的不同风格。", { 0: versions })}</span> : null}</div>
+      : <StyleSlots styles={styles} blind={blind} disabled={busy || !mode.loaded} onChange={next => saveMode(sessionId, { ...p, versions, styles: next })} />}
+    <div className="ac-meta ac-settings-facts">
+      {p.mode === 'same-model' && <span>{t("当前模型：")}{routeText(setup?.current) || (setup ? t("请先在输入框右下角选择模型") : t("正在读取…"))}</span>}
+      {setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}>{t("项目：")}{setup.project.path}</span> : null}
+      {versions > 2 && <span className="ac-usage-hint">{t("{0} 版同时生成，用量约为单版的 {0} 倍", { 0: versions })}</span>}
+      <StyleHabit load={() => call<{ comparisons: number; styles: StyleStat[] }>('styleStats', { sessionId })} />
+    </div>
+    <div className="ac-settings-row ac-example-row">
       <label className="ac-budget">{t("示例 ")}<select aria-label={t("内置示例范围")} disabled={busy || !mode.loaded} value={p.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...p, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">{t("基础 · 搜索与清空")}</option><option value="full">{t("完整 · 组合筛选与手机适配")}</option></select></label>
       <button className="ac-btn sm" disabled={busy || !mode.loaded || setup?.capabilities?.ok === false || !clientSupport(sessionId).canExecute || (p.mode === 'cross-model' ? !validPair : !setup?.current.model)} onClick={() => { void example() }}>{busy ? t("正在创建示例…") : t("试跑内置示例")}</button>
     </div>
-    {p.mode === 'cross-model' ? <div className="ac-models">{[0, 1].map(i => <label key={i}>{i === 0 ? t("模型一") : t("模型二")}<select disabled={loading || busy} value={p.models[i]?.model ? `${p.models[i]?.provider}/${p.models[i]?.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const pair: [Route, Route] = [...p.models]; pair[i] = item ? { provider: item.provider, model: item.id } : {}; saveMode(sessionId, { ...p, models: pair }) }}><option value="">{t("选择已配置的模型")}</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={p.models[1-i]?.provider === m.provider && p.models[1-i]?.model === m.id}>{m.name} · {m.providerName}</option>)}</select></label>)}{loading ? <span className="ac-meta" role="status">{t("正在读取模型…")}</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>{t("重试模型列表")}</button></span> : models.length < 2 ? <span className="ac-meta">{t("当前可读取的模型不足两个，可先使用同一模型的两种策略。")}</span> : null}</div>
-      : <div className="ac-meta">{t("当前模型：")}{routeText(setup?.current) || (setup ? t("请先在输入框右下角选择模型") : t("正在读取…"))}{setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}>{t(" · 项目：")}{setup.project.path}</span> : ''}</div>}
     <ConversationContextControl sessionId={sessionId} mode={p.contextMode ?? 'recent'} turns={p.contextTurns ?? 3} selected={mode.contextIds} disabled={busy || !mode.loaded} call={call}
       onMode={contextMode => saveMode(sessionId, { ...p, contextMode })} onTurns={contextTurns => saveMode(sessionId, { ...p, contextTurns })}
       onSelected={ids => { mode.contextIds = ids; publishMode(mode) }} />
     {setup?.projectProcess?.platform === 'win32' && setup.projectProcess.windowsCompatControl && <WindowsProcessControl mode={p.windowsProcessCompat} disabled={busy || !mode.loaded} onChange={windowsProcessCompat => saveMode(sessionId, { ...p, windowsProcessCompat })} />}
-    <div className="ac-settings-foot"><span>{t("到时验收已写的改动 · 两版分别消耗用量 · 示例也使用真实模型，生成耗时随模型与环境变化 · ")}{mode.saving ? t("正在保存设置…") : t("设置已保存在此对话")}</span>{(p.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}</div></>}
+    <div className="ac-settings-foot"><span>{t("到时验收已写的改动 · 各版分别消耗用量 · 示例也使用真实模型，生成耗时随模型与环境变化 · ")}{mode.saving ? t("正在保存设置…") : t("设置已保存在此对话")}</span>{(p.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}</div></>}
     {setupError && !mode.collapsed && <div className="ac-feedback" role="alert"><span>{t("无法读取当前模型与项目：")}<Diagnostic text={setupError} /></span><button className="ac-text-btn" onClick={() => { setSetupError(undefined); setSetupRetry(value => value + 1) }}>{t("重新读取模型与项目")}</button></div>}
     {(error || mode.error) && <div className="ac-feedback" role="alert"><Diagnostic text={error ?? mode.error} /><button className="ac-text-btn" onClick={() => { void loadMode(sessionId); setError(undefined) }}>{t("重新读取设置")}</button></div>}
   </section>
@@ -482,10 +515,10 @@ function RerunControl({ run, sessionId, busy, act }: { run: Run; sessionId?: str
   if (!sessionId || run.sessionId !== sessionId) return null
   return <span className="ac-rerun">
     <label className="ac-budget">{t("每版上限 ")}<select aria-label={t("重新比较的每版生成上限")} value={minutes} disabled={busy} onChange={e => setMinutes(Number(e.target.value))}>{[...new Set([...BUDGET_OPTIONS, minutes])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m}{t(" 分钟")}</option>)}</select></label>
-    <button className="ac-btn" disabled={busy} onClick={() => act('rerun', { minutes })} title={t("用同一条需求在本对话里重新比较两版；这次的结果和记录继续保留。")}>{t("再比较一次")}</button>
+    <button className="ac-btn" disabled={busy} onClick={() => act('rerun', { minutes })} title={t("用同一条需求在本对话里重新比较；这次的结果和记录继续保留。")}>{t("再比较一次")}</button>
   </span>
 }
-function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: { run: Run; sessionId?: string; busy: boolean; pending?: string | undefined; act: Act; onDone?: () => void; onContinue?: () => void }): React.ReactElement | null {
+function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue, excluded = new Set() }: { run: Run; sessionId?: string; busy: boolean; pending?: string | undefined; act: Act; onDone?: () => void; onContinue?: () => void; excluded?: ReadonlySet<Label> }): React.ReactElement | null {
   if (run.control?.allowed === false) return <div className="ac-bar" role="status" aria-label={t("比较操作权限")}><span className="ac-bar-text"><strong>{t("当前仅可查看。")}</strong><Diagnostic text={run.control.reason} /></span></div>
   const pick = run.choice?.pick
   const picked = run.candidates.find((c) => c.label === pick)
@@ -496,7 +529,7 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: {
     case 'running':
       return (
         <div className="ac-bar">
-          <span className="ac-bar-text">{retrying.length ? t("正在重新验收 {0} · 本次已用 ", { 0: retrying.map(c => c.label).join('、') }) : t("两个候选并行进行中 · 已用 ")}<strong>{fmt(total)}</strong>{ready ? t(" · {0} 个已可体验", { 0: ready }) : ''}</span>
+          <span className="ac-bar-text">{retrying.length ? t("正在重新验收 {0} · 本次已用 ", { 0: retrying.map(c => c.label).join('、') }) : t("{0} 个版本并行进行中 · 已用 ", { 0: run.candidates.length })}<strong>{fmt(total)}</strong>{ready ? t(" · {0} 个已可体验", { 0: ready }) : ''}</span>
           <button className="ac-btn danger" disabled={busy} onClick={() => act('cancel')}>{retrying.length ? t("停止验收") : t("全部停止")}</button>
         </div>
       )
@@ -505,19 +538,31 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: {
         const salvageable = run.candidates.some((c) => c.salvageable || c.canRetryVerification)
         return (
           <div className="ac-bar">
-            <span className="ac-bar-text"><strong>{t("两边都没有可体验的结果。")}</strong>{salvageable ? t("改动仍保留。可以在卡片里查看原因并验收，或结束这次比较。") : t("可以结束这次比较，调整描述或时间上限后再来。")}</span>
-            <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>{t("两版都不采用并揭晓")}</button>
+            <span className="ac-bar-text"><strong>{t("没有可体验的结果。")}</strong>{salvageable ? t("改动仍保留。可以在卡片里查看原因并验收，或结束这次比较。") : t("可以结束这次比较，调整描述或时间上限后再来。")}</span>
+            <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>{t("都不采用并揭晓")}</button>
             <RerunControl run={run} sessionId={sessionId} busy={busy} act={act} />
           </div>
         )
       }
-      return (
-        <div className="ac-bar">
-          <span className="ac-bar-text">{ready === 2 && run.candidates.every(c => c.result !== undefined) ? <><strong>{t("比较两版的结果")}</strong>{t("，选出你更满意的那一版；选完立即揭晓")}</> : ready === 2 ? <><strong>{t("两边都试一下")}</strong>{t("，选出你更愿意采用的那一版；选完立即揭晓")}</> : <><strong>{t("仅 ")}{run.candidates.find(c => c.stage === 'ready')?.label}{t(" 已可体验。")}</strong>{t("先操作这一版，再决定是否选择；选完立即揭晓。")}</>}</span>
-          <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>{t("都不满意")}</button>
-          {run.candidates.filter((c) => c.stage === 'ready').map((c) => <button key={c.label} className="ac-btn primary" disabled={busy} onClick={() => act('choose', { pick: c.label })}>{t("选 ")}{c.label}</button>)}
-        </div>
-      )
+      {
+        const n = run.candidates.length, open = run.blind === false
+        const choosable = run.candidates.filter(c => c.stage === 'ready' && !excluded.has(c.label))
+        const readyLabels = run.candidates.filter(c => c.stage === 'ready').map(c => c.label)
+        const results = run.candidates.every(c => c.result !== undefined)
+        // Open comparisons have nothing to reveal; blind ones reveal on the pick.
+        const tail = open ? t("，选出你更满意的那一版") : t("，选出你更满意的那一版；选完立即揭晓")
+        const text = ready === n
+          ? <><strong>{results ? (n === 2 ? t("比较两版的结果") : t("比较 {0} 版的结果", { 0: n })) : (n === 2 ? t("两边都试一下") : t("每一版都试一下"))}</strong>{tail}{excluded.size ? t("（已排除 {0}）", { 0: [...excluded].sort().join('、') }) : ''}</>
+          : ready === 1 ? <><strong>{t("仅 ")}{readyLabels[0]}{t(" 已可体验。")}</strong>{open ? t("先操作这一版，再决定是否选择。") : t("先操作这一版，再决定是否选择；选完立即揭晓。")}</>
+          : <><strong>{t("{0} 已可体验。", { 0: readyLabels.join('、') })}</strong>{open ? t("先操作这些版本，再决定选哪一版。") : t("先操作这些版本，再决定选哪一版；选完立即揭晓。")}</>
+        return (
+          <div className="ac-bar">
+            <span className="ac-bar-text">{text}</span>
+            <button className="ac-btn" disabled={busy} onClick={() => act('choose', { pick: 'none' })}>{t("都不满意")}</button>
+            {choosable.map((c) => <button key={c.label} className="ac-btn primary" disabled={busy} onClick={() => act('choose', { pick: c.label })}>{t("选 ")}{c.label}</button>)}
+          </div>
+        )
+      }
     case 'revealed': {
       const eligible = picked?.verdict?.eligible === true
       // Nothing adopted yet: the user may switch to the other finished version after seeing both revealed.
@@ -525,9 +570,9 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue }: {
       const alternativeEligible = alternatives.some(c => c.verdict?.eligible === true)
       const folder = run.target !== undefined
       const answer = picked?.result === 'answer'
-      const text = pick === 'none' || picked === undefined ? alternatives.length ? t("这次两版都没选。揭晓后仍可改选一版，或用同一需求再比较一次。") : t("这次两版都没选。可以换个描述再来一次。")
+      const text = pick === 'none' || picked === undefined ? alternatives.length ? t("这次都没选。揭晓后仍可改选一版，或用同一需求再比较一次。") : t("这次都没选。可以换个描述再来一次。")
         : answer ? <><strong>{t("你选了 {0} 的回答。", { 0: pick })}</strong>{t("接着在主对话里提问就会用上它，没有需要保存的文件。")}</>
-        : folder ? run.target?.folder ? t("选中的文件还没有保存。保存时会在 {0} 里新建一个文件夹，不改动原有文件。", { 0: run.target.folder }) : t("这条对话没有目录；选中的文件可以在卡片里查看。")
+        : folder ? run.target?.folder ? <span title={run.target.folder}>{t("选中的文件还没有保存。保存时会在 {0} 里新建一个文件夹，不改动原有文件。", { 0: `「${run.target.folder.split(/[\\/]/).filter(Boolean).at(-1) ?? run.target.folder}」` })}</span> : t("这条对话没有目录；选中的文件可以在卡片里查看。")
         : eligible ? t("先核对目标与改动，必要时在副本中预演；确认后才写入。") : alternativeEligible ? t("这一版没有通过共同验收，不能写入工作区。可以改选通过验收的另一版，或另存为分支查看。") : t("这一版没有通过共同验收，不能写入工作区，可以另存为分支查看。")
       return (
         <div className="ac-bar">
@@ -631,8 +676,8 @@ function ConversationLink({ run }: { run: Run }): React.ReactElement | null {
   const context = run.conversationContext, memory = run.conversationMemory
   if (!context && !memory) return null
   return <div className="ac-link-strip">
-    {context ? <details className="ac-link-item"><summary><span className="ac-link-dot in" aria-hidden="true" />{t("两版都带入了主对话的 {0} 条内容，约 {1} 字", { 0: context.messages, 1: context.chars.toLocaleString() })}{context.truncated ? t("（已截取）") : ''}</summary><pre className="ac-context-text" tabIndex={0}>{context.text}</pre></details>
-      : <span className="ac-link-item"><span className="ac-link-dot" aria-hidden="true" />{t("两版只看到了需求本身")}</span>}
+    {context ? <details className="ac-link-item"><summary><span className="ac-link-dot in" aria-hidden="true" />{t("各版都带入了主对话的 {0} 条内容，约 {1} 字", { 0: context.messages, 1: context.chars.toLocaleString() })}{context.truncated ? t("（已截取）") : ''}</summary><pre className="ac-context-text" tabIndex={0}>{context.text}</pre></details>
+      : <span className="ac-link-item"><span className="ac-link-dot" aria-hidden="true" />{t("各版只看到了需求本身")}</span>}
     {memory && <span className={`ac-link-item${memory === 'synced' ? ' ok' : ''}`} role="status"><span className={`ac-link-dot ${memory === 'synced' ? 'ok' : 'wait'}`} aria-hidden="true" />{memory === 'synced' ? t("结果已写入主对话记忆") : t("结果会在你下一条消息时写入主对话记忆")}</span>}
   </div>
 }
@@ -644,7 +689,7 @@ function Banners({ run, recordOnly = false }: { run: Run; recordOnly?: boolean }
   const a = run.adoption
   const bad = a && ['blocked', 'rolled-back', 'needs-recovery'].includes(a.state)
   const comparison = revealed && pick !== undefined ? <>
-    <div>{run.mode === 'same-model' ? t("同一模型、两种策略。") : t("两个模型、同一要求。")}{t("你选了 ")}<strong>{pick === 'none' ? t("都不满意") : `${pick}${pickedTitle ? `（${pickedTitle}）` : ''}`}</strong>{run.choice?.initialPick !== undefined && <>{t("（揭晓后改选；盲选时选了 {0}）", { 0: run.choice.initialPick === 'none' ? t("都不满意") : run.choice.initialPick })}</>}{t("；程序验收倾向 ")}<strong>{fav === 'tie' ? t("持平") : fav === 'none' || fav === undefined ? t("无") : fav}</strong>
+    <div>{run.blind === false ? t("公开对比，") : ''}{t("{0} 版，", { 0: run.candidates.length })}{run.mode === 'same-model' ? t("同一模型、不同风格。") : t("不同模型、同一风格。")}{t("你选了 ")}<strong>{pick === 'none' ? t("都不满意") : `${pick}${pickedTitle ? `（${pickedTitle}）` : ''}`}</strong>{run.choice?.initialPick !== undefined && <>{t("（揭晓后改选；盲选时选了 {0}）", { 0: run.choice.initialPick === 'none' ? t("都不满意") : run.choice.initialPick })}</>}{t("；程序验收倾向 ")}<strong>{fav === 'tie' ? t("持平") : fav === 'none' || fav === undefined ? t("无") : fav}</strong>
       {pick !== 'none' && fav !== undefined && fav !== 'tie' && fav !== 'none' && fav !== pick ? t("。你的选择和验收结论不同。") : '。'}</div>
     <div className="disclaimer">{t("单次任务的结果不代表模型或策略的整体优劣。")}</div>
   </> : null
@@ -695,7 +740,10 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const reads = useRef<{ version: number; pending: boolean; controller?: AbortController }>({ version: 0, pending: false })
   const action = useRef({ version: 0, pending: false })
   const [device, setDevice] = useState<PreviewDevice>('adaptive')
-  const [layout, setLayout] = useState<'side' | 'A' | 'B'>('side')
+  const [layout, setLayout] = useState<'side' | Label>('side')
+  // Narrowing down is a view of this card only; the record keeps every candidate.
+  const [excluded, setExcluded] = useState<ReadonlySet<Label>>(new Set())
+  useEffect(() => { setExcluded(new Set()); setLayout('side') }, [runId])
   const [preflight, setPreflight] = useState<{ ok: boolean; reasons: string[]; overlapping?: string[]; rehearsal?: boolean; protectedWorktreeApply?: boolean }>()
   const publish = useCallback((next: Run, expectedId: string): void => {
     if (!mounted.current || activeId.current !== expectedId || next.runId !== expectedId) return
@@ -802,9 +850,26 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const operationBlocked = busy || copyBusy || run.control?.allowed === false
   const blocked = operationBlocked || confirmation !== undefined
   const confirmationLabel = confirmation?.method === 'choose'
-    ? confirmation.extra.pick === 'none' ? t("两版都不采用并揭晓") : t("选择 {0} 并揭晓", { 0: confirmation.extra.pick === 'B' ? 'B' : 'A' })
+    ? confirmation.extra.pick === 'none' ? t("都不采用并揭晓") : t("选择 {0} 并揭晓", { 0: LABELS.find(label => label === confirmation.extra.pick) ?? '' })
     : confirmation?.method === 'adopt' ? confirmation.extra.mode === 'branch' ? t("另存 {0} 为分支", { 0: run.choice?.pick ?? '' }) : t("采用候选 {0}", { 0: run.choice?.pick ?? '' }) : undefined
-  const revealed = REVEALED.has(run.state) || run.choice !== undefined
+  // An open comparison shows every identity from the start.
+  const revealed = REVEALED.has(run.state) || run.choice !== undefined || run.blind === false
+  const judging = run.state === 'judging'
+  const shown = run.candidates.filter(c => !excluded.has(c.label))
+  // Narrowing down is offered while choosing among three or four; at least two stay in view.
+  const canExclude = judging && run.candidates.length > 2 && shown.length > 2
+  const exclude = (label: Label): void => { setExcluded(previous => new Set([...previous, label])); if (layout === label) setLayout('side') }
+  const restore = (label: Label): void => setExcluded(previous => { const next = new Set(previous); next.delete(label); return next })
+  const keyboard = (event: React.KeyboardEvent): void => {
+    // Digits focus a version, 0 shows them all; typing in a field is never taken over.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented || event.nativeEvent.isComposing || !/^[0-4]$/.test(event.key)) return
+    const target = event.target as HTMLElement
+    if (target.isContentEditable || target.closest('input, textarea, select, [role="textbox"]')) return
+    const index = Number(event.key)
+    if (index === 0) { setLayout('side'); event.preventDefault(); return }
+    const candidate = run.candidates[index - 1]
+    if (candidate && !excluded.has(candidate.label)) { setLayout(candidate.label); event.preventDefault() }
+  }
   const continueConversation = sessionId ? (): void => {
     if (!leaveMode(sessionId)) { setErr(t("消息正在提交，请等它结束后继续对话。")); return }
     const mode = modeFor(sessionId)
@@ -814,24 +879,27 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   } : undefined
   const previewHosts = run.candidates.filter(c => c.previewUrl).map(c => { try { return new URL(c.previewUrl!).hostname } catch { return '' } })
   const savedOnly = run.candidates.some(c => !c.previewUrl && (c.hasScreenshot || c.hasMobileScreenshot))
+  const contentOnly = previewHosts.length === 0 && !savedOnly && run.candidates.every(c => c.result === 'answer' || c.result === 'files')
   const previewHint = previewHosts.length === run.candidates.length && previewHosts.length > 0
     ? device === 'adaptive' ? t("直接在对话中操作真实页面") : t("相同视口 · 按可用宽度缩放")
     : previewHosts.length > 0
       ? savedOnly ? t("实时预览与验收截图 · 查看各候选状态") : t("部分候选可交互 · 查看各候选状态")
-      : savedOnly ? t("验收截图 · 静态记录，不可交互") : t("预览尚不可用 · 查看各候选状态")
+      : savedOnly ? t("验收截图 · 静态记录，不可交互") : contentOnly ? t("按内容比较 · 没有实时页面") : t("预览尚不可用 · 查看各候选状态")
   const independentHosts = previewHosts.length > 0 && previewHosts.every(host => /^ac-[0-9a-f]{32}\.localhost$/.test(host)) && new Set(previewHosts).size === previewHosts.length
   const body = (
     <>
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}><Diagnostic text={err ?? readErr} /></div>}
       {confirmation && <div ref={confirmationBox} tabIndex={-1} className="ac-review" role="region" aria-label={t("跨对话操作确认")} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConfirmation(undefined) } }}><div><b>{t("这次比较来自另一个对话")}</b><p>{t("请确认要操作的项目：")}{run.baseline.repoRoot ?? t("记录中未提供项目路径")}</p><p>{t("运行编号：")}<code>{runId}</code>{t(" · 将执行：")}{confirmationLabel ?? ({ choose: t("选择并揭晓"), reviewAdoption: t("审查采用"), adopt: t("采用候选"), revert: t("撤销采用"), recover: t("恢复文件"), cancel: t("停止比较"), cancelAdoption: t("停止采用预演"), salvage: t("验收已有改动"), retryVerification: t("重新验收"), reopenPreview: t("重新打开预览") } as Record<string, string>)[confirmation.method] ?? t("更新这次比较")}</p><p>{t("确认仅适用于这一次操作，仍会重新核验项目、候选与归属。")}</p></div><div className="ac-row"><button className="ac-btn" onClick={() => setConfirmation(undefined)}>{t("取消操作")}</button><button className="ac-btn primary" disabled={cancelBusy || (confirmation.method === 'cancelAdoption' ? run.control?.allowed === false : operationBlocked)} onClick={() => { const next = confirmation; setConfirmation(undefined); act(next.method, { ...next.extra, confirmOtherSession: true }) }}>{t("确认本次操作")}</button></div></div>}
-      <div className="ac-action-dock"><ActionBar run={run} {...(sessionId ? { sessionId } : {})} busy={busy || copyBusy || !!confirmation} pending={confirmation ? 'confirmation' : cancelBusy ? 'cancelAdoption' : pending} act={act} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
+      <div className="ac-action-dock"><ActionBar run={run} {...(sessionId ? { sessionId } : {})} busy={busy || copyBusy || !!confirmation} pending={confirmation ? 'confirmation' : cancelBusy ? 'cancelAdoption' : pending} act={act} excluded={judging ? excluded : new Set()} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label={t("资源清理状态")}><div><b>{run.state === 'adopted' ? t("采用已完成，仍有资源等待清理") : t("仍有资源等待清理")}</b><p>{t("可以重试清理。清理只处理本次比较拥有的资源。")}</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>{t("重试清理")}</button></div></section>}
       {preflight && <section className="ac-review" aria-label={t("采用前审查")} role="region"><div><b>{preflight.ok ? t("目标核验通过，请确认采用") : t("当前无法采用")}</b><p className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的项目")}</p><p>{preflight.ok ? preflight.rehearsal ? t("项目有新改动，将先合并到临时副本中重新验收。") : t("将写入选中版本；不自动提交，保留暂存状态。") : preflight.reasons.join('；')}</p>{preflight.ok && <p>{t("先保留原始文件，再交接候选。交接时出现新编辑会停止并保留双方内容；请等操作完成后再继续编辑涉及的文件。")}</p>}{preflight.overlapping?.length ? <code>{preflight.overlapping.join('、')}</code> : null}</div><div className="ac-row"><button className="ac-btn" onClick={() => setPreflight(undefined)}>{t("返回审查")}</button><button className="ac-btn primary" disabled={blocked || !preflight.ok} onClick={() => act('adopt', { mode: 'worktree' })}>{t("确认采用 ")}{run.choice?.pick}</button></div></section>}
       <Banners run={run} />
-      <div className="ac-compare-tools"><div className="ac-seg" aria-label={t("比较布局")}>{(['side', 'A', 'B'] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{{ side: t("并排比较"), A: t("专注 A"), B: t("专注 B") }[v]}</button>)}</div><div className="ac-seg" aria-label={t("预览尺寸")}><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>{t("适应窗口")}</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t("桌面 1280")}</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>{t("手机 390")}</button></div><span className="ac-meta">{previewHint}</span></div>
+      <div className="ac-compare-tools"><div className="ac-seg" role="group" aria-label={t("比较布局")} title={t("在卡片里按 1–{0} 专注某一版，按 0 回到全部", { 0: run.candidates.length })}>{(['side', ...run.candidates.filter(c => !excluded.has(c.label) || !judging).map(c => c.label)] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{v === 'side' ? (run.candidates.length > 2 ? t("全部并排") : t("并排比较")) : t("专注 {0}", { 0: v })}</button>)}</div>{!contentOnly && <div className="ac-seg" aria-label={t("预览尺寸")}><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>{t("适应窗口")}</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t("桌面 1280")}</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>{t("手机 390")}</button></div>}<span className="ac-meta">{previewHint}</span></div>
       {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>{t("预览环境与限制")}</summary><p>{independentHosts ? t("候选使用独立本地地址，避免同名 Cookie 相互影响。") : t("这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。")}{t("嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。")}</p></details>}
-      <div className={`ac-grid${layout !== 'side' ? ' focus' : ''}`}>
-        {run.candidates.map((c) => <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} compact={compact === true} hidden={layout !== 'side' && layout !== c.label} />)}
+      <div className={`ac-grid count-${layout === 'side' ? (judging ? shown.length : run.candidates.length) : 1}${layout !== 'side' ? ' focus' : ''}`} onKeyDown={keyboard}>
+        {run.candidates.map((c) => judging && excluded.has(c.label)
+          ? (layout === 'side' ? <ExcludedCard key={c.label} c={c} onRestore={() => restore(c.label)} /> : null)
+          : <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} compact={compact === true} hidden={layout !== 'side' && layout !== c.label} dense={layout === 'side' && (judging ? shown.length : run.candidates.length) > 2} {...(canExclude ? { onExclude: () => exclude(c.label) } : {})} />)}
       </div>
       {/* Secondary facts follow the applications: what went in from the main conversation and whether the result came back. */}
       <ConversationLink run={run} />
@@ -910,7 +978,7 @@ function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement 
     mode.collapsed = false
     saveMode(sessionId, { ...mode.preferences, enabled: !enabled }); inputShell(sessionId)?.focus?.()
   }
-  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={!mode.loaded || mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? t("A|B 对比模式已开启，点此退出") : t("开启 A|B 对比模式，在主对话里运行两版"))} aria-label={t("A|B 对比模式")}>A|B</button></>
+  return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={!mode.loaded || mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? t("A|B 对比模式已开启，点此退出") : t("开启 A|B 对比模式，在主对话里同时运行 2–4 版"))} aria-label={t("A|B 对比模式")}>A|B</button></>
 }
 function History({ data, open, busy, failed, scope, query, onScope, onSearch, onPage, onlyUnavailable, problemSupported, onUnavailable }: {
   data?: ListResult; open: (r: Run) => void; busy: boolean; failed?: string
@@ -968,11 +1036,11 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
     <div><span className="ac-eyebrow">{t("从比较到交付")}</span><h2 className="ac-h1">{t("体验真实结果，做出开发决策。")}</h2><p className="ac-lead">{t("适合存在多种可行方案的界面、布局与交互任务。已有明确答案的小修复通常用一个 Agent 更直接。")}</p></div>
     <ol className="ac-guide-steps">
       <li><b>{t("在主对话里开启 A|B")}</b><p>{t("点输入框左下角的 A|B，上方即出现设置条。直接选择比较方式、模型和每版时长；在原输入框里写需求并发送，不用填写参数。")}</p></li>
-      <li><b>{t("体验两版")}</b><p>{t("独立生成后运行安装、检查与构建。桌面和手机预览使用统一尺寸，可以并排观察或专注体验其中一版。")}</p></li>
+      <li><b>{t("体验各版")}</b><p>{t("独立生成后运行安装、检查与构建。桌面和手机预览使用统一尺寸，可以并排观察、逐个排除，或专注体验其中一版。")}</p></li>
       <li><b>{t("选择并审查")}</b><p>{t("选择后揭晓模型和策略。查看代码改动、程序检查与未验证的部分；一次偏好选择不代表模型的整体排名。")}</p></li>
       <li><b>{t("采用结果")}</b><p>{t("采用前检查目标是否变化；必要时在临时副本中预演。工作区采用不自动提交；另存分支会明确创建一个提交。")}</p></li>
     </ol>
-    <div className="ac-case"><div><b>{t("试跑真实的示例商店")}</b><span>{t("新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前模型与时长设置，两版分别消耗用量；任务、结果和选择保留在主对话。")}</span><label className="ac-budget">{t("示例范围 ")}<select aria-label={t("内置示例范围")} disabled={busy || !mode.loaded} value={mode.preferences.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...mode.preferences, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">{t("基础 · 搜索与清空")}</option><option value="full">{t("完整 · 组合筛选与手机适配")}</option></select></label></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? t("正在创建…") : t("试跑内置示例")}</button></div>
+    <div className="ac-case"><div><b>{t("试跑真实的示例商店")}</b><span>{t("新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前比较与时长设置，各版分别消耗用量；任务、结果和选择保留在主对话。")}</span><label className="ac-budget">{t("示例范围 ")}<select aria-label={t("内置示例范围")} disabled={busy || !mode.loaded} value={mode.preferences.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...mode.preferences, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">{t("基础 · 搜索与清空")}</option><option value="full">{t("完整 · 组合筛选与手机适配")}</option></select></label></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? t("正在创建…") : t("试跑内置示例")}</button></div>
     {error && <div className="ac-feedback" role="alert"><Diagnostic text={error} /></div>}
     {(mode.preferences.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}
     <button className="ac-btn" onClick={() => { mode.collapsed = false; if (enterMode(sessionId)) saveMode(sessionId, { ...modeFor(sessionId).preferences, enabled: true }); returnToComposer(sessionId) }}>{t("回到输入框，开启 A|B")}</button><div className="ac-note">{t("支持范围：仓库根目录中的本地 Vite 前端。页面检查通过只代表配置的步骤通过，仍需实际体验需求和边界情况。")}</div>

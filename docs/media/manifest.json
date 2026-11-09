@@ -1,78 +1,93 @@
 {
   "schema": "agentcompare.demo/v1",
   "source": {
-    "version": "1.1.0",
-    "commit": "8dd54760981823be252feb46ce4ebd8e67ba26cd",
-    "archiveSha256": "0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b",
+    "version": "2.0.0 release candidate",
+    "commit": "d36bdb0e4146afa83d624679225ad2c8f5674bd2",
+    "archiveSha256": "5d013ddf0d9cc90cbdf8f9f3ba8fa9fbdb3ce1e18a32e45118aa110589c85b6e",
+    "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
     "host": "0.2.2-rc.1",
-    "node": "26.13.0",
-    "browser": "Chromium 156.0.8078.4",
-    "platform": "Windows",
-    "matchingInstalledRuntimeFiles": 81
+    "browser": "Microsoft Edge 156.0.4314.58 (headless)",
+    "os": "Windows",
+    "capturedAt": "2026-11-09T13:12:40.963Z",
+    "ffmpeg": "ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\r",
+    "candidate": "Local controlled model uses the native DSH write tool. No external model request.",
+    "task": "Four pomodoro pages in a folder outside Git; choose, save, undo, compare three English answers and continue the main conversation."
   },
-  "capturedAt": "2026-11-06T08:04:27.661Z",
-  "method": "Controlled candidates; real applications, shared checks, reviewed adoption and undo. No external model request.",
   "editing": {
-    "rawSeconds": 52.76,
-    "workflowWallSeconds": 50.851,
-    "workflowSeconds": 28.76,
-    "previewSeconds": 5,
-    "workflowPlaybackRate": 1,
-    "previewPlaybackRate": 0.5,
+    "rawSeconds": 50.8,
+    "workflowSeconds": 10.64,
     "workflowSegments": [
       [
-        0,
-        5
+        2.63,
+        4.72
       ],
       [
-        29,
-        52.76
+        28.25,
+        36.82
       ]
     ],
-    "previewRawSegment": [
-      32.6,
-      35.1
+    "workflowPlaybackRate": 1,
+    "previewSeconds": 6.5,
+    "previewSegment": [
+      29.74,
+      36.269999999999996
     ],
+    "previewPlaybackRate": 1,
+    "previewFps": 6,
+    "previewCrop": {
+      "x": 12,
+      "y": 48,
+      "width": 1576,
+      "height": 1152
+    },
+    "previewWidth": 720,
+    "previewHeaderAdded": true,
     "waitingPeriodsCut": true,
     "localPathsHidden": true,
-    "captionsAdded": true,
-    "executionOutcomesEdited": false
+    "visibleCaption": true
   },
-  "result": {
-    "A": {
-      "typecheck": "passed",
-      "build": "passed",
-      "browser": "passed",
-      "adoptable": true
+  "proof": {
+    "assignment": {
+      "A": "活力 · Vibrant",
+      "B": "稳妥 · Conservative",
+      "C": "大胆 · Bold",
+      "D": "极简 · Minimal"
     },
-    "B": {
-      "typecheck": "passed",
-      "build": "passed",
-      "browser": "failed",
-      "adoptable": false
+    "setAside": [
+      "B",
+      "D"
+    ],
+    "picked": "C",
+    "pageChecks": {
+      "A": "passed",
+      "B": "passed",
+      "C": "passed",
+      "D": "passed"
     },
-    "adopted": "A",
-    "undoVerified": true,
-    "filesWritten": 2,
-    "headAndIndexUnchanged": true,
+    "savedToNewFolder": true,
+    "saveUndone": true,
+    "englishAnswerVersions": 3,
+    "phoneWidth": 390,
+    "mainConversationMemory": true,
     "pageErrors": 0,
-    "controlledProvider": true
+    "controlledProvider": true,
+    "nativeWriteCalls": 4
   },
   "files": [
     {
       "path": "comparison-workflow.mp4",
-      "bytes": 1264813,
-      "sha256": "56a4dae4b5ee1d0bbf0c3128626294fdd294e939a6ec7262c68721b8f066905e"
+      "bytes": 549857,
+      "sha256": "f7eea8fd2a701c922a59d4f2690db247431fba54620ff154b67bbb5da87f2fa4"
     },
     {
       "path": "comparison-preview.gif",
-      "bytes": 658473,
-      "sha256": "4c17a87581a1fbbb98c92ea231346a9b94bb10abed79263dcb0b49908470a639"
+      "bytes": 795725,
+      "sha256": "88a8a4ba81dc3791160efa55d6615a7f692f205ef0b20d665567274e367fd42b"
     },
     {
       "path": "social-preview.png",
-      "bytes": 57862,
-      "sha256": "992599bd3a3c7a545e38eeb31db732bc2e5edf95b21346003524baf6e22e0676"
+      "bytes": 619630,
+      "sha256": "3bf82920bc458bbdb186483d495d3448729493024db93bf2551ca00a7ffad433"
     }
   ]
 }

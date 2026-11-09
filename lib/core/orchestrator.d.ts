@@ -42,11 +42,16 @@ export interface AgentRunner {
 export interface StartInput {
     readonly repo: string;
     readonly task: string;
-    /** `same-model` (default): one route, two strategies. `cross-model`: two routes, one brief. */
+    /** `same-model` (default): one route, a style per candidate. `cross-model`: a route per candidate, one shared style. */
     readonly mode?: 'same-model' | 'cross-model';
-    readonly strategies?: readonly [Strategy, Strategy];
-    /** same-model: routes[0] for both. cross-model: two different routes (required). */
-    readonly routes?: readonly [AgentRoute, AgentRoute];
+    /** Number of candidates, 2–4. Default: the number of strategies (same-model) or routes (cross-model), else 2. */
+    readonly candidates?: number;
+    /** same-model: one strategy per candidate. cross-model: the shared strategy is `strategies[0]` (default balanced). */
+    readonly strategies?: readonly Strategy[];
+    /** same-model: routes[0] for every candidate. cross-model: one distinct route per candidate (required). */
+    readonly routes?: readonly AgentRoute[];
+    /** `false`: an open comparison (identities shown, order kept). Default: blind. */
+    readonly blind?: boolean;
     readonly checks?: ChecksSpec;
     readonly sessionId?: string;
     readonly follows?: string;
@@ -55,7 +60,7 @@ export interface StartInput {
     readonly windowsProcessCompat?: WindowsProcessCompatMode;
     /** Main-conversation excerpt for both candidates; recorded with the run. */
     readonly conversationContext?: RunRecord['conversationContext'];
-    /** Fixed A/B assignment for tests; production shuffles. */
+    /** Fixed assignment for tests; a blind comparison shuffles, an open one keeps the chosen order. */
     readonly assignment?: 'fixed' | 'shuffle';
     /** Handed to every AgentRunner call; never persisted. */
     readonly hostContext?: unknown;
@@ -79,6 +84,15 @@ export interface ComparerOptions {
     /** Required for executable project commands; the host supplies its write boundary. */
     readonly prepareProjectProcess?: PrepareProjectProcess;
 }
+/**
+ * The candidates a start asks for: how many, and the route and strategy of
+ * each, in the order the user chose them.
+ */
+export declare function candidatePlan(input: Pick<StartInput, 'mode' | 'candidates' | 'strategies' | 'routes'>): {
+    mode: 'same-model' | 'cross-model';
+    routes: AgentRoute[];
+    strategies: Strategy[];
+};
 export declare const DEFAULT_GENERATION_MS: number;
 export declare class Comparer {
     private readonly opts;

@@ -1,9 +1,11 @@
 import type { AgentRoute, StartInput } from '../core/index.ts';
-import type { AbPreferences } from './preferences.ts';
+import { type AbPreferences } from './preferences.ts';
 export interface StartToolArgs {
     task: string;
     mode?: 'same-model' | 'cross-model';
     time_limit_minutes?: number;
+    /** 2–4 versions; defaults to the saved setting. */
+    versions?: number;
 }
 /** A background comparison takes ownership only after start has admitted it. */
 export declare function startToolComparison<A extends {
@@ -22,7 +24,7 @@ export declare function startToolComparison<A extends {
         runId: string;
         state: string;
     }>;
-    /** The saved main-conversation context for both candidates, if any. */
+    /** The saved main-conversation context for every candidate, if any. */
     conversationContext?(agent: A, saved: AbPreferences): Promise<StartInput['conversationContext']>;
 }): Promise<{
     runId: string;

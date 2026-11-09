@@ -9,7 +9,11 @@
 export declare const RUN_SCHEMA = "agent-compare.run/v2";
 export declare const RUN_COORDINATION = "sqlite-run/v1";
 export declare const LEGACY_SCHEMAS: readonly string[];
-export type CandidateLabel = 'A' | 'B';
+/** A comparison has 2–4 candidates, labelled in order. */
+export declare const CANDIDATE_LABELS: readonly ['A', 'B', 'C', 'D'];
+export type CandidateLabel = typeof CANDIDATE_LABELS[number];
+export declare const MIN_CANDIDATES = 2;
+export declare const MAX_CANDIDATES = 4;
 export type CandidateStage = 'queued' | 'preparing' | 'generating' | 'sealing' | 'installing' | 'verifying' | 'previewing' | 'ready' | 'failed' | 'stopping' | 'cancelled' | 'interrupted';
 export type RunState = 'running' | 'judging' | 'revealed' | 'adopting' | 'adopted'
 /** An adoption was interrupted or could not be rolled back cleanly; the user must decide. */
@@ -379,10 +383,17 @@ export interface RunRecord {
     readonly baseline: Baseline;
     readonly acceptance: Acceptance;
     /**
-     * `same-model`: one route, two strategies. `cross-model`: two routes, one
-     * strategy. Chosen explicitly at start, never inferred from route equality.
+     * `same-model`: one route, a style per candidate. `cross-model`: a route per
+     * candidate, one shared style. Chosen explicitly at start, never inferred
+     * from route equality.
      */
     readonly mode: 'same-model' | 'cross-model';
+    /**
+     * `false`: an open comparison; every candidate's style and model are shown
+     * from the start and candidates keep the order the user chose. Absent: blind
+     * (identities stay hidden until the pick, and the order is shuffled).
+     */
+    readonly blind?: false;
     /** `own-root`: each candidate session's write boundary is its own copy. */
     readonly isolation: 'own-root' | 'shared-root';
     readonly budget: {

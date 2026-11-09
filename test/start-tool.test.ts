@@ -45,10 +45,33 @@ describe('background start tool', () => {
   it('rejects missing models and duplicate cross-model routes', async () => {
     const { exec, ports, saved } = setup()
     ports.preferences.mockResolvedValue({ ...saved, models: [{}, {}] } as any)
-    await expect(startToolComparison({ task: 'task' }, exec, ports)).rejects.toThrow(/两个完整/)
+    await expect(startToolComparison({ task: 'task' }, exec, ports)).rejects.toThrow(/2 个版本各选一个完整的模型配置/)
     ports.preferences.mockResolvedValue({ ...saved, models: [saved.models[0], saved.models[0]] } as any)
-    await expect(startToolComparison({ task: 'task' }, exec, ports)).rejects.toThrow(/不同/)
+    await expect(startToolComparison({ task: 'task' }, exec, ports)).rejects.toThrow(/互不相同/)
     expect(ports.start).not.toHaveBeenCalled()
+  })
+  it('starts the saved number of versions with their styles, blind or open', async () => {
+    const { exec, ports, saved } = setup()
+    ports.preferences.mockResolvedValue({ ...saved, mode: 'same-model', versions: 3, styles: [{ id: 'minimal' }, { id: 'custom', note: '像杂志一样' }, { id: 'vibrant' }], blind: false } as any)
+    await startToolComparison({ task: 'task' }, exec, ports)
+    const input = ports.start.mock.calls[0]![0]
+    expect(input).toMatchObject({ mode: 'same-model', candidates: 3, blind: false })
+    expect(input.strategies.map((s: { id: string }) => s.id)).toEqual(['minimal', 'custom', 'vibrant'])
+    expect(input.strategies[1].instruction).toContain('"像杂志一样"')
+    expect(input.routes).toHaveLength(3)
+    // An explicit count takes that count's default styles.
+    ports.start.mockClear()
+    await startToolComparison({ task: 'task', versions: 4 }, exec, ports)
+    expect(ports.start.mock.calls[0]![0].strategies.map((s: { id: string }) => s.id)).toEqual(['conservative', 'bold', 'minimal', 'vibrant'])
+    await expect(startToolComparison({ task: 'task', versions: 5 }, exec, ports)).rejects.toThrow(/2 到 4/)
+  })
+  it('gives every model of a cross-model comparison the one shared style', async () => {
+    const { exec, ports, saved } = setup()
+    const models = [{ provider: 'a', model: '1' }, { provider: 'b', model: '2' }, { provider: 'c', model: '3' }]
+    ports.preferences.mockResolvedValue({ ...saved, mode: 'cross-model', versions: 3, models, crossStyle: { id: 'polished' } } as any)
+    await startToolComparison({ task: 'task' }, exec, ports)
+    expect(ports.start.mock.calls[0]![0]).toMatchObject({ mode: 'cross-model', candidates: 3, routes: models, blind: true })
+    expect(ports.start.mock.calls[0]![0].strategies.map((s: { id: string }) => s.id)).toEqual(['polished'])
   })
   it('does not start if admission is cancelled during project resolution', async () => {
     const { exec, ports, controller } = setup()

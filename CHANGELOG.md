@@ -1,7 +1,24 @@
 # Changelog
 
-## Unreleased
+## 2.0.0
 
+- **Upgrade notes.** Existing two-version records remain readable. Records with three or four versions require 2.0.0 or later; earlier readers keep them read-only. Updating the plugin does not migrate or delete those records.
+- **Keyboard and copy reliability.** Space activates the focused button instead of changing layout. Composition and editable text do not trigger digit shortcuts. Clipboard fallback always removes its temporary field and preserves focus, including denied or unavailable clipboard access.
+- Revealed preset style names follow the selected interface language. Custom descriptions remain as written.
+- Content-only results identify themselves as such and omit page viewport controls, instead of suggesting a preview is still on the way.
+
+- **Two to four versions.** A comparison runs 2, 3 or 4 versions at once, labelled A–D. Records hold two to four candidates in order, and a pick, the favoured result or an adoption must name one of them. Two-version records are unchanged; release 1.3.0 and earlier list a record with more candidates as one to handle and do not act on it.
+- **Styles.** Every version can get a style:
+  - Approach: Conservative, Bold.
+  - Look and feel: Minimal, Polished, Vibrant.
+  - Priority: Friendly, Rigorous, Lean.
+  - A one-line custom description of up to 120 characters, quoted as data.
+
+  Each style has an instruction for a project and one for a request that starts from nothing or may be answered in words. Defaults are Conservative and Bold for two versions, plus Minimal for three and Vibrant for four. Comparing models gives every model one shared style, Balanced by default.
+- **Blind or open.** A blind comparison keeps styles, models, summaries, change sizes and usage hidden until the pick, and shuffles the chosen styles across the labels. An open comparison shows them from the start in the chosen order. Prompts, conversation notes and the current-state context say how many versions there are and whether the user sees their styles.
+- **Narrow down.** With three or four versions, any version can be set aside while choosing; the rest move up side by side, and set-aside versions cannot be picked until restored. Digits 1–4 in the card focus a version and 0 shows them all. Pages are shorter when three or four are side by side, so every version stays in view.
+- **Settings.** The strip chooses the mode, the number of versions, blind or open, and a style for each version or a model for each version. It notes that more versions use more, and shows the styles this user picks most. `/ab` takes `--versions N` and two to four `--models`; the start tool takes `versions`.
+- **Media.** The README header, workflow illustration, demo video, GIF, directory screenshots and social preview show four live versions, a blind pick and the reveal. The 1.1.0 recording is kept under `docs/media/history/1.1.0/`.
 - **Answers read like answers.** An answer is rendered from its Markdown: headings, lists, tables, quotes, inline code and code blocks. Nothing in it is inserted as HTML, and only `http`, `https` and `mailto` links are kept. Answer cards beside each other share one height.
 - **Copy what you picked.** Answers, code blocks, opened files and the saved folder path each have a copy action that copies the original text.
 - **A clear end to an answer comparison.** The picked card is marked **Your pick**. After an answer is picked, the bar names it, offers **Copy answer** and **Continue conversation**, and no longer shows a clean-up action that has nothing to clean up from there.

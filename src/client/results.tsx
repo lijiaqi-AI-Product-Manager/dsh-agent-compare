@@ -27,10 +27,14 @@ async function copyText(text: string): Promise<void> {
   area.setAttribute('readonly', '')
   area.style.position = 'fixed'; area.style.opacity = '0'; area.style.pointerEvents = 'none'
   document.body.appendChild(area)
-  area.select()
-  const copied = document.execCommand('copy')
-  area.remove()
-  if (!copied) throw new Error('copy')
+  const previous = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+  try {
+    area.select()
+    if (!document.execCommand('copy')) throw new Error('copy')
+  } finally {
+    area.remove()
+    if (previous?.isConnected && document.activeElement !== previous) previous.focus({ preventScroll: true })
+  }
 }
 
 /** A button that copies `text` and says so for a moment. */
@@ -134,14 +138,14 @@ export function ProjectNotes({ project, sessionId, call, onChanged, disabled }: 
   const notes: string[] = []
   if (project.workspace === 'folder') {
     notes.push(project.path
-      ? t("当前目录不是 Git 仓库：两版会在新的空白目录里完成，不会改动这里的文件；选定后可以保存到这里的新文件夹。")
-      : t("这条对话没有目录：两版会在新的空白目录里完成，结果在卡片里查看。"))
+      ? t("当前目录不是 Git 仓库：各版会在新的空白目录里完成，不会改动这里的文件；选定后可以保存到这里的新文件夹。")
+      : t("这条对话没有目录：各版会在新的空白目录里完成，结果在卡片里查看。"))
   } else if (project.workspace === 'repository') {
     if (project.projectPath) notes.push(t("项目位于仓库的 {0}/ 目录；安装、检查和预览都在这里运行。", { 0: project.projectPath }))
-    if (project.profile === 'node-web') notes.push(t("项目不是 Vite：两版完成后会运行它的 {0} 脚本来显示页面。", { 0: project.script ?? 'dev' }))
-    else if (project.profile === 'node') notes.push(t("项目没有 dev 或 start 脚本：比较两版写出的改动和检查结果，没有实时页面。"))
+    if (project.profile === 'node-web') notes.push(t("项目不是 Vite：各版完成后会运行它的 {0} 脚本来显示页面。", { 0: project.script ?? 'dev' }))
+    else if (project.profile === 'node') notes.push(t("项目没有 dev 或 start 脚本：比较各版写出的改动和检查结果，没有实时页面。"))
     else if (project.profile === 'static') notes.push(t("静态网页：直接打开 HTML 页面，不安装依赖。"))
-    else if (project.profile === 'files') notes.push(t("这个目录没有可运行的网页项目：比较两版的回答和写出的文件。"))
+    else if (project.profile === 'files') notes.push(t("这个目录没有可运行的网页项目：比较各版的回答和写出的文件。"))
   }
   if (notes.length === 0 && !project.packageNote && !project.canEnableGit) return null
   return <div className="ac-project-notes" role="note">
@@ -169,7 +173,7 @@ function EnableGit({ sessionId, folder, call, onEnabled, disabled }: { sessionId
   }
   if (state.kind === 'confirm') {
     return <div className="ac-enable-git confirm" role="group" aria-label={t("在此目录启用 Git")}>
-      <p>{t("将在 {0} 中创建 Git 仓库（.git 文件夹），不提交、不改动现有文件。之后两版会从这里的 {1} 个文件（{2}）开始，选定的版本可以审查后写回这里。", { 0: folder, 1: state.files.toLocaleString(), 2: bytes(state.bytes) })}</p>
+      <p>{t("将在 {0} 中创建 Git 仓库（.git 文件夹），不提交、不改动现有文件。之后各版会从这里的 {1} 个文件（{2}）开始，选定的版本可以审查后写回这里。", { 0: folder, 1: state.files.toLocaleString(), 2: bytes(state.bytes) })}</p>
       <div className="ac-row"><button type="button" className="ac-btn" onClick={() => setState({ kind: 'idle' })}>{t("取消")}</button><button type="button" className="ac-btn primary" onClick={enable}>{t("确认启用 Git")}</button></div>
     </div>
   }

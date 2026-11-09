@@ -2,8 +2,10 @@ import type { Acceptance, AgentRoute, Candidate, CandidateLabel, CandidateStage,
 /** Shared by every sealing failure that found no change in the copy. */
 export declare const NO_CHANGES = "\u6CA1\u6709\u6539\u52A8\u4EFB\u4F55\u6587\u4EF6";
 export declare function canRetryVerification(r: RunRecord, c: Candidate): boolean;
-/** Which candidate the checks favour: eligibility first, then passes minus failures. */
+/** Which candidate the checks favour: eligibility first, then passes minus failures; a shared best score is a tie. */
 export declare function favoured(cands: readonly Candidate[]): RunRecord['checksFavoured'];
+/** Whether identities are visible: after the pick, or from the start of an open comparison. */
+export declare function identitiesShown(r: Pick<RunRecord, 'state' | 'revealedAt' | 'blind'>): boolean;
 /** Decide adoption eligibility from recorded facts only. */
 export declare function verdictOf(c: Candidate, acceptance: Acceptance): Verdict;
 export interface PublicCandidate {

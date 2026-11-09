@@ -36,7 +36,10 @@ const B = { label: 'B', stage: 'ready', execution: { enforcement: 'partial' }, p
 const folderRun = { ...base, runId: '0f0f0f0f', task: '写一个统计单词数的小脚本', target: { kind: 'folder', folder: 'D:\\Notes' }, baseline: { dirty: true, repoRoot: 'C:\\Users\\me\\.dsh\\agent-compare\\ws\\0f0f0f0f' }, acceptance: { source: 'defaults', checks: ['browser'], steps: 0, frozenInstall: false, sha256: 'def' }, conversationContext: undefined }
 const folderAnswer = { label: 'A', stage: 'ready', result: 'answer', answer: '## 用一行命令统计\n\n```bash\nwc -w notes.txt\n```\n\n它会输出**单词总数**。也可以分别统计：\n\n| 选项 | 统计内容 |\n|:---|:---|\n| `-w` | 单词 |\n| `-l` | 行数 |\n\n- 中文没有空格分隔，结果按空白切分\n- 多个文件会额外给出合计', timings: done, verdict: { eligible: true, reasons: [], warnings: [] }, checks: [], hasScreenshot: false }
 const folderFiles = { label: 'B', stage: 'ready', result: 'files', resultFiles: ['README.md', 'count_words.py'], timings: done, verdict: { eligible: true, reasons: [], warnings: [] }, checks: [], hasScreenshot: false }
-const strat = { A: { strategy: { id: 'conservative', title: '稳妥 · Conservative' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '在现有列表上方加了搜索框、分类按钮和清空按钮，沿用原有样式；手机上筛选区换行。' }, B: { strategy: { id: 'bold', title: '大胆 · Bold' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '重做了列表顶部：分类改为可横向滚动的标签，搜索框吸顶。' } }
+const strat = { A: { strategy: { id: 'conservative', title: '稳妥 · Conservative' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '在现有列表上方加了搜索框、分类按钮和清空按钮，沿用原有样式；手机上筛选区换行。' }, B: { strategy: { id: 'bold', title: '大胆 · Bold' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '重做了列表顶部：分类改为可横向滚动的标签，搜索框吸顶。' }, C: { strategy: { id: 'minimal', title: '极简 · Minimal' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '只保留搜索框和一个清空链接，分类收进下拉框。' }, D: { strategy: { id: 'vibrant', title: '活力 · Vibrant' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '用彩色分类标签和轻微的弹跳反馈，搜索框带动画占位。' } }
+// Three and four candidates: C and D are live pages too.
+const C = { ...A, label: 'C', previewUrl: 'http://127.0.0.1:4318/c', patchStats: { files: 2, insertions: 31, deletions: 12, binary: 0 }, usage: { kind: 'reported', totalTokens: 39120 } }
+const D = { ...A, label: 'D', previewUrl: 'http://127.0.0.1:4318/d', patchStats: { files: 4, insertions: 160, deletions: 20, binary: 0 }, usage: { kind: 'reported', totalTokens: 80211 } }
 const history = [
   { ...base, runId: '11111111', state: 'adopted', choice: { pick: 'A' }, candidates: [] },
   { ...base, runId: '22222222', state: 'abandoned', task: '把设置页改成分组卡片布局，并加上保存成功提示', choice: { pick: 'none' }, candidates: [], createdAt: now - 86400000 },
@@ -75,6 +78,9 @@ const states = {
   cleanup: [{ ...base, state: 'adopted', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'adopted', mode: 'worktree', message: '已采用' }, leftovers: ['候选 A 预览未停止：resource is busy'], candidates: [{ ...A, ...strat.A }, { ...B, ...strat.B }] }],
   recovery: [{ ...base, state: 'recovery', checksFavoured: 'A', choice: { pick: 'A' }, revealedAt: now, adoption: { state: 'needs-recovery', mode: 'worktree', message: '写入过程中宿主停止了。可以恢复到采用前，或保留当前文件。', attention: ['src/App.tsx'] }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
   // A folder outside Git: one version answered, the other wrote files with no page.
+  four: [{ ...base, runId: '4a4a4a4a', state: 'judging', candidates: [A, B, C, D] }],
+  'four-open': [{ ...base, runId: '4b4b4b4b', blind: false, state: 'judging', candidates: [A, B, C, D].map(c => ({ ...c, ...strat[c.label] })) }],
+  'three-revealed': [{ ...base, runId: '3c3c3c3c', state: 'revealed', checksFavoured: 'C', choice: { pick: 'C' }, revealedAt: now, candidates: [A, B, C].map(c => ({ ...c, ...strat[c.label] })) }],
   folder: [{ ...folderRun, state: 'judging', candidates: [folderAnswer, folderFiles] }],
   'folder-answer': [{ ...folderRun, state: 'revealed', choice: { pick: 'A' }, revealedAt: now, candidates: [{ ...folderAnswer, ...strat.A }, { ...folderFiles, ...strat.B }] }],
   'folder-start': [],
@@ -171,6 +177,7 @@ window.fetch = async (url, init) => {
     : m[1] === 'patch' ? {text:'diff --git a/src/App.tsx b/src/App.tsx\\n+<button>Clear</button>',sha256:'a'.repeat(64),truncated:false}
     : m[1] === 'contextEntries' ? {entries:contextEntries,limits:{messageChars:2000,totalChars:12000}}
     : m[1] === 'contextPreview' ? contextPreview(body)
+    : m[1] === 'styleStats' ? {comparisons:8,styles:[{id:'bold',title:'大胆 · Bold',picked:5,offered:8},{id:'minimal',title:'极简 · Minimal',picked:2,offered:4},{id:'conservative',title:'稳妥 · Conservative',picked:1,offered:8}]}
     : runs.find(r=>r.runId===body.runId) ?? history.find(r=>r.runId===body.runId) ?? runs[0] ?? null;
   const selected = runs.findIndex(r=>r.runId===body.runId);
   if (m[1] === 'choose' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method==='choose')?.error) { runs[selected] = {...runs[selected],rev:(runs[selected].rev??0)+1,state:'revealed',choice:{pick:body.pick},candidates:runs[selected].candidates.map(c=>({...c,...${JSON.stringify(strat)}[c.label]}))}; value=runs[selected]; }
@@ -293,14 +300,14 @@ const previewRequests = []
 const demoServers = (previewHosts ?? ['127.0.0.1']).map(() => createServer((req, res) => {
   // Retain names only, never cookie values. Browser tests use their own canary.
   previewRequests.push({ host: req.headers.host, path: req.url, cookieNames: (req.headers.cookie ?? '').split(';').map(item => item.trim().split('=')[0]).filter(Boolean) })
-  res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo(req.url.includes('b') ? 'B' : 'A'))
+  res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(demo((/^\/([a-d])/.exec(req.url ?? '')?.[1] ?? 'a').toUpperCase()))
 }))
 const listen = (s, p, host = '127.0.0.1') => new Promise((resolve, reject) => { s.once('error', reject); s.listen(p, host, resolve) })
 try { for (let i = 0; i < demoServers.length; i++) await listen(demoServers[i], demoPort, previewHosts?.[i]); await listen(server, port) }
 catch (error) { await Promise.all(demoServers.map(s => new Promise(resolve => s.close(() => resolve())))); throw error }
-const demoHosts = { A: previewHosts?.[0] ?? `ac-${randomBytes(16).toString('hex')}.localhost`, B: previewHosts?.[1] ?? `ac-${randomBytes(16).toString('hex')}.localhost` }
+const demoHosts = { A: previewHosts?.[0] ?? `ac-${randomBytes(16).toString('hex')}.localhost`, B: previewHosts?.[1] ?? `ac-${randomBytes(16).toString('hex')}.localhost`, C: previewHosts?.[0] ?? `ac-${randomBytes(16).toString('hex')}.localhost`, D: previewHosts?.[1] ?? `ac-${randomBytes(16).toString('hex')}.localhost` }
 for (const list of Object.values(states)) for (const run of list) for (const candidate of run.candidates) {
-  if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServers[previewHosts && candidate.label === 'B' ? 1 : 0].address().port}/${candidate.label.toLowerCase()}`
+  if (candidate.previewUrl) candidate.previewUrl = `http://${demoHosts[candidate.label]}:${demoServers[previewHosts && (candidate.label === 'B' || candidate.label === 'D') ? 1 : 0].address().port}/${candidate.label.toLowerCase()}`
 }
 return { url: `http://127.0.0.1:${server.address().port}`, previewRequests, close: async () => { await Promise.all([server, ...demoServers].map(s => new Promise(r => { s.close(r); s.closeAllConnections() }))); if (path.dirname(preferencesHome) === path.resolve(os.tmpdir()) && path.basename(preferencesHome).startsWith('agent-compare-ui-preferences-')) await rm(preferencesHome, {recursive:true,force:true}) } }
 }
