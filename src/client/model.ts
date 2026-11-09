@@ -21,8 +21,11 @@ export interface ProjectSetup {
   warning?: string
 }
 export interface Setup { pluginVersion?: string; dshVersion?: string; projectProcess?: { platform: string; windowsCompatControl: boolean }; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: ProjectSetup }
+export type Label = 'A' | 'B' | 'C' | 'D'
+export const LABELS: readonly Label[] = ['A', 'B', 'C', 'D']
+export interface StyleStat { id: string; title: string; picked: number; offered: number }
 export interface Cand {
-  label: 'A' | 'B'
+  label: Label
   stage: Stage
   previewUrl?: string
   previewKind?: 'build' | 'dev' | 'static' | 'script'
@@ -69,6 +72,8 @@ export interface Run {
   task: string
   state: string
   mode: 'same-model' | 'cross-model'
+  /** `false`: an open comparison; styles and models are shown from the start. */
+  blind?: false
   isolation: 'own-root' | 'shared-root'
   createdAt: number
   follows?: string
@@ -78,8 +83,8 @@ export interface Run {
   target?: { kind: 'folder'; folder?: string }
   acceptance: { source: 'defaults' | 'repository'; checks: string[]; steps: number; frozenInstall: boolean }
   candidates: Cand[]
-  choice?: { pick: 'A' | 'B' | 'none'; initialPick?: 'A' | 'B' | 'none' }
-  checksFavoured?: 'A' | 'B' | 'tie' | 'none'
+  choice?: { pick: Label | 'none'; initialPick?: Label | 'none' }
+  checksFavoured?: Label | 'tie' | 'none'
   adoption?: Adoption
   outsideChanges?: string[]
   leftovers?: string[]

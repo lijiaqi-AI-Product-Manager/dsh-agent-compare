@@ -18,11 +18,18 @@ export function canRetryVerification(r: RunRecord, c: Candidate): boolean {
     && (c.verificationHistory?.length ?? 0) < 100
 }
 
-/** Which candidate the checks favour: eligibility first, then passes minus failures. */
+/** Which candidate the checks favour: eligibility first, then passes minus failures; a shared best score is a tie. */
 export function favoured(cands: readonly Candidate[]): RunRecord['checksFavoured'] {
-  const score = (c: Candidate): number | undefined => (c.stage === 'ready' ? (c.verdict?.eligible ? 1000 : 0) + (checksScore(c.checks) ?? 0) : undefined)
-  const [a, b] = cands.map(score)
-  return a === undefined && b === undefined ? 'none' : a === undefined ? 'B' : b === undefined ? 'A' : a > b ? 'A' : b > a ? 'B' : 'tie'
+  const scored = cands.flatMap(c => c.stage === 'ready' ? [{ label: c.label, score: (c.verdict?.eligible ? 1000 : 0) + (checksScore(c.checks) ?? 0) }] : [])
+  if (scored.length === 0) return 'none'
+  const best = Math.max(...scored.map(item => item.score))
+  const top = scored.filter(item => item.score === best)
+  return top.length === 1 ? top[0]!.label : 'tie'
+}
+
+/** Whether identities are visible: after the pick, or from the start of an open comparison. */
+export function identitiesShown(r: Pick<RunRecord, 'state' | 'revealedAt' | 'blind'>): boolean {
+  return r.blind === false || REVEALED_STATES.has(r.state) || r.revealedAt !== undefined
 }
 
 /** Decide adoption eligibility from recorded facts only. */
@@ -110,7 +117,8 @@ export type PublicRun = Omit<RunRecord, 'candidates' | 'baseline' | 'acceptance'
  * tend to describe their own approach.
  */
 export function publicView(r: RunRecord): PublicRun {
-  const revealed = REVEALED_STATES.has(r.state) || r.revealedAt !== undefined
+  // An open comparison shows identities from the start; a blind one after the pick.
+  const revealed = identitiesShown(r)
   const { candidates, baseline, acceptance, adoption, ...rest } = r
   const a = adoption
   return {

@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { parseBrowserCheck } from './acceptance-config.ts'
-import { RUN_COORDINATION, RUN_SCHEMA, type RunRecord } from './types.ts'
+import { CANDIDATE_LABELS, MAX_CANDIDATES, MIN_CANDIDATES, RUN_COORDINATION, RUN_SCHEMA, type RunRecord } from './types.ts'
 import { parsePreviewUrl } from './preview-url.ts'
 
 export const MAX_RECORD_BYTES = 16 * 1024 * 1024
@@ -63,7 +63,7 @@ const paths: Rule = (value, field) => {
 const identifier = pattern(/^[0-9a-f]{8}$/)
 const gitObject = pattern(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)
 const sha256 = pattern(/^[0-9a-f]{64}$/)
-const label = oneOf('A', 'B')
+const label = oneOf(...CANDIDATE_LABELS)
 const stages = ['queued', 'preparing', 'generating', 'sealing', 'installing', 'verifying', 'previewing', 'ready', 'failed', 'stopping', 'cancelled', 'interrupted'] as const
 const stage = oneOf(...stages)
 const route = shape({ provider: optional(text(500, false)), model: optional(text(1000, false)), reasoningEffort: optional(text(100, false)) })
@@ -127,9 +127,9 @@ const record = shape({
     checks: shape({ commands: array(command, 256), browser: optional(browser) }), scripts: dictionary(text()), bound: dictionary(gitObject, repositoryPath), lockfile: optional(repositoryPath),
     runtime: shape({ node: text(200, false), packageManager: text(200, false), platform: text(200, false), yarnModern: optional(boolean), windowsProcessCompat: optional(oneOf('auto', 'off')) }), source: oneOf('defaults', 'repository'), sha256,
   }),
-  mode: oneOf('same-model', 'cross-model'), isolation: oneOf('own-root', 'shared-root'), budget: shape({ generationMs: count(1) }),
-  state: oneOf('running', 'judging', 'revealed', 'adopting', 'adopted', 'recovery', 'abandoned', 'interrupted'), candidates: array(candidate, 2),
-  choice: optional(shape({ pick: oneOf('A', 'B', 'none'), at: count(), note: optional(text()), initialPick: optional(oneOf('A', 'B', 'none')) })), revealedAt: optional(count()), checksFavoured: optional(oneOf('A', 'B', 'tie', 'none')),
+  mode: oneOf('same-model', 'cross-model'), blind: optional((value, field) => { if (value !== false) invalid(field) }), isolation: oneOf('own-root', 'shared-root'), budget: shape({ generationMs: count(1) }),
+  state: oneOf('running', 'judging', 'revealed', 'adopting', 'adopted', 'recovery', 'abandoned', 'interrupted'), candidates: array(candidate, MAX_CANDIDATES),
+  choice: optional(shape({ pick: oneOf(...CANDIDATE_LABELS, 'none'), at: count(), note: optional(text()), initialPick: optional(oneOf(...CANDIDATE_LABELS, 'none')) })), revealedAt: optional(count()), checksFavoured: optional(oneOf(...CANDIDATE_LABELS, 'tie', 'none')),
   adoption: optional(adoption), outsideChanges: optional(paths), leftovers: optional(array(text())), copiesReleasedAt: optional(count()),
 })
 
@@ -140,7 +140,12 @@ export function assertRunRecord(value: unknown, expectedId: string, allowInitial
   const raw = value as RunRecord
   if (raw.runId !== expectedId) invalid('runId（与文件名不一致）')
   if (raw.rev < (allowInitial ? 0 : 1)) invalid('rev')
-  if (raw.candidates.length !== 2 || raw.candidates[0]?.label !== 'A' || raw.candidates[1]?.label !== 'B') invalid('candidates（必须各有一份 A 和 B）')
+  if (raw.candidates.length < MIN_CANDIDATES || raw.candidates.length > MAX_CANDIDATES || raw.candidates.some((c, i) => c.label !== CANDIDATE_LABELS[i])) invalid('candidates（必须是按 A、B、C、D 顺序排列的 2 到 4 个候选）')
+  // A pick, favoured result or adoption must name a candidate of this record.
+  const labels = new Set<string>(raw.candidates.map(c => c.label))
+  for (const [field, value] of [['choice.pick', raw.choice?.pick], ['choice.initialPick', raw.choice?.initialPick], ['checksFavoured', raw.checksFavoured], ['adoption.label', raw.adoption?.label]] as const) {
+    if (value !== undefined && value !== 'none' && value !== 'tie' && !labels.has(value)) invalid(field)
+  }
   if (raw.acceptance.runtime.yarnModern && !/^yarn(?:@|$)/.test(raw.acceptance.runtime.packageManager)) invalid('acceptance.runtime.yarnModern')
   for (const command of raw.acceptance.checks.commands) if (!command.argv.length) invalid('acceptance.checks.commands.argv')
   for (const item of raw.candidates) if (item.install && !item.install.argv.length) invalid('candidates.install.argv')

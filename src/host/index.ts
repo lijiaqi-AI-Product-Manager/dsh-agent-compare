@@ -18,13 +18,14 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
-  Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, exampleTask, DEFAULT_GENERATION_MS,
-  type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage,
+  Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, exampleTask, DEFAULT_GENERATION_MS, CANDIDATE_LABELS,
+  type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type CandidateLabel, type RunRecord, type Usage,
 } from '../core/index.ts'
+import { identitiesShown } from '../core/run-view.ts'
 import { commandResultText, parseAbInput } from './conversation.ts'
 import { profileProject, type ProjectProfile } from '../core/project.ts'
 import { checkEnableGit, enableGit, resolveWorkspace } from '../core/workspace.ts'
-import { contextRequestOf, defaultPreferences, parsePreferences, parseUiSubmission, PreferencesStore } from './preferences.ts'
+import { comparisonPlan, contextRequestOf, defaultPreferences, parsePreferences, parseUiSubmission, PreferencesStore, type ComparisonPlan } from './preferences.ts'
 import { buildConversationContext, CONTEXT_CHARS, listedEntries, MESSAGE_CHARS, type ConversationContext } from './conversation-context.ts'
 import { StepMemory, withComparisonNotes, type StepDecision, type StepPayload } from './step-memory.ts'
 import { historyPage, HistoryQueryError } from './history.ts'
@@ -428,13 +429,14 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'agent_compare_start',
     description:
-      'Build two independent implementations of one front-end task (UI layout, interaction, visual design) in isolated copies of the current Git repository, build and serve both apps, and run the same bound checks on each. ' +
-      'Use it when the user asks to compare versions or wants to try two approaches before choosing; do not use it for bug fixes or refactors with a single right answer. ' +
-      'Returns immediately after admission with a runId; generation, verification and previews continue in the conversation A|B card while the main conversation remains available. Saved comparison mode, models and time budget are reused unless explicitly overridden. The user then tries both live apps, picks one, and reviews adoption. Use agent_compare_status for progress; do not start another comparison to poll. Never claim which strategy produced which candidate before the user has chosen.',
+      'Build two to four independent versions of one task (a UI, a page, files or an answer) in isolated copies, run and serve each, and run the same bound checks on each. ' +
+      'Use it when the user asks to compare versions or styles, or wants to try several approaches before choosing; do not use it for bug fixes or refactors with a single right answer. ' +
+      'Returns immediately after admission with a runId; generation, verification and previews continue in the conversation A|B card while the main conversation remains available. The saved number of versions, styles, blind or open comparison, models and time budget are reused unless explicitly overridden. The user then tries every version, picks one, and reviews adoption. Use agent_compare_status for progress; do not start another comparison to poll. In a blind comparison, never claim which style or model produced which version before the user has chosen.',
     parameters: {
-      task: { type: 'string', required: true, description: 'The complete task, as the user stated it, plus every requirement and constraint. Both candidates receive exactly this text.' },
-      time_limit_minutes: { type: 'number', description: 'Optional per-candidate generation budget, 5 to 120 minutes; defaults to the saved conversation setting.' },
-      mode: { type: 'string', enum: ['same-model', 'cross-model'], description: 'Optional override; defaults to the saved comparison mode. Cross-model uses the two saved model configurations.' },
+      task: { type: 'string', required: true, description: 'The complete task, as the user stated it, plus every requirement and constraint. Every version receives exactly this text.' },
+      time_limit_minutes: { type: 'number', description: 'Optional per-version generation budget, 5 to 120 minutes; defaults to the saved conversation setting.' },
+      mode: { type: 'string', enum: ['same-model', 'cross-model'], description: 'Optional override; defaults to the saved comparison mode. Same-model gives each version a saved style; cross-model uses the saved model for each version.' },
+      versions: { type: 'number', description: 'Optional number of versions, 2 to 4; defaults to the saved setting. More versions use more model usage.' },
     },
     output: {
       schema: { type: 'json' },
@@ -454,7 +456,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
 
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'agent_compare_status',
-    description: 'Report the state of an AgentCompare run (or the latest one for this main conversation): candidate stages, checks, adoption eligibility, the user\'s choice and adoption result. Reconcile interruption and owned previews when a previous host has exited. Strategy names appear only after the user chose.',
+    description: 'Report the state of an AgentCompare run (or the latest one for this main conversation): candidate stages, checks, adoption eligibility, the user\'s choice and adoption result. Reconcile interruption and owned previews when a previous host has exited. In a blind comparison, style and model names appear only after the user chose; an open comparison shows them throughout.',
     parameters: { run_id: { type: 'string', description: 'Run id; omit for the latest run of this conversation.' } },
     output: { schema: { type: 'json' }, render: (_a: unknown, v: unknown) => [{ type: 'text', text: JSON.stringify(v, null, 2) }] },
     async execute(args: { run_id?: string }, exec: ToolExec) {
@@ -472,7 +474,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     const commands = (sub as unknown as { commands: { register(def: unknown): () => void } }).commands
     sub.effect(() => commands.register({
       name: 'ab',
-      description: 'A|B 对比：同一需求做两版，真跑、验收、盲选，再采用到项目',
+      description: 'A|B 对比：同一需求做 2–4 版，真跑、验收，盲选或公开对比，再采用到项目',
       input: { hint: '写下需求；模型、时长和示例在输入框上方选择' },
       handler: async ({ commandId, agent, rawInput, signal }: CommandInvocation): Promise<CommandResult> => {
         if (isDelegated(agent)) return { kind: 'error', text: '候选或子 Agent 不能再发起比较' }
@@ -480,15 +482,16 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
         let exampleKind: 'quick' | 'full' = 'quick'
         let windowsProcessCompat: 'auto' | 'off' = 'auto'
         let conversationContext: ConversationContext | undefined
+        let plan: ComparisonPlan
         try {
           const ui = parseUiSubmission(rawInput)
           const saved = ui?.preferences ?? await preferences.load(agent.session.id)
           exampleKind = saved.exampleKind ?? 'quick'
           windowsProcessCompat = saved.windowsProcessCompat ?? 'auto'
           input = ui ? { task: ui.task, example: ui.example } : parseAbInput(rawInput)
-          input = { ...input, minutes: input.minutes ?? saved.generationMinutes, ...(input.models === undefined && saved.mode === 'cross-model' ? { models: saved.models } : {}) }
-          if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请在输入框上方选择两个完整的模型配置')
-          if (!input.models && !currentRoute(agent).model) throw new Error('当前对话尚未选择模型，请先在输入框右下角选择模型。')
+          input = { ...input, minutes: input.minutes ?? saved.generationMinutes }
+          if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请为每个模型写出完整的服务与模型，例如 deepseek/deepseek-chat')
+          plan = comparisonPlan(saved, currentRoute(agent), { ...(input.models ? { models: input.models } : {}), ...(input.versions ? { versions: input.versions } : {}) })
           // The built-in example is a separate repository; this conversation's history does not describe it.
           if (!input.example) conversationContext = buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ui?.contextIds), await pendingNotes(agent.session))
         } catch (error) { return { kind: 'error', text: (error as Error).message } }
@@ -497,8 +500,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           const r = await comparer.start({
             repo: input.example ? await createExampleRepo(store.examplesDir, undefined, exampleKind) : await repoFor(agent, signal),
             task: input.task === '' ? exampleTask(exampleKind) : input.task,
-            mode: input.models === undefined ? 'same-model' : 'cross-model',
-            routes: input.models ?? [currentRoute(agent), currentRoute(agent)],
+            ...plan,
             hostContext: agent,
             sessionId: agent.session.id,
             origin: { kind: 'command', id: commandId },
@@ -545,7 +547,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     catch { return { ...base, supported: false, reason: `未找到项目需要的 ${info.packageManager}。请在 DSH 所用环境中安装或启用该包管理器；需求草稿会保留。` } }
     return base
   }
-  const label = (v: unknown): 'A' | 'B' | undefined => (v === 'A' || v === 'B' ? v : undefined)
+  const label = (v: unknown): CandidateLabel | undefined => ((CANDIDATE_LABELS as readonly unknown[]).includes(v) ? v as CandidateLabel : undefined)
   const resolveConversation = conversationResolver({ attached: () => agents?.list() ?? [], controller: () => ctx.get('sessionController') as SessionController<AgentLike> | undefined, guard })
   const agentFor = (b: Record<string, unknown>, signal: AbortSignal): Promise<AgentLike> => resolveConversation(b.sessionId, signal)
   const view = async (runId: string): Promise<unknown> => {
@@ -595,6 +597,28 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       return record ? present(record) : null
     },
     async get(b) { return view(runIdOf(b)) },
+    /**
+     * Which styles this user tends to pick: for every finished, picked
+     * same-model comparison, how often each style was offered and chosen.
+     */
+    async styleStats() {
+      const stats = new Map<string, { id: string; title: string; picked: number; offered: number }>()
+      let comparisons = 0
+      for (const r of await store.list()) {
+        const pick = r.choice?.pick
+        if (pick === undefined || pick === 'none' || r.mode !== 'same-model') continue
+        comparisons++
+        for (const c of r.candidates) {
+          if (c.stage !== 'ready') continue
+          const id = c.strategy.id === 'custom' ? 'custom' : c.strategy.id
+          const entry = stats.get(id) ?? { id, title: id === 'custom' ? '自定义 · Custom' : c.strategy.title, picked: 0, offered: 0 }
+          entry.offered++
+          if (c.label === pick) entry.picked++
+          stats.set(id, entry)
+        }
+      }
+      return { comparisons, styles: [...stats.values()].sort((a, b) => b.picked - a.picked || b.picked / b.offered - a.picked / a.offered || a.id.localeCompare(b.id)) }
+    },
     async models(b, signal) {
       const agent = await agentFor(b, signal)
       const controller = (agent.ctx.get('sessionController') ?? ctx.get('sessionController')) as { modelCatalog(): Promise<{ groups: Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>; failures: Array<{ name: string; message: string }> }> } | undefined
@@ -615,9 +639,9 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const agent = await agentFor(b, signal)
       const task = typeof b.task === 'string' ? b.task : ''
       const mode = b.mode === 'cross-model' ? 'cross-model' : 'same-model'
-      const pair = Array.isArray(b.models) ? b.models.map(routeOf) : []
-      if (mode === 'cross-model' && (pair[0] === undefined || pair[1] === undefined)) throw new HttpError(400, '请选择两个模型')
-      const routes: [AgentRoute, AgentRoute] = mode === 'cross-model' ? [pair[0]!, pair[1]!] : [currentRoute(agent), currentRoute(agent)]
+      const listed = Array.isArray(b.models) ? b.models.map(routeOf) : []
+      if (mode === 'cross-model' && (listed.length < 2 || listed.length > 4 || listed.some(route => route === undefined))) throw new HttpError(400, '请为每一版选择一个模型')
+      const versions = b.versions === undefined ? undefined : Number(b.versions)
       const follows = typeof b.follows === 'string' && /^[0-9a-f]{8}$/.test(b.follows) ? b.follows : undefined
       if (b.generationMinutes !== undefined && (typeof b.generationMinutes !== 'number' || !Number.isFinite(b.generationMinutes) || b.generationMinutes < 5 || b.generationMinutes > 120)) throw new HttpError(400, '每版生成上限需要在 5 到 120 分钟之间')
       const minutes = b.generationMinutes as number | undefined
@@ -626,12 +650,14 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       if (windowsProcessCompat !== 'auto' && windowsProcessCompat !== 'off') throw new HttpError(400, 'Windows 进程兼容设置无效')
       if (b.exampleKind !== undefined && b.exampleKind !== 'quick' && b.exampleKind !== 'full') throw new HttpError(400, '示例类型无效')
       const exampleKind = b.exampleKind === 'full' ? 'full' : 'quick'
+      let plan: ComparisonPlan
+      try { plan = comparisonPlan(saved, currentRoute(agent), { mode, ...(mode === 'cross-model' ? { models: listed as AgentRoute[] } : {}), ...(versions === undefined ? {} : { versions }) }) }
+      catch (error) { throw new HttpError(400, (error as Error).message) }
       const repo = b.example === true ? await createExampleRepo(store.examplesDir, undefined, exampleKind) : await repoFor(agent, signal)
       const r = await comparer.start({
         repo,
         task: b.example === true && task.trim() === '' ? exampleTask(exampleKind) : task,
-        mode,
-        routes,
+        ...plan,
         hostContext: agent,
         sessionId: agent.session.id,
         ...(follows === undefined ? {} : { follows }),
@@ -643,22 +669,22 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
     },
     async reopenPreview(b) {
       const l = label(b.label)
-      if (l === undefined) throw new HttpError(400, 'label must be A or B')
+      if (l === undefined) throw new HttpError(400, 'label must be A, B, C or D')
       return present(await comparer.reopenPreview(runIdOf(b), l))
     },
     async salvage(b) {
       const l = label(b.label)
-      if (l === undefined) throw new HttpError(400, 'label must be A or B')
+      if (l === undefined) throw new HttpError(400, 'label must be A, B, C or D')
       return present(await comparer.salvage(runIdOf(b), l))
     },
     async retryVerification(b) {
       const l = label(b.label)
-      if (l === undefined) throw new HttpError(400, 'label must be A or B')
+      if (l === undefined) throw new HttpError(400, 'label must be A, B, C or D')
       return present(await comparer.retryVerification(runIdOf(b), l))
     },
     async choose(b) {
       const pick = b.pick === 'none' ? 'none' : label(b.pick)
-      if (pick === undefined) throw new HttpError(400, 'pick must be A, B or none')
+      if (pick === undefined) throw new HttpError(400, 'pick must be a candidate label or none')
       return present(await comparer.choose(runIdOf(b), pick, typeof b.note === 'string' ? b.note.slice(0, 500) : undefined))
     },
     async preflight(b) { return { ...await comparer.adoptPreflight(runIdOf(b)), protectedWorktreeApply: true } },
@@ -681,7 +707,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const r = await comparer.get(runIdOf(b))
       const c = r?.candidates.find((x) => x.label === label(b.label))
       if (r === undefined || c === undefined) throw new HttpError(404, '没有这个候选')
-      if (r.revealedAt === undefined && c.result !== 'files') throw new HttpError(403, '选择之后才能查看改动')
+      if (!identitiesShown(r) && c.result !== 'files') throw new HttpError(403, '选择之后才能查看改动')
       if (typeof b.path !== 'string' || !(c.touchedFiles ?? []).includes(b.path)) throw new HttpError(404, '这一版没有写这个文件')
       return comparer.readResultFile(r.runId, c.label, b.path)
     },
@@ -719,7 +745,8 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const r = await comparer.get(runIdOf(b))
       const c = r?.candidates.find((x) => x.label === label(b.label))
       if (r === undefined || c?.patchFile === undefined) throw new HttpError(404, 'no patch')
-      if (r.revealedAt === undefined) throw new HttpError(403, '选择之后才能查看改动')
+      // An open comparison shows every change from the start; a blind one after the pick.
+      if (!identitiesShown(r)) throw new HttpError(403, '选择之后才能查看改动')
       const text = await readFile(c.patchFile, 'utf8')
       return { sha256: c.patchSha256, truncated: text.length > 400_000, text: text.slice(0, 400_000) }
     },

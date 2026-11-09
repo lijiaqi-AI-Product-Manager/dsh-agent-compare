@@ -12,7 +12,12 @@ describe('/ab input', () => {
   })
   it('refuses malformed flags with a usable message', () => {
     expect(() => parseAbInput('x --minutes 2')).toThrow(/5 到 120/)
-    expect(() => parseAbInput('x --models only-one')).toThrow(/两个模型/)
+    expect(() => parseAbInput('x --models only-one')).toThrow(/2 到 4 个模型/)
+    expect(() => parseAbInput('x --models a/1,b/2,c/3,d/4,e/5')).toThrow(/2 到 4 个模型/)
+    expect(() => parseAbInput('x --versions 5')).toThrow(/2 到 4/)
+    expect(() => parseAbInput('x --versions 3 --models a/1,b/2')).toThrow(/不一致/)
+    expect(parseAbInput('做首页 --versions 4')).toEqual({ task: '做首页', example: false, versions: 4 })
+    expect(parseAbInput('做首页 --models a/1,b/2,c/3').models).toHaveLength(3)
     expect(() => parseAbInput('x --minutes')).toThrow(/需要一个值/)
   })
   it('round-trips the run id through the command result text', () => {

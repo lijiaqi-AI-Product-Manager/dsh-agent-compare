@@ -10,24 +10,27 @@ export interface AbInput {
   readonly task: string
   readonly example: boolean
   readonly minutes?: number
-  /** Two routes: a cross-model comparison. */
-  readonly models?: readonly [AgentRoute, AgentRoute]
+  /** 2–4 routes: a cross-model comparison. */
+  readonly models?: readonly AgentRoute[]
+  /** 2–4 versions with the saved styles. */
+  readonly versions?: number
 }
 
 /**
- * `/ab [--example] [--minutes N] [--models provider/model,provider/model] <task>`.
+ * `/ab [--example] [--minutes N] [--versions N] [--models provider/model,provider/model[,…]] <task>`.
  * Flags may appear anywhere; everything else is the task, kept verbatim.
  */
 export function parseAbInput(raw: string): AbInput {
   const tokens = raw.trim().split(/(\s+)/)
   let example = false
   let minutes: number | undefined
-  let models: [AgentRoute, AgentRoute] | undefined
+  let versions: number | undefined
+  let models: AgentRoute[] | undefined
   const rest: string[] = []
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i]!
     if (t === '--example') { example = true; i++; continue }
-    if (t === '--minutes' || t === '--models') {
+    if (t === '--minutes' || t === '--models' || t === '--versions') {
       // tokens alternate word / whitespace; the value is two positions ahead.
       const value = tokens[i + 2]
       if (value === undefined) throw new Error(`${t} 需要一个值`)
@@ -35,17 +38,22 @@ export function parseAbInput(raw: string): AbInput {
         const n = Number(value)
         if (!Number.isFinite(n) || n < 5 || n > 120) throw new Error('--minutes 需要 5 到 120 之间的分钟数')
         minutes = n
+      } else if (t === '--versions') {
+        const n = Number(value)
+        if (!Number.isSafeInteger(n) || n < 2 || n > 4) throw new Error('--versions 需要 2 到 4 之间的整数')
+        versions = n
       } else {
-        const pair = value.split(',').map((s) => s.trim()).filter(Boolean).map(routeOf)
-        if (pair.length !== 2) throw new Error('--models 需要两个模型，用逗号分隔，例如 deepseek/deepseek-chat,deepseek/deepseek-reasoner')
-        models = [pair[0]!, pair[1]!]
+        const list = value.split(',').map((s) => s.trim()).filter(Boolean).map(routeOf)
+        if (list.length < 2 || list.length > 4) throw new Error('--models 需要 2 到 4 个模型，用逗号分隔，例如 deepseek/deepseek-chat,deepseek/deepseek-reasoner')
+        models = list
       }
       i += 3
       continue
     }
     rest.push(t)
   }
-  return { task: rest.join('').trim(), example, ...(minutes === undefined ? {} : { minutes }), ...(models === undefined ? {} : { models }) }
+  if (models && versions !== undefined && versions !== models.length) throw new Error('--versions 与 --models 给出的模型数量不一致')
+  return { task: rest.join('').trim(), example, ...(minutes === undefined ? {} : { minutes }), ...(models === undefined ? {} : { models }), ...(versions === undefined ? {} : { versions }) }
 }
 
 function routeOf(spec: string): AgentRoute {
@@ -79,19 +87,27 @@ export function memoryNote(r: RunRecord): string | undefined {
   const folder = r.target !== undefined
   const head = `[AgentCompare run ${r.runId}] Task: ${r.task.slice(0, 400)}\n${folder ? `Folder: ${r.target!.folder ?? '(none: the conversation has no directory)'}` : `Target repository: ${r.baseline.repoRoot}`}`
   const place = folder ? 'folder' : 'project'
+  const n = r.candidates.length
+  const all = n === 2 ? 'both' : `all ${n}`
   if (m === 'judging') {
+    const open = r.blind === false
     const lines = publicView(r).candidates.map((c) => {
-      if (c.stage !== 'ready') return `- ${c.label}: did not produce a result (${c.error?.message.split('\n')[0] ?? c.stage})`
-      if (c.result === 'answer') return `- ${c.label}: replied with an answer and wrote no files`
+      // An open comparison shows every style; a blind one keeps them for after the pick.
+      const who = open && c.strategy ? `${c.label} (${c.strategy.title})` : c.label
+      if (c.stage !== 'ready') return `- ${who}: did not produce a result (${c.error?.message.split('\n')[0] ?? c.stage})`
+      if (c.result === 'answer') return `- ${who}: replied with an answer and wrote no files`
       const v = c.verdict
       const kind = c.result === 'files' ? `wrote ${c.resultFiles?.length ?? 'some'} file(s), no live page; ` : ''
-      return `- ${c.label}: ${kind}${v?.eligible ? 'passed the shared acceptance' : `did not pass (${v?.reasons.join('; ') ?? 'no verdict'})`}`
+      return `- ${who}: ${kind}${v?.eligible ? 'passed the shared acceptance' : `did not pass (${v?.reasons.join('; ') ?? 'no verdict'})`}`
     })
-    return `${head}\nBoth candidates have finished in isolated copies; nothing in the ${place} has changed yet. The user compares both in the A|B card and chooses; do not choose for them or reveal strategies.\n${lines.join('\n')}`
+    const guidance = open
+      ? `The user compares ${all} in the A|B card with their styles shown, and chooses; do not choose for them.`
+      : `The user compares ${all} in the A|B card without knowing which is which, and chooses; do not choose for them or reveal styles.`
+    return `${head}\n${n === 2 ? 'Both candidates have' : `All ${n} candidates have`} finished in isolated copies; nothing in the ${place} has changed yet. ${guidance}\n${lines.join('\n')}`
   }
   if (m.startsWith('choice:')) {
     const pick = r.choice!.pick
-    if (pick === 'none') return `${head}\nThe user rejected both versions. The ${place} is unchanged.`
+    if (pick === 'none') return `${head}\nThe user rejected ${all} versions. The ${place} is unchanged.`
     const c = r.candidates.find((x) => x.label === pick)!
     const route = c.actualRoute ?? c.route
     const revised = r.choice!.initialPick !== undefined ? ` after the reveal (blind pick: ${r.choice!.initialPick === 'none' ? 'neither' : r.choice!.initialPick})` : ''

@@ -57,7 +57,7 @@ export async function planCopyCleanup(record: RunRecord, signal?: AbortSignal, l
   if (active.has(record.state) || record.candidates.some(candidate => !['ready', 'failed', 'cancelled', 'interrupted'].includes(candidate.stage))) reasons.push('比较、验收或恢复尚未结束，不能释放副本。')
   if (record.candidates.some(candidate => candidate.stopUnconfirmed) || record.adoption?.rehearsal?.stopUnconfirmed) reasons.push('有任务进程尚未确认退出，请先处理进程状态。')
   if (record.adoption && ['rehearsing', 'writing', 'reverting', 'needs-attention', 'needs-recovery'].includes(record.adoption.state)) reasons.push('采用或恢复仍需要处理，不能释放副本。')
-  if (record.revealedAt === undefined && record.state !== 'abandoned') reasons.push('请先完成选择或选择“都不满意”，再查看副本空间；盲选期间不展示两版的规模。')
+  if (record.revealedAt === undefined && record.state !== 'abandoned') reasons.push('请先完成选择或选择“都不满意”，再查看副本空间；盲选期间不展示各版的规模。')
   if (!reasons.length) {
     const targets = record.candidates.map(candidate => ({ label: candidate.label as string, dir: candidate.dir, token: candidate.ownerToken, tree: candidate.candidateTree, stopsPreview: !!candidate.preview, previewCwd: candidate.preview?.cwd }))
     const rehearsal = record.adoption?.rehearsal
