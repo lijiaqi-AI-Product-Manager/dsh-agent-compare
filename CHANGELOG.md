@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Answers read like answers.** An answer is rendered from its Markdown: headings, lists, tables, quotes, inline code and code blocks. Nothing in it is inserted as HTML, and only `http`, `https` and `mailto` links are kept. Answer cards beside each other share one height.
+- **Copy what you picked.** Answers, code blocks, opened files and the saved folder path each have a copy action that copies the original text.
+- **A clear end to an answer comparison.** The picked card is marked **Your pick**. After an answer is picked, the bar names it, offers **Copy answer** and **Continue conversation**, and no longer shows a clean-up action that has nothing to clean up from there.
+- A result compared by content says **No runnable checks** instead of claiming that configured checks passed.
+- The saved folder path stands on its own line instead of running into the Star prompt. **Enable Git in this folder** follows its question on one line, and the settings footer takes one line less.
+- The README lists what each kind of request gives and how to start in three steps. Known limitations in every language no longer say that only Vite projects, or only repositories with a commit, are supported.
+
 ## 1.3.0
 
 - **Compare in any folder.** A|B no longer refuses directories that are not the root of a Git repository with a Vite project.

@@ -25,6 +25,14 @@
 
 AgentCompare is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin: complete two versions of a task as answers, files or web pages. Runnable pages get live previews; content-only comparison does not claim arbitrary-language execution or functional test coverage. Choose before seeing the model or strategy, then review the combination with your current project before adoption.
 
+| You want | Where it works | What the card shows |
+|---|---|---|
+| A page or UI change | Vite, Node or static-site projects in a Git repository, including subfolders | Two live pages you can click and type into, plus shared checks |
+| A script, document or other files | Any folder, including the DSH default workspace | Both versions' files, each one openable before the pick |
+| An answer | Any conversation | Two formatted answers side by side with one-click copy; the picked one enters the conversation's memory |
+
+**Start in 30 seconds:** in DSH Desktop, install `dsh-agent-compare` from **Plugins → Add plugin** (for Web, see [Install](#install)) → click **A|B** at the bottom left of the composer → write the task and send, as usual.
+
 [插件目录与安装](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.md) · [Plugin directories and installation](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/distribution.en.md) · [Listing status / 收录状态](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/4)
 
 <p align="center">
@@ -213,7 +221,7 @@ Binding does not infer every file an arbitrary program can read dynamically. Pro
 | macOS | Current source adds native full regression, Chromium interface, actual DSH and package-manager checks. Safari live comparison remains separate in [#115](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/issues/115); Chromium results do not replace it |
 | 1.2.0 baseline | Windows/Linux/macOS pin DSH 0.2.1-rc.5 and 0.2.2-rc.1; Playwright 1.65.0, Vite 8.3.6 and pnpm 12.18.0. See the execution matrix and current CI for passing combinations and limits |
 | Node | 26.13.0 is the primary development baseline; current 22/24 maintenance releases also have CI compatibility jobs |
-| Projects | Root-level Vite projects in a Git repository with at least one commit. See the [execution matrix](docs/package-managers.md) for complete package-manager checks and known limitations |
+| Projects | Answers, files and web pages; folders outside Git, repositories with or without commits, repository subfolders, Vite, non-Vite Node projects and static sites. See [folders and project types](docs/workspaces-and-projects.md#english), and the [execution matrix](docs/package-managers.md) for complete package-manager checks and known limitations |
 
 ## Verified (maintained through current CI and the cases below)
 
@@ -253,7 +261,8 @@ The host dependency directory is ignored and excluded from the plugin package. T
 
 ## Known limitations
 
-- Answers, files and web pages; folders outside Git, repository subfolders, Vite, non-Vite Node projects and static sites. File comparison does not establish execution or tests for arbitrary languages.
+- Answers and files are compared by their content. Live previews and page checks need a runnable web project; other languages' tests run only when the baseline's package scripts run them.
+- In a folder outside Git, both versions start from an empty folder and do not read the files already there. To change existing files, enable Git in that folder from the settings strip first; the home folder, drive roots, system folders and folders over 5,000 files or 300 MB are refused.
 - npm 12 installation policy can block dependency scripts; projects requiring native installation steps must first allow them under their own policy.
 - One comparison says nothing about a model's or strategy's overall quality.
 
