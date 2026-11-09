@@ -4,42 +4,68 @@
 
 ## 中文
 
-这段演示使用公开 npm `dsh-agent-compare@1.1.0` 的固定候选，运行真实的应用、共同验收、审查采用与撤销。没有发送外部模型请求，不能用它评价模型生成质量或估算模型耗时。内置示例按钮在正常使用时仍会调用用户已配置的模型，两版分别消耗用量。
+这段演示在真实的 DSH Web 宿主中录制，使用固定候选：由本地脚本模型通过 DSH 自带的写文件工具，按每版收到的风格写出一个番茄钟页面。4 个隔离副本、实时页面、共同页面检查、盲选、揭晓、保存到新文件夹和继续主对话都真实执行。没有发送外部模型请求，因此不能用它评价模型的生成质量或耗时。正常使用时，每一版都会调用你配置的模型，并各自消耗用量。
 
-来源：发布源码 `8dd54760981823be252feb46ce4ebd8e67ba26cd`，npm 压缩包 SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`。独立 profile 内 81 个运行文件与公开包一致。环境为 Windows、DSH `0.2.2-rc.1`、Node `26.13.0`、Chromium `156.0.8078.4`。演示的 1.1.0 界面为中文；1.2.0 的界面更新（包括英文界面）不在这段录制中。
+来源：1.4.0 发布候选的源码提交 `c7cbb8f6a92643e392435438a8a29f0c99597659`。该提交打包后装入独立的测试 profile，压缩包 SHA-256 为 `52accfd3ef80924b6e1cd0849be53620a771677b39a18961ad278160b19f1fdb`。公开的 1.4.0 压缩包之后由发布提交构建，那次提交只改动版本号。环境为 Windows、DSH `0.2.2-rc.1`、Microsoft Edge `156.0.4314.58`（无界面模式）。
 
-任务是基础示例中的商品搜索与清空，两个候选使用同一份已绑定验收。操作 A 的搜索时 B 保持原列表；操作 B 时 A 保持原列表。
+任务是在一个普通文件夹（不是 Git 仓库）里「做一个番茄钟网页」，选择 4 版、盲选，风格为稳妥、大胆、极简、活力。
 
-| 检查 | A | B |
+| 版本 | 揭晓后的风格 | 共同页面检查 |
 | --- | --- | --- |
-| 类型检查 | 通过 | 通过 |
-| 构建 | 通过 | 通过 |
-| 共同页面验收 | 通过 | 未通过：缺少清空按钮 |
-| 采用资格 | 审查和确认后允许 | 阻止 |
+| A | 活力 · Vibrant | 通过 |
+| B | 大胆 · Bold | 通过 |
+| C | 极简 · Minimal | 通过 |
+| D | 稳妥 · Conservative | 通过 |
 
-演示先隐藏模型／策略身份，实际体验后选择 A，再审查并确认采用。两个文件被写入独立示例项目，随后完成撤销；HEAD 和暂存内容保持不变。原始文件、选择与采用记录继续保留。
+演示过程：
+1. 在设置条选择「4 版」并发送需求。
+2. 4 个版本并行生成，之后在大窗口里以 2×2 显示 4 个实时页面。
+3. 在 A 和 C 里点开始，计时器实际运行。
+4. 排除 B 和 D，剩下的 A 和 C 移到一起并排显示。
+5. 选择 C。揭晓后才看到每一版的风格：盲选开始时，风格被随机分到了 A–D。
+6. 把 C 保存到当前目录的新文件夹，然后继续主对话。原有的 `notes.txt` 没有被改动。
 
-原始视频 **52.76 秒**，实际操作记录约 **50.85 秒**。完整剪辑 **28.76 秒**，保留原始速度并剪去一段等待；GIF 摘取原始 `32.6–35.1` 秒，以 **0.5 倍速**回放为 5 秒。剪辑区间、文件哈希与记录条件见[素材清单](media/manifest.json)。本地路径已隐藏，画面增加了固定候选标签，执行结论未被改写。界面中的耗时属于这一次固定候选流程。
+原始录制 **67.72 秒**。完整视频剪去了生成期间的等待，保留 **36.88 秒**，全部按原速播放。GIF 截取 `48.02–61.58` 秒，按原速、每秒 10 帧播放，内容是 4 个实时页面、排除、选择和揭晓。剪辑区间、文件哈希与录制条件见[素材清单](media/manifest.json)。
 
-目录截图来自同一公开版本。采用完成后显示的是保留的验收截图；运行中的两格才是交互页面。[早期演示及原始条件](media/history/0.2.0-alpha.17/manifest.json)继续保留，真实模型的三轮测量仍单独见[首次体验记录](first-use.md)。
+画面中做了三处处理：
+- 本地路径已隐藏为「…」；
+- 加上了固定候选标签；
+- 加上了一个可见的鼠标指针。
+
+执行结论没有改写。界面中的耗时只属于这一次固定候选流程。
+
+目录截图来自同一次录制。顶部图和流程图是功能示意图，不是截图。[1.1.0 的演示及其条件](media/history/1.1.0/manifest.json)和[更早的演示](media/history/0.2.0-alpha.17/manifest.json)继续保留。真实模型的三轮测量单独记录在[首次体验记录](first-use.md)。
 
 ## English
 
-This recording uses controlled candidates with the public npm `dsh-agent-compare@1.1.0` artifact. Applications, shared checks, reviewed adoption and undo execute for real. No external model request is made; it measures neither model generation quality nor model latency. During normal use, the built-in example uses the configured model and each candidate consumes usage separately.
+This recording was made in a real DSH Web host with controlled candidates. A local scripted model writes one pomodoro-timer page per version through DSH's own write tool, following the style each version received. Four isolated copies, live pages, shared page checks, a blind pick, the reveal, a save into a new folder and continuing the conversation all execute for real. No external model request is made, so the recording measures neither model quality nor model latency. In normal use, every version calls your configured model and consumes usage separately.
 
-Source: release commit `8dd54760981823be252feb46ce4ebd8e67ba26cd`; npm archive SHA-256 `0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b`. All 81 installed runtime files match the public archive in a fresh profile. Environment: Windows, DSH `0.2.2-rc.1`, Node `26.13.0`, Chromium `156.0.8078.4`. The recorded 1.1.0 interface is Chinese; the 1.2.0 interface update, including English, is not part of this recording.
+Source: the 1.4.0 release-candidate commit `c7cbb8f6a92643e392435438a8a29f0c99597659`. It was packed and installed into an isolated test profile, with archive SHA-256 `52accfd3ef80924b6e1cd0849be53620a771677b39a18961ad278160b19f1fdb`. The public 1.4.0 archive is built later from the release commit, which changes only version fields. Environment: Windows, DSH `0.2.2-rc.1`, Microsoft Edge `156.0.4314.58` (headless).
 
-The task is the basic product-search-and-clear example with shared, bound acceptance. Searching in A leaves B unchanged, and searching in B leaves A unchanged.
+The task is "做一个番茄钟网页" (make a pomodoro timer page) in a plain folder outside Git, with four versions, blind, and the styles Conservative, Bold, Minimal and Vibrant.
 
-| Check | A | B |
+| Version | Style, revealed | Shared page check |
 | --- | --- | --- |
-| Typecheck | Passed | Passed |
-| Build | Passed | Passed |
-| Shared browser acceptance | Passed | Failed: missing clear button |
-| Adoption | Allowed after review and confirmation | Blocked |
+| A | Vibrant | Passed |
+| B | Bold | Passed |
+| C | Minimal | Passed |
+| D | Conservative | Passed |
 
-Identity stays hidden until selection. The recording chooses A, reviews and confirms adoption, writes two files into the independent example project, then undoes the adoption. HEAD and staged content stay unchanged; retained originals and comparison/adoption records remain available.
+What happens in the recording:
+1. The settings strip selects four versions, and the task is sent.
+2. All four versions generate in parallel. The large window then shows four live pages, two by two.
+3. The timers in A and C are started, and they really run.
+4. B and D are set aside, and A and C move up side by side.
+5. C is picked. The styles appear only at the reveal: the blind start had shuffled them across A–D.
+6. C is saved into a new folder in the current directory, and the conversation continues. The existing `notes.txt` is unchanged.
 
-The raw video is **52.76 seconds**, with an action log of about **50.85 seconds**. The edited workflow is **28.76 seconds**, at the original speed with one waiting interval removed. The GIF replays raw seconds `32.6–35.1` at **0.5×**, lasting 5 seconds. [The manifest](media/manifest.json) records editing intervals and hashes. Local paths are hidden and controlled-candidate captions are added; execution outcomes are unchanged. Displayed durations describe this controlled run.
+The raw recording is **67.72 seconds**. The full video removes the waiting during generation and keeps **36.88 seconds**, all at the original speed. The GIF covers seconds `48.02–61.58` at the original speed and 10 frames per second: four live pages, setting two aside, the pick and the reveal. [The manifest](media/manifest.json) records the editing intervals, file hashes and recording conditions.
 
-The directory screenshots identify the same released artifact. Images retained after adoption are verification screenshots; running panes are interactive applications. [Earlier demonstration evidence](media/history/0.2.0-alpha.17/manifest.json) and the separate [three real-provider measurements](first-use.md) remain identifiable.
+Three things were added to the picture:
+- Local paths are hidden as "…".
+- A controlled-candidate caption is shown.
+- A visible pointer is shown.
+
+Execution outcomes are unchanged. Displayed durations describe this controlled run only.
+
+The directory screenshots come from the same recording. The header and workflow images are product illustrations, not screenshots. [The 1.1.0 demo and its conditions](media/history/1.1.0/manifest.json) and [the earlier demo](media/history/0.2.0-alpha.17/manifest.json) remain available. The three real-provider measurements are recorded separately in [first use](first-use.md).

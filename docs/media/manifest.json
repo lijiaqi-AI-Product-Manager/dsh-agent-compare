@@ -1,78 +1,59 @@
 {
   "schema": "agentcompare.demo/v1",
   "source": {
-    "version": "1.1.0",
-    "commit": "8dd54760981823be252feb46ce4ebd8e67ba26cd",
-    "archiveSha256": "0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b",
+    "version": "1.4.0 release candidate",
+    "commit": "c7cbb8f6a92643e392435438a8a29f0c99597659",
+    "archiveSha256": "52accfd3ef80924b6e1cd0849be53620a771677b39a18961ad278160b19f1fdb",
+    "archiveNote": "Packed from the commit above for an isolated test profile. The public 1.4.0 archive is built later from the release commit, which changes only version fields.",
     "host": "0.2.2-rc.1",
-    "node": "26.13.0",
-    "browser": "Chromium 156.0.8078.4",
+    "browser": "Microsoft Edge 156.0.4314.58 (headless)",
     "platform": "Windows",
-    "matchingInstalledRuntimeFiles": 81
+    "encoder": "ffmpeg 9.0.2"
   },
-  "capturedAt": "2026-11-06T08:04:27.661Z",
-  "method": "Controlled candidates; real applications, shared checks, reviewed adoption and undo. No external model request.",
+  "capturedAt": "2026-11-09T09:06:00.000Z",
+  "method": "Controlled candidates: a local scripted model writes one page per style through DSH's own write tool. Four real copies, static previews, shared page checks, a blind pick, a save into a new folder and continuing the conversation execute for real. No external model request.",
+  "task": "做一个番茄钟网页 (a pomodoro timer page), four versions, blind, styles Conservative, Bold, Minimal and Vibrant",
   "editing": {
-    "rawSeconds": 52.76,
-    "workflowWallSeconds": 50.851,
-    "workflowSeconds": 28.76,
-    "previewSeconds": 5,
+    "rawSeconds": 67.72,
+    "workflowSeconds": 36.88,
+    "workflowSegments": [[12.64, 21.32], [21.63, 24.83], [43.22, 68.22]],
     "workflowPlaybackRate": 1,
-    "previewPlaybackRate": 0.5,
-    "workflowSegments": [
-      [
-        0,
-        5
-      ],
-      [
-        29,
-        52.76
-      ]
-    ],
-    "previewRawSegment": [
-      32.6,
-      35.1
-    ],
+    "previewSeconds": 13.56,
+    "previewSegment": [48.02, 61.58],
+    "previewPlaybackRate": 1,
+    "previewFrameRate": 10,
     "waitingPeriodsCut": true,
     "localPathsHidden": true,
     "captionsAdded": true,
+    "pointerAdded": true,
     "executionOutcomesEdited": false
   },
   "result": {
-    "A": {
-      "typecheck": "passed",
-      "build": "passed",
-      "browser": "passed",
-      "adoptable": true
-    },
-    "B": {
-      "typecheck": "passed",
-      "build": "passed",
-      "browser": "failed",
-      "adoptable": false
-    },
-    "adopted": "A",
-    "undoVerified": true,
-    "filesWritten": 2,
-    "headAndIndexUnchanged": true,
+    "versions": 4,
+    "blind": true,
+    "assignment": { "A": "Vibrant", "B": "Bold", "C": "Minimal", "D": "Conservative" },
+    "setAside": ["B", "D"],
+    "picked": "C",
+    "pageChecks": { "A": "passed", "B": "passed", "C": "passed", "D": "passed" },
+    "savedToNewFolder": true,
     "pageErrors": 0,
     "controlledProvider": true
   },
   "files": [
     {
       "path": "comparison-workflow.mp4",
-      "bytes": 1264813,
-      "sha256": "56a4dae4b5ee1d0bbf0c3128626294fdd294e939a6ec7262c68721b8f066905e"
+      "bytes": 613443,
+      "sha256": "4a62ddbcae023dea114c34c3711eb774114077c9074f79d21e5608b366882fa4"
     },
     {
       "path": "comparison-preview.gif",
-      "bytes": 658473,
-      "sha256": "4c17a87581a1fbbb98c92ea231346a9b94bb10abed79263dcb0b49908470a639"
+      "bytes": 856475,
+      "sha256": "7510054d6067145cf4f902bbf609859befd8d51fb0d9cb82b5804f2f2af23404"
     },
     {
       "path": "social-preview.png",
-      "bytes": 57862,
-      "sha256": "992599bd3a3c7a545e38eeb31db732bc2e5edf95b21346003524baf6e22e0676"
+      "bytes": 401055,
+      "sha256": "86d7a0c3d8a5f4979059c27a70c0c8932b7af3894c5cb7cf87cc62f57627e51f"
     }
   ]
 }

@@ -1,0 +1,23 @@
+{
+  "schema": "agentcompare.screenshots/v1",
+  "capturedAt": "2026-11-06T08:04:27.661Z",
+  "packageVersion": "1.1.0",
+  "sourceCommit": "8dd54760981823be252feb46ce4ebd8e67ba26cd",
+  "packageArchiveSha256": "0f8a5b3dcbc24bd45bf915bab47f55e305e5505b0ae74efdabf16355bbd3723b",
+  "hostVersion": "0.2.2-rc.1",
+  "scenario": "Controlled candidates; real applications, shared checks, reviewed adoption and undo. No external model request.",
+  "privatePathsHidden": true,
+  "captionsAdded": true,
+  "files": [
+    {
+      "path": "docs/media/history/1.1.0/screenshots/11-live-comparison.png",
+      "bytes": 57862,
+      "sha256": "992599bd3a3c7a545e38eeb31db732bc2e5edf95b21346003524baf6e22e0676"
+    },
+    {
+      "path": "docs/media/history/1.1.0/screenshots/12-reviewed-adoption.png",
+      "bytes": 121381,
+      "sha256": "7ea8d9f0f19100aadba75afc22b857065364cf672e4aca638ee65e6aa002b9b7"
+    }
+  ]
+}

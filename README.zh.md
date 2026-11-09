@@ -82,6 +82,10 @@
 
 [what-it-is-for](README.md#what-it-is-for)
 
+<a id="styles"></a>
+
+[styles](README.md#styles)
+
 <a id="what-it-does-for-you"></a>
 
 [what-it-does-for-you](README.md#what-it-does-for-you)
