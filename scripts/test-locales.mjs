@@ -205,6 +205,8 @@ try {
   await page.getByRole('region', { name: 'Candidate B', exact: true }).getByRole('button', { name: 'Set aside', exact: true }).click()
   check(await page.getByRole('button', { name: 'Restore B', exact: true }).isVisible() && (await page.locator('.ac-bar').innerText()).includes('(B set aside)'), 'narrowing down must be translated')
   await open('four-open')
+  const styleLabels = await page.locator('.ac-strategy').allTextContents()
+  check(styleLabels.length === 4 && styleLabels.every(text => !/[㐀-鿿]/.test(text)) && styleLabels.some(text => text.includes('Minimal')) && styleLabels.some(text => text.includes('Vibrant')), 'every revealed preset style must follow the English interface language')
   check(!/[㐀-鿿]/.test(await page.locator('.ac-bar').innerText()) && !(await page.locator('.ac-bar').innerText()).includes('reveal'), 'an open comparison bar must be translated and promise no reveal')
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
   console.log(JSON.stringify({ localeAssertions: assertions, screenshots: output, browser: browser.version(), engine, channel, locale: 'en-GB', languages: ['zh-CN', 'en'] }))

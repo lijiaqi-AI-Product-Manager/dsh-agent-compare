@@ -4,7 +4,7 @@
  * A custom style is saved only once it has a description.
  */
 import React, { useEffect, useState } from 'react'
-import { t } from './i18n.js'
+import { currentLocale, t } from './i18n.js'
 import { BALANCED_STYLE, CUSTOM_STYLE, DEFAULT_STYLE_IDS, MAX_CUSTOM_STYLE, STYLE_CATALOG, STYLE_GROUPS, styleById } from './style-catalog.js'
 import type { StyleStat } from './model.js'
 
@@ -18,6 +18,14 @@ export function styleName(choice: StyleChoice): string {
   if (choice.id === CUSTOM_STYLE) return choice.note ? t("自定义：{0}", { 0: choice.note }) : t("自定义")
   const style = styleById(choice.id)
   return style ? t(style.name) : choice.id
+}
+
+/** Localise known style labels without translating a user's custom description. */
+export function revealedStyleName(style: { id: string; title: string }): string {
+  const known = styleById(style.id)
+  if (known) return currentLocale() === 'en' ? t(known.name) : style.title
+  if (style.id === CUSTOM_STYLE && style.title.startsWith('自定义 · ')) return `${t("自定义")} · ${style.title.slice('自定义 · '.length)}`
+  return t(style.title)
 }
 
 /** The styles for `count` versions: keep what was chosen, then add defaults not used yet. */

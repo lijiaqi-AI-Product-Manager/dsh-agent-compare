@@ -4,6 +4,7 @@
 
 - **Upgrade notes.** Existing two-version records remain readable. Records with three or four versions require 2.0.0 or later; earlier readers keep them read-only. Updating the plugin does not migrate or delete those records.
 - **Keyboard and copy reliability.** Space activates the focused button instead of changing layout. Composition and editable text do not trigger digit shortcuts. Clipboard fallback always removes its temporary field and preserves focus, including denied or unavailable clipboard access.
+- Revealed preset style names follow the selected interface language. Custom descriptions remain as written.
 
 - **Two to four versions.** A comparison runs 2, 3 or 4 versions at once, labelled A–D. Records hold two to four candidates in order, and a pick, the favoured result or an adoption must name one of them. Two-version records are unchanged; release 1.3.0 and earlier list a record with more candidates as one to handle and do not act on it.
 - **Styles.** Every version can get a style:

@@ -20,7 +20,7 @@ import { clientCapabilities } from './capabilities.js'
 import { WindowsProcessControl, WindowsProcessEvidence } from './windows-compat.js'
 import { ConversationContextControl, type ContextMode } from './conversation-context.js'
 import { CopyButton, ProjectNotes, ResultView } from './results.js'
-import { BlindControl, MAX_VERSIONS, MIN_VERSIONS, Segmented, StyleHabit, StylePicker, StyleSlots, stylesFor, VersionsControl, type StyleChoice } from './style-picker.js'
+import { BlindControl, MAX_VERSIONS, MIN_VERSIONS, revealedStyleName, Segmented, StyleHabit, StylePicker, StyleSlots, stylesFor, VersionsControl, type StyleChoice } from './style-picker.js'
 import { LABELS, type Label, type StyleStat } from './model.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
@@ -296,7 +296,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
           {run.state === 'running' && busyStage(c.stage) && c.stage !== 'stopping' && <button className="ac-btn sm" disabled={busy} onClick={() => act('cancel', { label: c.label })}>{t("停止这一版")}</button>}
           {onExclude && <button type="button" className="ac-text-btn ac-exclude" disabled={busy} onClick={onExclude} title={t("先把这一版放到一边，剩下的版本重新排布；随时可以恢复")}>{t("排除")}</button>}
           {live && <a className="ac-icon-btn ac-preview-open" href={c.previewUrl} target="_blank" rel="noreferrer" title={t("在浏览器标签页中打开 {0}；Cookie 与存储上下文可能和嵌入预览不同", { 0: c.previewUrl })} aria-label={t("在浏览器中打开 {0}", { 0: c.label })}><IconExternal /></a>}
-          {revealed && c.strategy && <span className="ac-strategy">{c.strategy.title}{model ? ` · ${model}` : ''}</span>}
+          {revealed && c.strategy && <span className="ac-strategy">{revealedStyleName(c.strategy)}{model ? ` · ${model}` : ''}</span>}
         </div>
         {busyStage(c.stage) && <Track c={c} />}
         {step > 0 && <div className="ac-meta">{t("第 ")}{step}/{PIPELINE.length}{t(" 步 · ")}{t(STAGE_TEXT[c.stage])}</div>}
