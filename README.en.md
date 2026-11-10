@@ -69,7 +69,7 @@ A controlled-candidate recording in a real DSH host, from the 2.0.0 release-cand
 
 The video cuts waiting and keeps the rest at the original speed. Local paths are hidden.
 
-[Full video (35 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Full video (13 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 [Four-step quick start](docs/quickstart.en.md) · [Troubleshooting a run](docs/runs-and-recovery.en.md)
 

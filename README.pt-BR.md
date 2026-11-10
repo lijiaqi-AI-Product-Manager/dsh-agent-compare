@@ -51,7 +51,7 @@ Gravação com candidatos fixos em um host DSH real, a partir do código candida
 
 Depois da escolha, dois motivos (layout e mais simples) são marcados e chegam ao próximo pedido da conversa principal.
 
-[Vídeo completo (35 segundos)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Condições e resultados](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Vídeo completo (13 segundos)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Condições e resultados](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <details>
 <summary>English answers · 390 px</summary>

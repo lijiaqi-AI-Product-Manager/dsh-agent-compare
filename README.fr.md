@@ -51,7 +51,7 @@ Enregistrement à candidats fixes dans un hôte DSH réel, à partir du code can
 
 Après le choix, deux raisons (mise en page, plus simple) sont cochées ; elles parviennent à la requête suivante de la conversation principale.
 
-[Vidéo complète (35 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Vidéo complète (13 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <details>
 <summary>English answers · 390 px</summary>

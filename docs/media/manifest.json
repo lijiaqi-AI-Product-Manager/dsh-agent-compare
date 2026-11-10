@@ -2,67 +2,55 @@
   "schema": "agentcompare.demo/v1",
   "source": {
     "version": "2.0.0 release candidate",
-    "commit": "5ff0e55211b17b69f930ee2f2972f1850026007e",
-    "archiveSha256": "e11fd838d469952b7ff85a69878900396ae2fe818b3f2eb0955613ee4047bb20",
-    "archiveNote": "Recorded from this commit's build, packed as a uniquely versioned development archive and installed in an isolated test profile; all 95 installed runtime files matched the committed build byte for byte. Later commits update documentation and media only.",
+    "commit": "817f7e570d1eae3491a5f9477f7dd83f950d364d",
+    "archiveSha256": "c5abfc6850a2d1592f4666a5d118c8467edbaefaa570537ac1f1fd9d392668b1",
+    "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
     "host": "0.2.2-rc.1",
     "browser": "Microsoft Edge 156.0.4314.58 (headless)",
     "os": "Windows",
-    "capturedAt": "2026-11-10T09:38:28.978Z",
-    "ffmpeg": "ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "capturedAt": "2026-11-10T11:47:00.379Z",
+    "ffmpeg": "ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\r",
     "candidate": "Local controlled model uses the native DSH write tool. No external model request.",
-    "task": "Four pomodoro pages in a folder outside Git, compared blind: two set aside, C picked with two reasons, saved into a new folder, conversation continued. Separately, three open English answers from a quick set, B picked with two reasons, and the next main-conversation request checked."
+    "task": "Four pomodoro pages in a folder outside Git; choose, save, undo, compare three English answers and continue the main conversation."
   },
   "editing": {
-    "rawSeconds": 80.6,
-    "workflowSeconds": 35.41,
+    "rawSeconds": 62.72,
+    "workflowSeconds": 12.56,
     "workflowSegments": [
       [
-        16.65,
-        25.32
+        2.07,
+        4.2
       ],
       [
-        25.83,
-        28.43
-      ],
-      [
-        55.49,
-        74.48
-      ],
-      [
-        75.91,
-        81.04
+        30.78,
+        41.230000000000004
       ]
     ],
     "workflowPlaybackRate": 1,
-    "previewSeconds": 16.04,
-    "previewSegments": [
-      [
-        55.79,
-        57.59
-      ],
-      [
-        60.59,
-        69.63
-      ],
-      [
-        70.08,
-        75.28
-      ]
+    "previewSeconds": 7.67,
+    "previewSegment": [
+      32.84,
+      40.519999999999996
     ],
     "previewPlaybackRate": 1,
     "previewFps": 6,
+    "previewCrop": {
+      "x": 12,
+      "y": 48,
+      "width": 1576,
+      "height": 1152
+    },
     "previewWidth": 720,
+    "previewHeaderAdded": true,
     "waitingPeriodsCut": true,
     "localPathsHidden": true,
-    "visibleCaption": true,
-    "visiblePointer": true
+    "visibleCaption": true
   },
   "proof": {
     "assignment": {
-      "A": "稳妥 · Conservative",
+      "A": "活力 · Vibrant",
       "B": "大胆 · Bold",
-      "C": "活力 · Vibrant",
+      "C": "稳妥 · Conservative",
       "D": "极简 · Minimal"
     },
     "setAside": [
@@ -70,10 +58,6 @@
       "D"
     ],
     "picked": "C",
-    "pickReasons": [
-      "layout",
-      "simple"
-    ],
     "pageChecks": {
       "A": "passed",
       "B": "passed",
@@ -81,43 +65,38 @@
       "D": "passed"
     },
     "savedToNewFolder": true,
-    "existingFileUnchanged": "notes.txt",
-    "englishAnswers": {
-      "versions": 3,
-      "comparison": "open",
-      "quickSet": "Three looks",
-      "styles": [
-        "Minimal",
-        "Polished",
-        "Vibrant"
-      ],
-      "picked": "B",
-      "pickReasons": [
-        "layout",
-        "complete"
-      ]
-    },
+    "saveUndone": true,
+    "englishAnswerVersions": 3,
     "phoneWidth": 390,
-    "nextRequestCarriesPickAndReasons": true,
+    "mainConversationMemory": true,
     "pageErrors": 0,
-    "controlledProvider": true
+    "controlledProvider": true,
+    "nativeWriteCalls": 4,
+    "reasonsSaved": [
+      "layout",
+      "simple"
+    ],
+    "quickStyleSet": "visual",
+    "reasonsInMainConversation": true,
+    "staleExplanationHttpStatus": 409,
+    "staleExplanationLeavesChoiceUnchanged": true
   },
   "files": [
     {
       "path": "comparison-workflow.mp4",
-      "bytes": 804742,
-      "sha256": "8d260a5ffdc273bcc00f4f9807f8f08d24e19afb214e6edaffd30ada39d018a0"
+      "bytes": 887828,
+      "sha256": "ea1772765b6170e80011dcf6a7f3cbe8aa9f48bf384e6772fdbc6b8eb65abfdc"
     },
     {
       "path": "comparison-preview.gif",
-      "bytes": 1733288,
-      "sha256": "51036e61a74d97efbd0b9bb8c5e4fab467fbfb8c000837a0e949b0c6fa8c69e2"
+      "bytes": 1375123,
+      "sha256": "10ebca42523301a94be0f81fb86497c9cee3fa95debda52d4c02b89eb749da0b"
     },
     {
       "path": "social-preview.png",
-      "bytes": 653849,
-      "sha256": "5687ff2bd89877b4622424876dc00fd9c5adb41ae11dda24f137168a6de0de5f",
-      "note": "Product illustration rendered from HTML and CSS, not a screenshot."
+      "bytes": 604795,
+      "sha256": "e0c46b49002f047171e04b5999f8c3fe6e9479107e7198d6216029eadde85262",
+      "note": "Product illustration, not a screenshot."
     }
   ]
 }
