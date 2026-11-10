@@ -19,6 +19,7 @@ try {
   const { engine, channel } = launched
   browser = launched.browser
   page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', locale: 'zh-CN' })
+  await page.context().tracing.start({ screenshots: true, snapshots: true })
   page.on('pageerror', error => errors.push(error.message))
   const open = async (state, extra = '') => {
     await page.emulateMedia({ colorScheme: extra.includes('theme=dark') ? 'dark' : 'light' })
@@ -157,6 +158,7 @@ try {
   await selectors.nth(1).selectOption('deepseek/deepseek-reasoner')
   check(await page.getByLabel('内置示例范围').inputValue() === 'quick', 'the smaller example must be selected without writing flags')
   await page.getByLabel('内置示例范围').selectOption('full')
+  await page.waitForFunction(() => window.__requests.some(r => r.method === 'preferences' && r.body.value?.exampleKind === 'full') && document.querySelector('.ac-settings-foot')?.textContent.includes('设置已保存在此对话'))
   await page.getByRole('button', { name: '试跑内置示例', exact: true }).click()
   await page.waitForFunction(() => window.__commands.length === 2)
   const example = await page.evaluate(() => JSON.parse(window.__commands.at(-1).line.slice('/ab @ui '.length)))
@@ -1131,6 +1133,7 @@ try {
   console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, embeddedCookies, directCookieIsolation: true, expectedBrowserDenials, react: await page.evaluate(() => React.version), node: process.version }))
 } catch (error) {
   await page?.screenshot({ path: path.join(output, 'interface-failure.png') }).catch(() => {})
+  await page?.context().tracing.stop({ path: path.join(output, 'interface-failure-trace.zip') }).catch(() => {})
   const documentState = await page?.evaluate(() => ({ errors: window.__harnessErrors, settings: document.querySelector('.ac-composer-settings')?.innerText, mode: document.querySelector('.ac-mode-btn')?.outerHTML, input: window.__input?.(), requests: window.__requests?.slice(-8) })).catch(() => undefined)
   await writeFile(path.join(output, 'interface-failure.json'), JSON.stringify({ assertions, message: error.message, browser: browser?.version(), pageErrors: errors, documentState }, null, 2))
   throw error
