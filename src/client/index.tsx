@@ -679,7 +679,7 @@ function PickReasons({ run, busy, act }: { run: Run; busy: boolean; act: Act }):
     if (key(wanted) === key({ reasons: saved, note: savedNote })) { setWanted(undefined); tried.current = ''; return }
     // A save that did not take is not repeated; the comparison shows why.
     if (busy || tried.current === key(wanted)) { if (!busy) setWanted(undefined); return }
-    const timer = setTimeout(() => { tried.current = key(wanted); act('explain', { reasons: wanted.reasons, note: wanted.note }) }, 450)
+    const timer = setTimeout(() => { tried.current = key(wanted); act('explain', { pick, reasons: wanted.reasons, note: wanted.note }) }, 450)
     return () => clearTimeout(timer)
   }, [wanted, busy, saved.join(','), savedNote])
   if (!pick || pick === 'none') return null

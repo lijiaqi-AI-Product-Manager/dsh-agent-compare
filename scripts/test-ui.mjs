@@ -985,6 +985,7 @@ try {
   check(JSON.stringify((await savedPreferences()).styles.map(s => s.id)) === '["conservative","bold","minimal","vibrant"]', 'four versions start with four different directions')
   check(await multi.getByLabel('第 1 种风格').locator('optgroup').count() === 4, 'styles are grouped by approach, look, priority and custom')
   await multi.getByLabel('第 3 种风格').selectOption('polished')
+  await page.waitForFunction(() => window.__requests.some(r => r.method === 'preferences' && r.body.value?.styles?.[2]?.id === 'polished'))
   await multi.getByLabel('第 4 种风格').selectOption('custom')
   check(JSON.stringify((await savedPreferences()).styles.map(s => s.id)) === '["conservative","bold","polished","vibrant"]', 'a custom style is not saved before it has a description')
   const customNote = multi.getByLabel('第 4 种风格：自定义描述')
@@ -1076,6 +1077,7 @@ try {
   check(await why.getByRole('button', { name: '布局', exact: true }).getAttribute('aria-pressed') === 'true', 'a reason chip answers the tap at once')
   await page.waitForFunction(() => window.__requests.some(r => r.method === 'explain'))
   check((await requests('explain')).at(-1)?.body.reasons?.join() === 'layout', 'a reason chip saves that reason for the picked version')
+  check((await requests('explain')).at(-1)?.body.pick === 'C', 'a delayed explanation must identify the version it belongs to')
   // Quick taps are not lost while a save is running; they are saved together.
   await why.getByRole('button', { name: '更简洁', exact: true }).click()
   await why.getByRole('button', { name: '交互手感', exact: true }).click()

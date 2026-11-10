@@ -148,6 +148,10 @@ function verificationDuration(c: Candidate): number | undefined {
   return timings.some(t => t.endedAt === undefined) ? undefined : timings.reduce((sum, t) => sum + Math.max(0, t.endedAt! - t.startedAt), 0)
 }
 
+export class ChoiceChangedError extends Error {
+  constructor() { super('选择已变化，请刷新后再说明理由。'); this.name = 'ChoiceChangedError' }
+}
+
 export class Comparer {
   readonly store: RunStore
   private readonly live = new Map<string, LiveRun>()
@@ -879,9 +883,10 @@ export class Comparer {
    * It changes nothing else, may follow the adoption, and an empty answer
    * clears it. A pick changed later starts without reasons.
    */
-  explainChoice(runId: string, reasons: readonly PickReason[], note?: string): Promise<RunRecord> {
+  explainChoice(runId: string, reasons: readonly PickReason[], note?: string, expectedPick?: CandidateLabel): Promise<RunRecord> {
     return this.operation(() => this.mutate(runId, (r) => {
       if (r.choice === undefined || r.choice.pick === 'none') throw new Error('先选出一版，再说明理由')
+      if (expectedPick !== undefined && r.choice.pick !== expectedPick) throw new ChoiceChangedError()
       const unique = PICK_REASONS.filter(reason => reasons.includes(reason))
       const text = (note ?? '').replace(/\s+/g, ' ').trim()
       if ([...text].length > MAX_PICK_NOTE) throw new Error(`理由补充不能超过 ${MAX_PICK_NOTE} 个字`)

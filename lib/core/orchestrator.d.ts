@@ -94,6 +94,9 @@ export declare function candidatePlan(input: Pick<StartInput, 'mode' | 'candidat
     strategies: Strategy[];
 };
 export declare const DEFAULT_GENERATION_MS: number;
+export declare class ChoiceChangedError extends Error {
+    constructor();
+}
 export declare class Comparer {
     private readonly opts;
     readonly store: RunStore;
@@ -175,7 +178,7 @@ export declare class Comparer {
      * It changes nothing else, may follow the adoption, and an empty answer
      * clears it. A pick changed later starts without reasons.
      */
-    explainChoice(runId: string, reasons: readonly PickReason[], note?: string): Promise<RunRecord>;
+    explainChoice(runId: string, reasons: readonly PickReason[], note?: string, expectedPick?: CandidateLabel): Promise<RunRecord>;
     /**
      * Serve a finished candidate again (its preview stopped with a host
      * restart, or was never started). Uses the copy's existing build output

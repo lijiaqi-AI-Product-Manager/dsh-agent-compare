@@ -12,7 +12,8 @@
   Text keeps AA contrast in light and dark themes. Reduced motion stops all movement, reduced transparency removes the blur, and forced colours keep the chosen option visible.
 - **Why it won.** After a pick, the card asks why: layout, look and colour, feel in use, wording, more complete, fewer problems, simpler, faster and lighter, plus a note of up to 120 characters. The reasons are kept with the choice, cleared when the pick changes, and reach the main conversation with its next message; adoption notes repeat them so later changes keep those strengths. The comparison history shows them beside the pick. The new `explain` route needs the same conversation confirmation as other actions.
 - **Quick sets.** Classic pair, Three looks, Three priorities and Four directions set the number of versions and every style in one tap.
-- The README header is animated, and the header, workflow illustration, social preview and badges follow the new look.
+- The README header, workflow illustration and social preview use a light blue gradient. The recorded GIF and video show the current interface, including reasons for a pick.
+- Delayed reason saves name the version they explain. If another client changes the pick first, the stale save is rejected without changing the new choice.
 - **Keyboard and copy reliability.** Space activates the focused button instead of changing layout. Composition and editable text do not trigger digit shortcuts. Clipboard fallback always removes its temporary field and preserves focus, including denied or unavailable clipboard access.
 - Revealed preset style names follow the selected interface language. Custom descriptions remain as written.
 - Content-only results identify themselves as such and omit page viewport controls, instead of suggesting a preview is still on the way.

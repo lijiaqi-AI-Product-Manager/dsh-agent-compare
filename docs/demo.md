@@ -25,7 +25,7 @@
 
 原始录制 **80.6 秒**；流程短片 **35.41 秒**，保留设置、发送、四版页面的操作、排除、选择、理由和保存，剪去等待，保留片段均按原速播放。GIF **16.04 秒、6 帧/秒、720 像素宽**，截取四版实时页面、排除、选择揭晓和理由；画面加入可见的固定候选标签和指针。它不把生成时间压缩成性能承诺。区间、哈希与处理方式见[素材清单](media/manifest.json)。
 
-本地路径已隐藏；顶部动图、流程图和社交预览图标为功能示意，由 HTML/CSS 渲染，不是实际截图。英文回答和手机截图来自同一候选包的真实界面。目录中的两张 PNG 仅缩小并压缩颜色，没有改写操作结果。[1.1.0 历史演示](media/history/1.1.0/manifest.json)、[更早的演示](media/history/0.2.0-alpha.17/manifest.json)和[真实模型的首次体验测量](first-use.md)继续保留。
+本地路径已隐藏；顶部主图、流程图和社交预览图标为功能示意，不是实际截图。英文回答和手机截图来自同一候选包的真实界面。目录中的两张 PNG 仅缩小并压缩颜色，没有改写操作结果。[1.1.0 历史演示](media/history/1.1.0/manifest.json)、[更早的演示](media/history/0.2.0-alpha.17/manifest.json)和[真实模型的首次体验测量](first-use.md)继续保留。
 
 ## English
 
@@ -39,4 +39,4 @@ The same session checks the English interface: the Three looks quick set gives a
 
 The raw recording lasts **80.6 seconds**. The **35.41-second** workflow clip keeps the setup, sending, interaction with the four pages, setting two aside, the pick, the reasons and the save, cutting waits and playing retained footage at the original speed. The **16.04-second GIF at 6 fps and 720 pixels** shows the four live pages, setting two aside, the pick with its reveal and the reasons, with a visible controlled-candidate caption and pointer. Neither clip is a generation-time promise. [The manifest](media/manifest.json) records the intervals, hashes and edits.
 
-Local paths are hidden. The animated header, workflow graphic and social preview are labelled product illustrations rendered from HTML and CSS, not screenshots. English and phone images are actual screenshots from the same installed candidate. Directory PNGs are resized and palette-compressed without changing outcomes. [The 1.1.0 recording](media/history/1.1.0/manifest.json), [earlier recordings](media/history/0.2.0-alpha.17/manifest.json) and [real-model first-use measurements](first-use.md) remain separate evidence.
+Local paths are hidden. The header, workflow graphic and social preview are labelled product illustrations, not screenshots. English and phone images are actual screenshots from the same installed candidate. Directory PNGs are resized and palette-compressed without changing outcomes. [The 1.1.0 recording](media/history/1.1.0/manifest.json), [earlier recordings](media/history/0.2.0-alpha.17/manifest.json) and [real-model first-use measurements](first-use.md) remain separate evidence.

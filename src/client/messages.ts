@@ -1,5 +1,6 @@
 /** Interface copy. Application content and original diagnostic evidence are not translated. */
 export const messages: Readonly<Record<string, string>> = {
+  "选择已变化，请刷新后再说明理由。": "The selected version changed. Refresh before explaining the choice.",
   "采用与恢复记录": "Adoption and recovery record",
   "比较窗口暂时无法进入前景层。请关闭其他弹窗后重新打开。": "The comparison could not enter the foreground layer. Close other dialogs and reopen it.",
   "Windows 高级设置": "Advanced Windows settings",

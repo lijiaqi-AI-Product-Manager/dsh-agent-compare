@@ -1,5 +1,5 @@
 export * from './types.ts';
-export { Comparer, publicView, verdictOf, DEFAULT_GENERATION_MS, type AgentRunner, type AgentRunRequest, type AgentRunResult, type AgentProgress, type StartInput, type PublicCandidate, type PublicRun } from './orchestrator.ts';
+export { Comparer, ChoiceChangedError, publicView, verdictOf, DEFAULT_GENERATION_MS, type AgentRunner, type AgentRunRequest, type AgentRunResult, type AgentProgress, type StartInput, type PublicCandidate, type PublicRun } from './orchestrator.ts';
 export { RunStore, defaultHome, repoKey, BusyError, StaleRecordError, RecordUnavailableError, type LegacySummary } from './run-store.ts';
 export { DEFAULT_STRATEGIES, BALANCED, candidatePrompt } from './strategies.ts';
 export { STYLES, STYLE_IDS, DEFAULT_STYLES, MAX_CUSTOM_STYLE, CUSTOM, defaultStyleChoices, parseStyleChoice, strategyFor, isStyleId, type StyleChoice, type StyleId } from './styles.ts';
