@@ -62,6 +62,36 @@ describe('serialized record validation', () => {
     for (const raw of [null, [], 42, 'text']) expect(() => assertRunRecord(raw, '0a1b2c3d')).toThrow(RecordValidationError)
     expect(() => assertRunRecord(Object.create({ ...fixtureRecord(), rev: 1 }), '0a1b2c3d')).toThrow(RecordValidationError)
   })
+
+  it('keeps pick reasons to known, distinct reasons for a picked version', () => {
+    const record = fixtureRecord()
+    record.rev = 1
+    record.choice = { pick: 'A', at: 2, reasons: ['layout', 'robust'], note: '按钮更好找' }
+    expect(() => assertRunRecord(structuredClone(record), record.runId)).not.toThrow()
+    for (const choice of [{ pick: 'A', at: 2, reasons: ['layout', 'layout'] }, { pick: 'A', at: 2, reasons: ['prettier'] }, { pick: 'none', at: 2, reasons: ['layout'] }]) {
+      const changed = structuredClone(record); (changed as any).choice = choice
+      expect(() => assertRunRecord(changed, record.runId)).toThrow(RecordValidationError)
+    }
+  })
+})
+
+describe('reasons for a pick', () => {
+  it('records, replaces and clears reasons without touching the pick', async () => {
+    const store = new RunStore(await tmp('ac-pick-reasons'))
+    const record = fixtureRecord()
+    record.rev = 0
+    record.state = 'revealed'
+    record.choice = { pick: 'A', at: 2 }
+    await store.save(record)
+    const comparer = new Comparer({ store, runner: { isolation: 'own-root' as const, run: vi.fn(async () => { throw Error('must never generate') }) }, version: 'test' })
+    const explained = await comparer.explainChoice(record.runId, ['robust', 'layout', 'robust'], '  按钮   更好找 ')
+    expect(explained.choice).toEqual({ pick: 'A', at: 2, reasons: ['layout', 'robust'], note: '按钮 更好找' })
+    expect((await comparer.explainChoice(record.runId, [], '')).choice).toEqual({ pick: 'A', at: 2 })
+    await expect(comparer.explainChoice(record.runId, ['look'], 'x'.repeat(121))).rejects.toThrow(/120/)
+    const none = fixtureRecord('0b1b2c3d'); none.rev = 0; none.state = 'revealed'; none.choice = { pick: 'none', at: 2 }
+    await store.save(none)
+    await expect(comparer.explainChoice(none.runId, ['look'])).rejects.toThrow(/先选出一版/)
+  })
 })
 
 describe('damaged record retention', () => {

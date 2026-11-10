@@ -2,35 +2,35 @@
   "schema": "agentcompare.demo/v1",
   "source": {
     "version": "2.0.0 release candidate",
-    "commit": "d36bdb0e4146afa83d624679225ad2c8f5674bd2",
-    "archiveSha256": "5d013ddf0d9cc90cbdf8f9f3ba8fa9fbdb3ce1e18a32e45118aa110589c85b6e",
+    "commit": "817f7e570d1eae3491a5f9477f7dd83f950d364d",
+    "archiveSha256": "c5abfc6850a2d1592f4666a5d118c8467edbaefaa570537ac1f1fd9d392668b1",
     "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
     "host": "0.2.2-rc.1",
     "browser": "Microsoft Edge 156.0.4314.58 (headless)",
     "os": "Windows",
-    "capturedAt": "2026-11-09T13:12:40.963Z",
+    "capturedAt": "2026-11-10T11:47:00.379Z",
     "ffmpeg": "ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\r",
     "candidate": "Local controlled model uses the native DSH write tool. No external model request.",
     "task": "Four pomodoro pages in a folder outside Git; choose, save, undo, compare three English answers and continue the main conversation."
   },
   "editing": {
-    "rawSeconds": 50.8,
-    "workflowSeconds": 10.64,
+    "rawSeconds": 62.72,
+    "workflowSeconds": 12.56,
     "workflowSegments": [
       [
-        2.63,
-        4.72
+        2.07,
+        4.2
       ],
       [
-        28.25,
-        36.82
+        30.78,
+        41.230000000000004
       ]
     ],
     "workflowPlaybackRate": 1,
-    "previewSeconds": 6.5,
+    "previewSeconds": 7.67,
     "previewSegment": [
-      29.74,
-      36.269999999999996
+      32.84,
+      40.519999999999996
     ],
     "previewPlaybackRate": 1,
     "previewFps": 6,
@@ -49,8 +49,8 @@
   "proof": {
     "assignment": {
       "A": "活力 · Vibrant",
-      "B": "稳妥 · Conservative",
-      "C": "大胆 · Bold",
+      "B": "大胆 · Bold",
+      "C": "稳妥 · Conservative",
       "D": "极简 · Minimal"
     },
     "setAside": [
@@ -71,23 +71,32 @@
     "mainConversationMemory": true,
     "pageErrors": 0,
     "controlledProvider": true,
-    "nativeWriteCalls": 4
+    "nativeWriteCalls": 4,
+    "reasonsSaved": [
+      "layout",
+      "simple"
+    ],
+    "quickStyleSet": "visual",
+    "reasonsInMainConversation": true,
+    "staleExplanationHttpStatus": 409,
+    "staleExplanationLeavesChoiceUnchanged": true
   },
   "files": [
     {
       "path": "comparison-workflow.mp4",
-      "bytes": 549857,
-      "sha256": "f7eea8fd2a701c922a59d4f2690db247431fba54620ff154b67bbb5da87f2fa4"
+      "bytes": 887828,
+      "sha256": "ea1772765b6170e80011dcf6a7f3cbe8aa9f48bf384e6772fdbc6b8eb65abfdc"
     },
     {
       "path": "comparison-preview.gif",
-      "bytes": 795725,
-      "sha256": "88a8a4ba81dc3791160efa55d6615a7f692f205ef0b20d665567274e367fd42b"
+      "bytes": 1375123,
+      "sha256": "10ebca42523301a94be0f81fb86497c9cee3fa95debda52d4c02b89eb749da0b"
     },
     {
       "path": "social-preview.png",
-      "bytes": 619630,
-      "sha256": "3bf82920bc458bbdb186483d495d3448729493024db93bf2551ca00a7ffad433"
+      "bytes": 604795,
+      "sha256": "e0c46b49002f047171e04b5999f8c3fe6e9479107e7198d6216029eadde85262",
+      "note": "Product illustration, not a screenshot."
     }
   ]
 }

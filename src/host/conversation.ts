@@ -4,7 +4,7 @@
  * (generation finished, the user's pick, adoption) so later turns can build on
  * it. Notes state recorded facts only.
  */
-import { publicView, type AgentRoute, type RunRecord } from '../core/index.ts'
+import { publicView, type AgentRoute, type PickReason, type RunRecord } from '../core/index.ts'
 
 export interface AbInput {
   readonly task: string
@@ -65,13 +65,37 @@ function routeOf(spec: string): AgentRoute {
 export const commandResultText = (runId: string): string => `A|B 比较已开始 · 运行 ${runId}`
 export const runIdInText = (text: string | undefined): string | undefined => /运行 ([0-9a-f]{8})/.exec(text ?? '')?.[1] ?? /"runId"\s*:\s*"([0-9a-f]{8})"/.exec(text ?? '')?.[1]
 
+const REASON_TEXT: Record<PickReason, string> = {
+  layout: 'layout', look: 'look and colours', interaction: 'how it feels to use', wording: 'wording',
+  complete: 'more complete', robust: 'fewer problems', simple: 'simpler', fast: 'faster and lighter',
+}
+
+/** Why the user picked a version, as they said it after the pick. */
+function pickWhy(r: RunRecord): string {
+  const reasons = r.choice?.reasons ?? []
+  const note = r.choice?.note?.trim()
+  if (!reasons.length && !note) return ''
+  const said = [...reasons.map(reason => REASON_TEXT[reason]), ...(note ? [JSON.stringify(note)] : [])].join('; ')
+  return ` The user said they picked it for: ${said}. Keep these qualities in follow-up changes.`
+}
+
+/** A short, stable key for the reasons, so new reasons become a new note. */
+function whyKey(r: RunRecord): string {
+  const reasons = r.choice?.reasons ?? []
+  const note = r.choice?.note?.trim() ?? ''
+  if (!reasons.length && !note) return ''
+  let hash = 2166136261
+  for (const char of `${reasons.join(',')}|${note}`) hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619)
+  return `:why:${(hash >>> 0).toString(16)}`
+}
+
 /** A stable key per fact worth telling the model; a new key means a new note. */
 export function milestoneOf(r: RunRecord): string | undefined {
   if (r.adoption !== undefined && ['adopted', 'needs-attention', 'reverted', 'rolled-back', 'blocked', 'needs-recovery'].includes(r.adoption.state)) {
-    return `adoption:${r.adoption.mode}:${r.adoption.state}:${r.adoption.startedAt}`
+    return `adoption:${r.adoption.mode}:${r.adoption.state}:${r.adoption.startedAt}${r.adoption.state === 'adopted' || r.adoption.state === 'needs-attention' ? whyKey(r) : ''}`
   }
   // A pick changed after the reveal is a new fact; the original key stays unchanged for older records.
-  if (r.choice !== undefined) return r.choice.initialPick === undefined ? `choice:${r.choice.pick}` : `choice:${r.choice.pick}:revised:${r.choice.at}`
+  if (r.choice !== undefined) return (r.choice.initialPick === undefined ? `choice:${r.choice.pick}` : `choice:${r.choice.pick}:revised:${r.choice.at}`) + (r.choice.pick === 'none' ? '' : whyKey(r))
   if (r.state === 'judging') return 'judging'
   if (r.state === 'abandoned') return 'abandoned'
   return undefined
@@ -111,7 +135,7 @@ export function memoryNote(r: RunRecord): string | undefined {
     const c = r.candidates.find((x) => x.label === pick)!
     const route = c.actualRoute ?? c.route
     const revised = r.choice!.initialPick !== undefined ? ` after the reveal (blind pick: ${r.choice!.initialPick === 'none' ? 'neither' : r.choice!.initialPick})` : ''
-    const picked = `The user picked ${pick}${revised} (strategy: ${c.strategy.title}${route.model ? `; model: ${route.model}` : ''}).`
+    const picked = `The user picked ${pick}${revised} (strategy: ${c.strategy.title}${route.model ? `; model: ${route.model}` : ''}).${pickWhy(r)}`
     // An answer is the whole result: the conversation keeps the picked text itself.
     if (c.result === 'answer') return `${head}\n${picked} It is an answer with no files; nothing needs to be written. The picked answer:\n${(c.summary ?? '').slice(0, 2000)}${(c.summary ?? '').length > 2000 ? '\n[…]' : ''}`
     if (folder) return `${head}\n${picked} Its files are not saved yet; the folder is unchanged. Files: ${files(c.touchedFiles)}.`
@@ -122,7 +146,7 @@ export function memoryNote(r: RunRecord): string | undefined {
   const c = r.candidates.find((x) => x.label === a.label)
   const touched = a.writtenPaths ?? c?.touchedFiles
   if (a.mode === 'folder') {
-    if (a.state === 'adopted') return `${head}\nCandidate ${a.label}'s files were saved into the new folder ${a.exportPath ?? '(unknown)'}; nothing else in the folder changed. Files: ${files(touched)}.`
+    if (a.state === 'adopted') return `${head}\nCandidate ${a.label}'s files were saved into the new folder ${a.exportPath ?? '(unknown)'}; nothing else in the folder changed. Files: ${files(touched)}.${pickWhy(r)}`
     if (a.state === 'reverted') return `${head}\nThe saved folder ${a.exportPath ?? '(unknown)'} was removed again; nothing else changed.`
     return undefined
   }
@@ -130,7 +154,7 @@ export function memoryNote(r: RunRecord): string | undefined {
     case 'adopted':
     case 'needs-attention':
       if (a.mode === 'branch') return `${head}\nCandidate ${a.label} was saved as branch ${a.branch ?? '(unknown)'}; the working tree and current branch are unchanged.`
-      return `${head}\nCandidate ${a.label} (${c?.strategy.title ?? ''}) is now in the target repository's working tree, uncommitted. Files written: ${files(touched)}. These changes apply only to the target repository above. Before following up, confirm your working directory matches it; an example repository can differ from this conversation's original project.${a.state === 'needs-attention' ? ` Other files changed during the write: ${files(a.attention)}.` : ''}`
+      return `${head}\nCandidate ${a.label} (${c?.strategy.title ?? ''}) is now in the target repository's working tree, uncommitted. Files written: ${files(touched)}. These changes apply only to the target repository above. Before following up, confirm your working directory matches it; an example repository can differ from this conversation's original project.${a.state === 'needs-attention' ? ` Other files changed during the write: ${files(a.attention)}.` : ''}${pickWhy(r)}`
     case 'reverted':
     case 'rolled-back':
       return `${head}\nThe adoption of ${a.label} was undone; these files are back to their previous content: ${files(touched)}.`

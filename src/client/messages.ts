@@ -1,5 +1,6 @@
 /** Interface copy. Application content and original diagnostic evidence are not translated. */
 export const messages: Readonly<Record<string, string>> = {
+  "选择已变化，请刷新后再说明理由。": "The selected version changed. Refresh before explaining the choice.",
   "采用与恢复记录": "Adoption and recovery record",
   "比较窗口暂时无法进入前景层。请关闭其他弹窗后重新打开。": "The comparison could not enter the foreground layer. Close other dialogs and reopen it.",
   "Windows 高级设置": "Advanced Windows settings",
@@ -666,5 +667,26 @@ export const messages: Readonly<Record<string, string>> = {
   "轻快": "Lean",
   "代码少、加载快、不加依赖": "Little code, fast to load, no dependencies",
   "均衡": "Balanced",
-  "不额外指定方向，只比较模型": "No extra direction; compare the models only"
+  "不额外指定方向，只比较模型": "No extra direction; compare the models only",
+  "为什么选 {0}": "Why {0} was picked",
+  "为什么选 {0}？": "Why {0}?",
+  "选择理由": "Reasons for the pick",
+  "补充一句理由": "Add a reason in your own words",
+  "补一句，例如：按钮更好找": "Add a line, e.g. the buttons are easier to find",
+  "已记下。主对话的下一条消息会带上这些理由，后续修改会保留这些优点。": "Noted. The next message in the main conversation carries these reasons, so later changes keep these strengths.",
+  "可选：选几个理由，主对话接着修改时会保留这些优点。": "Optional: pick a few reasons, and later changes in the main conversation keep these strengths.",
+  "布局": "Layout",
+  "配色与质感": "Look and colour",
+  "交互手感": "Feel in use",
+  "文案": "Wording",
+  "功能更全": "More complete",
+  "更稳、问题更少": "Fewer problems",
+  "更简洁": "Simpler",
+  "更快更轻": "Faster and lighter",
+  "快速组合": "Quick sets",
+  "经典对照": "Classic pair",
+  "三种视觉": "Three looks",
+  "三种取舍": "Three priorities",
+  "四向探索": "Four directions",
+  " · 因为": " · for "
 }

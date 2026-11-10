@@ -91,6 +91,27 @@ export function StyleSlots({ styles, blind, onChange, disabled }: { styles: read
   </div>
 }
 
+/** Ready-made sets: one tap sets how many versions run and which style each gets. */
+export const STYLE_COMBOS: ReadonlyArray<{ id: string; name: string; styles: readonly string[] }> = [
+  { id: 'classic', name: '经典对照', styles: ['conservative', 'bold'] },
+  { id: 'visual', name: '三种视觉', styles: ['minimal', 'polished', 'vibrant'] },
+  { id: 'priority', name: '三种取舍', styles: ['friendly', 'rigorous', 'lean'] },
+  { id: 'explore', name: '四向探索', styles: ['conservative', 'bold', 'minimal', 'vibrant'] },
+]
+
+export function StyleCombos({ styles, onPick, disabled }: { styles: readonly StyleChoice[]; onPick(styles: StyleChoice[]): void; disabled?: boolean }): React.ReactElement {
+  const current = styles.map(choice => choice.note === undefined ? choice.id : '').join(',')
+  return <div className="ac-combos" role="group" aria-label={t("快速组合")}>
+    <span className="ac-style-row-label">{t("快速组合")}</span>
+    {STYLE_COMBOS.map(combo => {
+      const on = current === combo.styles.join(',')
+      const names = combo.styles.map(id => styleName({ id })).join(t("、"))
+      return <button key={combo.id} type="button" className={`ac-chip ac-combo${on ? ' on' : ''}`} aria-pressed={on} disabled={disabled} title={names}
+        onClick={() => { if (!on) onPick(combo.styles.map(id => ({ id }))) }}>{t(combo.name)}<small>{t("{0} 版", { 0: combo.styles.length })}</small></button>
+    })}
+  </div>
+}
+
 /** The styles this user picked most often, once there is enough history to say so. */
 export function StyleHabit({ load }: { load(): Promise<{ comparisons: number; styles: StyleStat[] }> }): React.ReactElement | null {
   const [stats, setStats] = useState<{ comparisons: number; styles: StyleStat[] }>()

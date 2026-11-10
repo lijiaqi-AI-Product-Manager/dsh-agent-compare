@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { parseBrowserCheck } from './acceptance-config.ts'
-import { CANDIDATE_LABELS, MAX_CANDIDATES, MIN_CANDIDATES, RUN_COORDINATION, RUN_SCHEMA, type RunRecord } from './types.ts'
+import { CANDIDATE_LABELS, MAX_CANDIDATES, MIN_CANDIDATES, PICK_REASONS, RUN_COORDINATION, RUN_SCHEMA, type RunRecord } from './types.ts'
 import { parsePreviewUrl } from './preview-url.ts'
 
 export const MAX_RECORD_BYTES = 16 * 1024 * 1024
@@ -129,7 +129,7 @@ const record = shape({
   }),
   mode: oneOf('same-model', 'cross-model'), blind: optional((value, field) => { if (value !== false) invalid(field) }), isolation: oneOf('own-root', 'shared-root'), budget: shape({ generationMs: count(1) }),
   state: oneOf('running', 'judging', 'revealed', 'adopting', 'adopted', 'recovery', 'abandoned', 'interrupted'), candidates: array(candidate, MAX_CANDIDATES),
-  choice: optional(shape({ pick: oneOf(...CANDIDATE_LABELS, 'none'), at: count(), note: optional(text()), initialPick: optional(oneOf(...CANDIDATE_LABELS, 'none')) })), revealedAt: optional(count()), checksFavoured: optional(oneOf(...CANDIDATE_LABELS, 'tie', 'none')),
+  choice: optional(shape({ pick: oneOf(...CANDIDATE_LABELS, 'none'), at: count(), note: optional(text()), initialPick: optional(oneOf(...CANDIDATE_LABELS, 'none')), reasons: optional(array(oneOf(...PICK_REASONS), PICK_REASONS.length)) })), revealedAt: optional(count()), checksFavoured: optional(oneOf(...CANDIDATE_LABELS, 'tie', 'none')),
   adoption: optional(adoption), outsideChanges: optional(paths), leftovers: optional(array(text())), copiesReleasedAt: optional(count()),
 })
 
@@ -146,6 +146,8 @@ export function assertRunRecord(value: unknown, expectedId: string, allowInitial
   for (const [field, value] of [['choice.pick', raw.choice?.pick], ['choice.initialPick', raw.choice?.initialPick], ['checksFavoured', raw.checksFavoured], ['adoption.label', raw.adoption?.label]] as const) {
     if (value !== undefined && value !== 'none' && value !== 'tie' && !labels.has(value)) invalid(field)
   }
+  // Reasons explain a pick of one version, each at most once.
+  if (raw.choice?.reasons !== undefined && (raw.choice.pick === 'none' || new Set(raw.choice.reasons).size !== raw.choice.reasons.length)) invalid('choice.reasons')
   if (raw.acceptance.runtime.yarnModern && !/^yarn(?:@|$)/.test(raw.acceptance.runtime.packageManager)) invalid('acceptance.runtime.yarnModern')
   for (const command of raw.acceptance.checks.commands) if (!command.argv.length) invalid('acceptance.checks.commands.argv')
   for (const item of raw.candidates) if (item.install && !item.install.argv.length) invalid('candidates.install.argv')

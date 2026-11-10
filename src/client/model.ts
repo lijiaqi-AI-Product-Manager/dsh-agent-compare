@@ -23,6 +23,13 @@ export interface ProjectSetup {
 export interface Setup { pluginVersion?: string; dshVersion?: string; projectProcess?: { platform: string; windowsCompatControl: boolean }; capabilities?: { ok: boolean; missing: string[]; warnings: string[] }; current: Route; generationMinutes: number; project?: ProjectSetup }
 export type Label = 'A' | 'B' | 'C' | 'D'
 export const LABELS: readonly Label[] = ['A', 'B', 'C', 'D']
+/** Why a pick won; the host keeps the same list. */
+export type PickReason = 'layout' | 'look' | 'interaction' | 'wording' | 'complete' | 'robust' | 'simple' | 'fast'
+export const PICK_REASONS: ReadonlyArray<{ id: PickReason; name: string }> = [
+  { id: 'layout', name: '布局' }, { id: 'look', name: '配色与质感' }, { id: 'interaction', name: '交互手感' }, { id: 'wording', name: '文案' },
+  { id: 'complete', name: '功能更全' }, { id: 'robust', name: '更稳、问题更少' }, { id: 'simple', name: '更简洁' }, { id: 'fast', name: '更快更轻' },
+]
+export const MAX_PICK_NOTE = 120
 export interface StyleStat { id: string; title: string; picked: number; offered: number }
 export interface Cand {
   label: Label
@@ -83,7 +90,7 @@ export interface Run {
   target?: { kind: 'folder'; folder?: string }
   acceptance: { source: 'defaults' | 'repository'; checks: string[]; steps: number; frozenInstall: boolean }
   candidates: Cand[]
-  choice?: { pick: Label | 'none'; initialPick?: Label | 'none' }
+  choice?: { pick: Label | 'none'; initialPick?: Label | 'none'; reasons?: PickReason[]; note?: string }
   checksFavoured?: Label | 'tie' | 'none'
   adoption?: Adoption
   outsideChanges?: string[]

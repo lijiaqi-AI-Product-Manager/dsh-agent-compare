@@ -1,7 +1,7 @@
 import type { Comparer } from '../core/orchestrator.ts'
 import { HttpError } from './request.ts'
 
-export const CONVERSATION_ACTIONS: ReadonlySet<string> = new Set(['choose', 'preflight', 'adopt', 'revert', 'recover', 'cancel', 'cancelAdoption', 'cleanup', 'releaseCopies', 'salvage', 'retryVerification', 'reopenPreview'])
+export const CONVERSATION_ACTIONS: ReadonlySet<string> = new Set(['choose', 'explain', 'preflight', 'adopt', 'revert', 'recover', 'cancel', 'cancelAdoption', 'cleanup', 'releaseCopies', 'salvage', 'retryVerification', 'reopenPreview'])
 
 type Caller = { session: { id: string; header?: { origin?: string } } } | undefined
 interface DispatchOptions {

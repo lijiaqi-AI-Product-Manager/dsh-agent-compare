@@ -277,12 +277,18 @@ export interface FolderTarget {
     readonly kind: 'folder';
     readonly folder?: string;
 }
+/** Why a version was picked, in the user's own words: fixed choices plus a short note. */
+export declare const PICK_REASONS: readonly ['layout', 'look', 'interaction', 'wording', 'complete', 'robust', 'simple', 'fast'];
+export type PickReason = typeof PICK_REASONS[number];
+export declare const MAX_PICK_NOTE = 120;
 export interface Choice {
     readonly pick: CandidateLabel | 'none';
     readonly at: number;
     readonly note?: string;
     /** The blind pick, kept when the user changes the pick after the reveal. */
     readonly initialPick?: CandidateLabel | 'none';
+    /** What the user said made the pick better; given after the pick, never required. */
+    readonly reasons?: readonly PickReason[];
 }
 export type AdoptionState = 
 /** Building the would-be result in a scratch copy and checking it. Nothing written. */

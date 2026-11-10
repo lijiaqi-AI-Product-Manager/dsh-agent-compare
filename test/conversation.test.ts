@@ -64,6 +64,20 @@ describe('conversation memory notes', () => {
     expect(milestoneOf(run({ state: 'running' }))).toBeUndefined()
     expect(memoryNote(run({ state: 'running' }))).toBeUndefined()
   })
+  it('passes on why the user picked a version, as a new fact once given', () => {
+    const plain = run({ state: 'revealed', choice: { pick: 'A', at: 1 } })
+    const why = run({ state: 'revealed', choice: { pick: 'A', at: 1, reasons: ['layout', 'robust'], note: '按钮更好找' } })
+    expect(milestoneOf(plain)).toBe('choice:A')
+    expect(milestoneOf(why)).toMatch(/^choice:A:why:[0-9a-f]+$/)
+    expect(milestoneOf(why)).not.toBe(milestoneOf(run({ state: 'revealed', choice: { pick: 'A', at: 1, reasons: ['layout'] } })))
+    expect(memoryNote(why)).toMatch(/picked A \(strategy: 稳妥 · Conservative; model: m\)\. The user said they picked it for: layout; fewer problems; "按钮更好找"\. Keep these qualities/)
+    expect(memoryNote(plain)).not.toMatch(/said they picked/)
+    const adopted = run({ state: 'adopted', choice: { pick: 'A', at: 1, reasons: ['look'] }, adoption: { label: 'A', mode: 'worktree', state: 'adopted', startedAt: 5, writtenPaths: ['src/App.tsx'] } })
+    expect(milestoneOf(adopted)).toMatch(/^adoption:worktree:adopted:5:why:/)
+    expect(memoryNote(adopted)).toMatch(/picked it for: look and colours\./)
+    // Rejecting every version has no reasons to give.
+    expect(milestoneOf(run({ state: 'revealed', choice: { pick: 'none', at: 1 } }))).toBe('choice:none')
+  })
 })
 
 /** A session log that grows as steps commit their messages. */

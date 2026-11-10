@@ -23,6 +23,7 @@
 - 安装失败时仍会显示失败分类、错误代码和恢复建议，也可以对原候选重新验收。
 - 所有版本都无法体验时，可以选「都不采用并揭晓」查看详情；这不会清理保留的代码。
 - 选择之后再重新验收，已经揭晓的信息不会重新隐藏。
+- 选择后可以说明理由：点几个固定理由（布局、配色与质感、交互手感、文案、功能更全、更稳、更简洁、更快更轻），或补一句不超过 120 字的话。理由随选择保存，改选时清空；主对话的下一条消息会带上它们，比较记录里也会显示「因为……」。
 - 揭晓后、尚未采用或另存分支之前，可以「改选」另一版已完成的结果，例如盲选的那一版没有通过共同验收。记录会同时保留最初的盲选结果，揭晓说明会注明“揭晓后改选”。已经有采用记录的比较不能改选。
 - 没有可用结果、都没选，或选中的一版没有通过验收时，可以在同一张卡片里点「再比较一次」：用同一条需求在本对话中开始新的比较，还可以先选更长的每版上限（上次因时长截断时，默认建议下一档）。原来的比较和记录保持不变；示例比较会新建一个示例仓库。
 
@@ -55,6 +56,7 @@ A comparison is **blind** (the default) or **open**. Either runs 2–4 versions.
 - Installation failures keep their category, error code and recovery advice, and the original candidate can be reverified.
 - When no app runs, choosing to adopt none reveals the details without cleaning retained code.
 - Later verification retries keep previously revealed information visible.
+- After the pick you can say why it won: tap fixed reasons (layout, look and colour, feel in use, wording, more complete, fewer problems, simpler, faster and lighter) or add a note of up to 120 characters. Reasons are kept with the choice and cleared if the pick changes; the next message in the main conversation carries them, and the comparison history shows them.
 - After the reveal and before any adoption or branch, you can **pick another finished version instead**, for example when the blind pick failed the shared checks. The record keeps the original blind pick, and the reveal summary marks the change. A comparison with an adoption record cannot be re-picked.
 - When no result is usable, nothing was picked, or the pick failed the checks, **Compare again** starts a new comparison of the same requirement in the same conversation. You can pick a longer time limit first; after a timeout, the next longer limit is suggested. The earlier comparison and its record stay unchanged; an example comparison creates a fresh example repository.
 

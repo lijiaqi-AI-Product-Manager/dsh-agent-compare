@@ -21,7 +21,7 @@ import { BusyError, newRunId, RunStore, StaleRecordError } from './run-store.ts'
 import type { FileLease } from './file-lock.ts'
 import { isRunId } from './record-validation.ts'
 import { BALANCED, candidatePrompt, DEFAULT_STRATEGIES } from './strategies.ts'
-import { CANDIDATE_LABELS, MAX_CANDIDATES, MIN_CANDIDATES, RUN_COORDINATION, RUN_SCHEMA, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type FolderTarget, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
+import { CANDIDATE_LABELS, MAX_CANDIDATES, MAX_PICK_NOTE, MIN_CANDIDATES, PICK_REASONS, RUN_COORDINATION, RUN_SCHEMA, type PickReason, type Acceptance, type AgentRoute, type Candidate, type CandidateLabel, type CandidateStage, type CheckResult, type ChecksSpec, type FolderTarget, type PreviewInfo, type RunRecord, type Strategy, type Usage, type Verdict } from './types.ts'
 
 export interface AgentRunRequest {
   readonly label: CandidateLabel
@@ -146,6 +146,10 @@ const SETTLED = new Set<CandidateStage>(['ready', 'failed', 'cancelled', 'interr
 function verificationDuration(c: Candidate): number | undefined {
   const timings = ['installing', 'verifying', 'previewing'].flatMap(stage => c.timings[stage as CandidateStage] ? [c.timings[stage as CandidateStage]!] : [])
   return timings.some(t => t.endedAt === undefined) ? undefined : timings.reduce((sum, t) => sum + Math.max(0, t.endedAt! - t.startedAt), 0)
+}
+
+export class ChoiceChangedError extends Error {
+  constructor() { super('选择已变化，请刷新后再说明理由。'); this.name = 'ChoiceChangedError' }
 }
 
 export class Comparer {
@@ -871,6 +875,23 @@ export class Comparer {
       r.choice = { pick, at: Date.now(), ...(note === undefined ? {} : { note }), ...(initialPick === undefined ? {} : { initialPick }) }
       r.state = 'revealed'
       r.revealedAt ??= Date.now()
+    }), runId)
+  }
+
+  /**
+   * Say why the picked version won: fixed reasons and an optional short note.
+   * It changes nothing else, may follow the adoption, and an empty answer
+   * clears it. A pick changed later starts without reasons.
+   */
+  explainChoice(runId: string, reasons: readonly PickReason[], note?: string, expectedPick?: CandidateLabel): Promise<RunRecord> {
+    return this.operation(() => this.mutate(runId, (r) => {
+      if (r.choice === undefined || r.choice.pick === 'none') throw new Error('先选出一版，再说明理由')
+      if (expectedPick !== undefined && r.choice.pick !== expectedPick) throw new ChoiceChangedError()
+      const unique = PICK_REASONS.filter(reason => reasons.includes(reason))
+      const text = (note ?? '').replace(/\s+/g, ' ').trim()
+      if ([...text].length > MAX_PICK_NOTE) throw new Error(`理由补充不能超过 ${MAX_PICK_NOTE} 个字`)
+      const { reasons: _reasons, note: _note, ...rest } = r.choice
+      r.choice = { ...rest, ...(unique.length ? { reasons: unique } : {}), ...(text ? { note: text } : {}) }
     }), runId)
   }
 

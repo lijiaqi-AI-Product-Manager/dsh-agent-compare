@@ -1,9 +1,9 @@
 {
   "schema": "agentcompare.screenshots/v1",
-  "capturedAt": "2026-11-09T13:12:40.963Z",
+  "capturedAt": "2026-11-10T11:47:00.379Z",
   "packageVersion": "2.0.0",
-  "sourceCommit": "d36bdb0e4146afa83d624679225ad2c8f5674bd2",
-  "packageArchiveSha256": "5d013ddf0d9cc90cbdf8f9f3ba8fa9fbdb3ce1e18a32e45118aa110589c85b6e",
+  "sourceCommit": "817f7e570d1eae3491a5f9477f7dd83f950d364d",
+  "packageArchiveSha256": "c5abfc6850a2d1592f4666a5d118c8467edbaefaa570537ac1f1fd9d392668b1",
   "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
   "hostVersion": "0.2.2-rc.1",
   "scenario": "Controlled candidates; four independently interactive pages, a blind pick and a save into a new folder. Save undo, English answers, phone interaction and main-conversation context were separately verified in the same recording. No external model request.",
@@ -12,13 +12,13 @@
   "files": [
     {
       "path": "docs/media/screenshots/11-live-comparison.png",
-      "bytes": 106972,
-      "sha256": "14ccc2e6996af5378164b7b8d4d0b4b592571298ab0766e0148c8edac2f9fae0"
+      "bytes": 96117,
+      "sha256": "46c078573aa253eb62bec3fd32714bbeccfdce0546d41c584ab39c356dee70cd"
     },
     {
       "path": "docs/media/screenshots/12-reviewed-adoption.png",
-      "bytes": 106943,
-      "sha256": "c5eee184f5228320d5dfd6788447c03ca19b5b77b8e842d477a85cacff9873ee"
+      "bytes": 97119,
+      "sha256": "4151e88e446079a6820199bca1bf95c08e8639da6b18d061da9fa432e138fc8c"
     }
   ]
 }

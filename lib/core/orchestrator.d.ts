@@ -3,7 +3,7 @@ import { type CopyCleanupPlan } from './copy-resources.ts';
 import { type PrepareProjectProcess } from './project-process.ts';
 import { type WindowsProcessCompatMode } from './windows-compat.ts';
 import { RunStore } from './run-store.ts';
-import { type AgentRoute, type CandidateLabel, type ChecksSpec, type RunRecord, type Strategy, type Usage } from './types.ts';
+import { type PickReason, type AgentRoute, type CandidateLabel, type ChecksSpec, type RunRecord, type Strategy, type Usage } from './types.ts';
 export interface AgentRunRequest {
     readonly label: CandidateLabel;
     readonly cwd: string;
@@ -94,6 +94,9 @@ export declare function candidatePlan(input: Pick<StartInput, 'mode' | 'candidat
     strategies: Strategy[];
 };
 export declare const DEFAULT_GENERATION_MS: number;
+export declare class ChoiceChangedError extends Error {
+    constructor();
+}
 export declare class Comparer {
     private readonly opts;
     readonly store: RunStore;
@@ -170,6 +173,12 @@ export declare class Comparer {
      * blind pick stays recorded as `initialPick`.
      */
     choose(runId: string, pick: CandidateLabel | 'none', note?: string): Promise<RunRecord>;
+    /**
+     * Say why the picked version won: fixed reasons and an optional short note.
+     * It changes nothing else, may follow the adoption, and an empty answer
+     * clears it. A pick changed later starts without reasons.
+     */
+    explainChoice(runId: string, reasons: readonly PickReason[], note?: string, expectedPick?: CandidateLabel): Promise<RunRecord>;
     /**
      * Serve a finished candidate again (its preview stopped with a host
      * restart, or was never started). Uses the copy's existing build output
