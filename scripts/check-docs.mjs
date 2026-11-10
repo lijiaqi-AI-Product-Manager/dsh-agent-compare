@@ -36,6 +36,7 @@ for (const [file, source] of contents) {
     assert.ok(source.includes('img.shields.io/github/stars/lijiaqi-AI-Product-Manager/dsh-agent-compare?'), `${file}: missing live Star badge`)
     assert.ok(source.includes('img.shields.io/npm/dm/dsh-agent-compare?'), `${file}: missing monthly npm download badge`)
     assert.ok(source.includes(`${repositoryFiles}docs/storefront-gallery.md`), `${file}: missing current gallery`)
+    for (const image of ['hero-bilingual.webp', 'comparison-workflow.webp']) assert.match(source, new RegExp(`!\\[[^\\]]+\\]\\(https://raw\\.githubusercontent\\.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/${image.replace('.', '\\.')}\\)`), `${file}: use portable Markdown for the ${image} image`)
     const archives = [...source.matchAll(/dsh-agent-compare-[\w.\-]+\.tgz/g)].map(match => match[0])
     assert.ok(archives.length > 0 && archives.every(name => name === expectedTarball), `${file}: missing or stale source-install archive`)
   }
