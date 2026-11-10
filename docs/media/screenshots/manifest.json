@@ -1,24 +1,24 @@
 {
   "schema": "agentcompare.screenshots/v1",
-  "capturedAt": "2026-11-09T13:12:40.963Z",
+  "capturedAt": "2026-11-10T09:38:28.978Z",
   "packageVersion": "2.0.0",
-  "sourceCommit": "d36bdb0e4146afa83d624679225ad2c8f5674bd2",
-  "packageArchiveSha256": "5d013ddf0d9cc90cbdf8f9f3ba8fa9fbdb3ce1e18a32e45118aa110589c85b6e",
-  "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
+  "sourceCommit": "5ff0e55211b17b69f930ee2f2972f1850026007e",
+  "packageArchiveSha256": "e11fd838d469952b7ff85a69878900396ae2fe818b3f2eb0955613ee4047bb20",
+  "archiveNote": "Recorded from this commit's build, packed as a uniquely versioned development archive and installed in an isolated test profile; all 95 installed runtime files matched the committed build byte for byte. Later commits update documentation and media only.",
   "hostVersion": "0.2.2-rc.1",
-  "scenario": "Controlled candidates; four independently interactive pages, a blind pick and a save into a new folder. Save undo, English answers, phone interaction and main-conversation context were separately verified in the same recording. No external model request.",
+  "scenario": "Controlled candidates; four independently interactive pages in a blind comparison, two set aside, a pick with reasons and a save into a new folder. English answers, a phone view and the next main-conversation request were checked in the same session. No external model request.",
   "privatePathsHidden": true,
   "captionsAdded": true,
   "files": [
     {
       "path": "docs/media/screenshots/11-live-comparison.png",
-      "bytes": 106972,
-      "sha256": "14ccc2e6996af5378164b7b8d4d0b4b592571298ab0766e0148c8edac2f9fae0"
+      "bytes": 100282,
+      "sha256": "37c176859ccec08bbcce4bfb8d9685673bd42e201c963ccec601219d1376488c"
     },
     {
       "path": "docs/media/screenshots/12-reviewed-adoption.png",
-      "bytes": 106943,
-      "sha256": "c5eee184f5228320d5dfd6788447c03ca19b5b77b8e842d477a85cacff9873ee"
+      "bytes": 105652,
+      "sha256": "c69bdbeea7773da256d14dd970f5d121216cf0dc18d255cded30bcb34b1a1914"
     }
   ]
 }

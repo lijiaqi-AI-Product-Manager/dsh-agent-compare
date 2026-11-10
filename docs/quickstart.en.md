@@ -12,7 +12,7 @@
 
    The built-in example creates a separate shop repository. No flags are required.
 3. **Try the real applications.** The conversation card shows every version's answer, files or live page, with factual states and applicable shared checks. With three or four versions, set aside the ones you have ruled out; press 1–4 in the card to focus one. Each version consumes model usage. Missing usage stays unknown, and a time limit does not establish that the task was completed.
-4. **Pick, review and adopt.** In a blind comparison, the pick reveals styles and models; an open comparison shows them throughout. Inspect differences and checks, confirm the target, then adopt. Later edits are checked and rehearsed when necessary. After a successful adoption, continue in the main conversation, or use undo on the card.
+4. **Pick, review and adopt.** In a blind comparison, the pick reveals styles and models; an open comparison shows them throughout. After the pick, tap a few reasons (layout, look, feel in use…) or add a line; later changes in the main conversation keep those strengths. Inspect differences and checks, confirm the target, then adopt. Later edits are checked and rehearsed when necessary. After a successful adoption, continue in the main conversation, or use undo on the card.
 
 One-model mode compares styles, not different models. Choice and adoption are separate actions. Example results target the example repository, not your original project.
 
