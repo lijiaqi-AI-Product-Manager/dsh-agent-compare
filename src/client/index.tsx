@@ -1089,7 +1089,7 @@ function History({ data, open, busy, failed, scope, query, onScope, onSearch, on
       ) : (
         <button key={r.runId} className="ac-hrow" onClick={() => open(r)}>
           <span className={`ac-pill ${r.state === 'adopted' ? 'ok' : ACTIVE.has(r.state) ? 'brand' : ''}`}>{t(STATE_TEXT[r.state]) ?? r.state}</span>
-          <span className="ac-hrow-copy"><span className="t" title={r.task}>{r.task}</span><span className="ac-meta" title={r.baseline.repoRoot}>{r.baseline.repoRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? t("项目未知")} · {r.runId}</span></span>
+          <span className="ac-hrow-copy"><span className="t" title={r.task}>{r.task}</span><span className="ac-meta" title={r.baseline.repoRoot}>{r.baseline.repoRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? t("项目未知")} · {r.runId}{r.choice?.reasons?.length ? <span className="ac-hrow-why">{t(" · 因为")}{PICK_REASONS.filter(reason => r.choice!.reasons!.includes(reason.id)).slice(0, 3).map(reason => t(reason.name)).join(t("、"))}</span> : null}</span></span>
           <span className="ac-meta">{r.choice?.pick && r.choice.pick !== 'none' ? t("选了 {0} · ", { 0: r.choice.pick }) : ''}{when(r.createdAt)}</span>
         </button>
       ))}

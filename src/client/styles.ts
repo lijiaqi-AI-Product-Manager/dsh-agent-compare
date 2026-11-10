@@ -221,7 +221,7 @@ const VISUAL = `
 .ac-why-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
 .ac-why-note{height:28px;min-width:200px;max-width:min(320px,100%);border:0;border-radius:999px;padding:0 12px;background:var(--ac-bg);color:var(--ac-fg);font:inherit;font-size:12px;box-shadow:inset 0 1px 2px rgba(11,27,79,.08),0 0 0 1px var(--ac-v-edge)}
 .ac-why-note:focus-visible{outline:2px solid var(--ac-v-brand);outline-offset:1px}
-.ac-why>.ac-meta{flex-basis:100%}.ac-why.said>.ac-meta{color:var(--ac-v-ink)}
+.ac-hrow-why{color:var(--ac-v-ink);font-weight:600}.ac-why>.ac-meta{flex-basis:100%}.ac-why.said>.ac-meta{color:var(--ac-v-ink)}
 @media(max-width:600px){.ac-why{margin:10px 12px 0}.ac-why-note{min-width:0;flex:1 1 160px}.ac-why-link{display:none}}
 @media(prefers-color-scheme:dark){.ac-root{--ac-v-brand:#6f86ff;--ac-v-brand-2:#8fa2ff;--ac-v-ink:#aebcff;--ac-v-doing:#ffb547;--ac-brand:var(--ac-v-brand);
 --ac-v-glass:linear-gradient(180deg,color-mix(in srgb,#1e2442 60%,var(--ac-bg)),color-mix(in srgb,#151a2c 34%,var(--ac-bg)));

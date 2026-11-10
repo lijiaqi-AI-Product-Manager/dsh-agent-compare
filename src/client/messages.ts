@@ -686,5 +686,6 @@ export const messages: Readonly<Record<string, string>> = {
   "经典对照": "Classic pair",
   "三种视觉": "Three looks",
   "三种取舍": "Three priorities",
-  "四向探索": "Four directions"
+  "四向探索": "Four directions",
+  " · 因为": " · for "
 }

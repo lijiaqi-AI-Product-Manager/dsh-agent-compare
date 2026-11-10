@@ -69,6 +69,8 @@ try {
   check(await page.evaluate(() => document.activeElement.matches('[data-ac-history]')), 'foreground dismissal must restore its actual trigger')
   await page.setViewportSize({ width: 1440, height: 900 })
   await open('history')
+  await page.locator('.ac-hrow-why').first().waitFor()
+  check((await page.locator('.ac-hrow-why').first().innerText()).includes('因为布局、更简洁'), 'history names why a version was picked')
   const title = await page.locator('.ac-title').boundingBox()
   await page.mouse.move(title.x + title.width / 2, title.y + title.height / 2)
   await page.mouse.down(); await page.mouse.move(2, 2); await page.mouse.up()

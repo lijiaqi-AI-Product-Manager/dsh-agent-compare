@@ -41,7 +41,7 @@ const strat = { A: { strategy: { id: 'conservative', title: '稳妥 · Conservat
 const C = { ...A, label: 'C', previewUrl: 'http://127.0.0.1:4318/c', patchStats: { files: 2, insertions: 31, deletions: 12, binary: 0 }, usage: { kind: 'reported', totalTokens: 39120 } }
 const D = { ...A, label: 'D', previewUrl: 'http://127.0.0.1:4318/d', patchStats: { files: 4, insertions: 160, deletions: 20, binary: 0 }, usage: { kind: 'reported', totalTokens: 80211 } }
 const history = [
-  { ...base, runId: '11111111', state: 'adopted', choice: { pick: 'A' }, candidates: [] },
+  { ...base, runId: '11111111', state: 'adopted', choice: { pick: 'A', reasons: ['layout', 'simple'] }, candidates: [] },
   { ...base, runId: '22222222', state: 'abandoned', task: '把设置页改成分组卡片布局，并加上保存成功提示', choice: { pick: 'none' }, candidates: [], createdAt: now - 86400000 },
 ]
 const legacy = [{ runId: '1c1fe140', task: '给商品列表加上搜索框和分类筛选，手机上也要好用', createdAt: now - 2 * 86400000, state: 'revealed', legacy: true }]
