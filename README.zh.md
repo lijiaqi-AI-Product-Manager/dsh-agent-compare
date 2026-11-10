@@ -10,6 +10,10 @@
 
 [AgentCompare](README.md#agentcompare)
 
+<a id="新版界面速览"></a>
+
+[新版界面速览](README.md#%E6%96%B0%E7%89%88%E7%95%8C%E9%9D%A2%E9%80%9F%E8%A7%88)
+
 <a id="看一次完整流程"></a>
 
 [看一次完整流程](README.md#%E7%9C%8B%E4%B8%80%E6%AC%A1%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B)
@@ -69,6 +73,10 @@
 <a id="项目增长"></a>
 
 [项目增长](README.md#%E9%A1%B9%E7%9B%AE%E5%A2%9E%E9%95%BF)
+
+<a id="gallery"></a>
+
+[gallery](README.md#gallery)
 
 <a id="demo"></a>
 

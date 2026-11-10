@@ -44,10 +44,13 @@ DSH 原生「发现」读取第三方提供的插件索引，各索引决定自�
 ## 市场图片
 
 - 图标：[`assets/icon.png`](../assets/icon.png)，512 × 512 PNG；矢量源文件为 [`assets/icon.svg`](../assets/icon.svg)。
-- 有序截图：仓库根目录 [`screenshots.json`](../screenshots.json)，图片均为仓库内的相对路径。
-- 截图来源：[`manifest.json`](media/screenshots/manifest.json) 记录版本、宿主和图片校验值。
+- 有序图库：仓库根目录 [`screenshots.json`](../screenshots.json)，提供 8 个新的 GitHub HTTPS 图片地址；前两张为产品主图和实际比较界面。截图清单与 README 插图是不同入口，更新 README 不会自动扩充市场图库。
+- [完整图库](storefront-gallery.md)包含两张浅蓝功能示意图和六张实际界面：四版页面、主对话、设置、保存与撤销、英文回答和历史。
+- [图库来源](../assets/readme/gallery-2.0/manifest.json)记录图片种类、尺寸和校验值；[原始录制来源](media/screenshots/manifest.json)独立保留。
 
-截图使用固定候选样例，展示真实运行的应用、统一检查、交互和采用；本地路径已隐藏。当前截图来自 npm 发布包 0.2.0-alpha.18，在 DSH 0.2.1-rc.5 中录制。模型生成耗时需参考各次真实模型运行记录。
+界面使用固定候选，展示真实应用执行、回答、选择、保存与保留的记录；本地路径已隐藏。2.0.0 界面在 DSH 0.2.2-rc.1、Edge 156 的独立 Web profile 中拍摄，95 个运行文件与当前源码一致，没有操作用户桌面 profile，也没有新增外部模型请求。功能示意不当作实际截图，录制结果不当作模型质量或耗时承诺。图片放在仓库专用目录，不增加 npm 运行包体积。
+
+目录各自决定抓取和缓存周期。只有公开条目回读到新版图片、版本与文案，才算该平台同步完成。Star 与 npm 下载量分别来自 GitHub 和 npm；README 使用动态徽章，目录卡片使用自己的统计字段，缺失值应为“未知”而非零，下载请求不等于独立用户。
 
 ## 数据与权限
 
