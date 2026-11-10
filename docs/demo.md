@@ -23,7 +23,7 @@
 
 同一会话还用英文界面验证：快速组合「三种视觉」得到 Minimal、Polished、Vibrant 三版公开对比的回答，选择 B、点选「Layout」并补充「Clear next step」，继续主对话后发出的下一次模型请求确实包含这次选择和理由。还验证了另一处改选后，旧版本的延迟理由请求返回 409，且不会修改新选择。390 像素窗口的截图也来自这次验证。
 
-原始录制 **62.72 秒**；流程短片 **12.56 秒**，保留设置、发送、四版页面的操作、排除、选择、理由和保存，剪去等待，保留片段均按原速播放。GIF **7.67 秒、6 帧/秒、720 像素宽**，截取四版实时页面、排除、选择揭晓和理由；画面加入可见的固定候选标签和指针。它不把生成时间压缩成性能承诺。区间、哈希与处理方式见[素材清单](media/manifest.json)。
+原始录制 **62.72 秒**；流程短片 **12.56 秒**，保留设置、发送、四版页面的操作、排除、选择、理由和发起保存，剪去等待，保留片段均按原速播放。GIF **7.67 秒、6 帧/秒、720 像素宽**，截取四版实时页面、排除、选择揭晓和理由；画面加入可见的固定候选标签。它不把生成时间压缩成性能承诺。区间、哈希与处理方式见[素材清单](media/manifest.json)。
 
 本地路径已隐藏；顶部主图、流程图和社交预览图标为功能示意，不是实际截图。英文回答和手机截图来自同一候选包的真实界面。目录中的两张 PNG 仅缩小并压缩颜色，没有改写操作结果。[1.1.0 历史演示](media/history/1.1.0/manifest.json)、[更早的演示](media/history/0.2.0-alpha.17/manifest.json)和[真实模型的首次体验测量](first-use.md)继续保留。
 
@@ -37,6 +37,6 @@ Environment: Windows, DSH `0.2.2-rc.1`, Microsoft Edge `156.0.4314.58` (headless
 
 The same session checks the English interface: the Three looks quick set gives an open comparison of Minimal, Polished and Vibrant answers; B is picked with Layout and the note “Clear next step”; after continuing, the next main-conversation model request contains the pick and those reasons. A delayed explanation for a previous pick returns HTTP 409 and leaves the new choice unchanged. The 390-pixel image comes from this check.
 
-The raw recording lasts **62.72 seconds**. The **12.56-second** workflow clip keeps the setup, sending, interaction with the four pages, setting two aside, the pick, the reasons and the save, cutting waits and playing retained footage at the original speed. The **7.67-second GIF at 6 fps and 720 pixels** shows the four live pages, setting two aside, the pick with its reveal and the reasons, with a visible controlled-candidate caption and pointer. Neither clip is a generation-time promise. [The manifest](media/manifest.json) records the intervals, hashes and edits.
+The raw recording lasts **62.72 seconds**. The **12.56-second** workflow clip keeps the setup, sending, interaction with the four pages, setting two aside, the pick, the reasons and starting the save, cutting waits and playing retained footage at the original speed. The **7.67-second GIF at 6 fps and 720 pixels** shows the four live pages, setting two aside, the pick with its reveal and the reasons, with a visible controlled-candidate caption. Neither clip is a generation-time promise. [The manifest](media/manifest.json) records the intervals, hashes and edits.
 
 Local paths are hidden. The header, workflow graphic and social preview are labelled product illustrations, not screenshots. English and phone images are actual screenshots from the same installed candidate. Directory PNGs are resized and palette-compressed without changing outcomes. [The 1.1.0 recording](media/history/1.1.0/manifest.json), [earlier recordings](media/history/0.2.0-alpha.17/manifest.json) and [real-model first-use measurements](first-use.md) remain separate evidence.

@@ -78,11 +78,22 @@ jobs:
         if: runner.os == 'Linux'
         run: node scripts/check-record-compatibility.mjs
       - run: npm run test:ui
+        env:
+          AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/smoke-ui/default
       - name: Verify UI in Microsoft Edge
         if: runner.os == 'Windows'
         run: npm run test:ui
         env:
           AGENT_COMPARE_UI_BROWSER_CHANNEL: msedge
+          AGENT_COMPARE_UI_ARTIFACTS: .runtime-checks/smoke-ui/msedge
+      - name: Preserve failed smoke interface evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smoke-ui-${{ matrix.os }}
+          path: .runtime-checks/smoke-ui
+          include-hidden-files: true
+          retention-days: 7
 
   browser-ui:
     name: browser UI (${{ matrix.os }}, ${{ matrix.engine }})
