@@ -1,0 +1,94 @@
+{
+  "schema": "agentcompare.gallery/v1",
+  "packageVersion": "2.0.0",
+  "updatedAt": "2026-11-10T17:33:29.551Z",
+  "runtimeSource": "cb38412bc2da9021a5f747c5958614673e9d565f",
+  "hostVersion": "0.2.2-rc.1",
+  "browser": "Microsoft Edge 156",
+  "runtimeFilesMatched": 95,
+  "privatePathsHidden": true,
+  "captionsAdded": true,
+  "scenario": "Two product illustrations and six actual interface captures. The captures use controlled candidates in an isolated DSH Web profile at desktop window sizes. They show real application execution and saved history, not external-model generation. The installed runtime matches the current source byte for byte. The live comparison, save and English answer captures were recorded on 2026-11-10; conversation, settings and history were captured on 2026-11-11 (local date). No user Desktop profile was changed.",
+  "files": [
+    {
+      "path": "assets/readme/gallery-2.0/01-overview.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/01-overview.png",
+      "kind": "illustration",
+      "title": "同一需求，2–4 版真跑 / One task, 2–4 versions",
+      "width": 1922,
+      "height": 818,
+      "bytes": 1594956,
+      "sha256": "cd2b6974139ba290c22ffa3055bf99d837e94ceb94c8126a2133c2cfb0b4ff44"
+    },
+    {
+      "path": "assets/readme/gallery-2.0/02-live-comparison.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png",
+      "kind": "screenshot",
+      "title": "四版页面直接操作 / Four independently interactive pages",
+      "width": 1576,
+      "height": 1140,
+      "bytes": 304179,
+      "sha256": "a6f076a158096d1d00e7824d49475dcfc424da9b4e88d5224547f6da0bf7cfda"
+    },
+    {
+      "path": "assets/readme/gallery-2.0/03-main-conversation.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png",
+      "kind": "screenshot",
+      "title": "主对话内比较、选择与继续 / Compare, choose and continue in the conversation",
+      "width": 1600,
+      "height": 1150,
+      "bytes": 265081,
+      "sha256": "a57b179dc9c3a3893ed6355f2ea98ed5458cf0812e035de5b4ddb68d00ef19c2"
+    },
+    {
+      "path": "assets/readme/gallery-2.0/04-comparison-settings.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png",
+      "kind": "screenshot",
+      "title": "版本、风格与上下文 / Versions, styles and context",
+      "width": 1537,
+      "height": 448,
+      "bytes": 164478,
+      "sha256": "01b5e09ec6d111f9c765b1066cc201ae6d05a2ed029eae424fb128e15b55b32d"
+    },
+    {
+      "path": "assets/readme/gallery-2.0/05-saved-result.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/05-saved-result.png",
+      "kind": "screenshot",
+      "title": "保存、撤销和选择理由 / Save, undo and reasons for the pick",
+      "width": 1576,
+      "height": 1140,
+      "bytes": 271378,
+      "sha256": "3bce7f1d4ad8ae8b785cc93087d34b851918825ebcb4e89da023fc226a754967"
+    },
+    {
+      "path": "assets/readme/gallery-2.0/06-english-answers.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/06-english-answers.png",
+      "kind": "screenshot",
+      "title": "英文回答并排比较 / Compare English answers",
+      "width": 1576,
+      "height": 1140,
+      "bytes": 463291,
+      "sha256": "3e292bc8dd34a99257d2652368fa01511e69a38122cd8633761f78f7f4a3bb37"
+    },
+    {
+      "path": "assets/readme/gallery-2.0/07-history.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/07-history.png",
+      "kind": "screenshot",
+      "title": "查找历史，保留选择与理由 / Find history, picks and reasons",
+      "width": 1576,
+      "height": 720,
+      "bytes": 227822,
+      "sha256": "c1e94fe1926f782e519233a0214992fa7737a9bc89502e1fad7a34b6913fbf09"
+    },
+    {
+      "path": "assets/readme/gallery-2.0/08-workflow.png",
+      "url": "https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/08-workflow.png",
+      "kind": "illustration",
+      "title": "设定、实跑、选择、采用 / Set up, run, choose and adopt",
+      "width": 2022,
+      "height": 778,
+      "bytes": 1586960,
+      "sha256": "ce65381ed60152d8546282d28d941267b3531a59b0f3fde7445ba4007f6f9b3b"
+    }
+  ]
+}

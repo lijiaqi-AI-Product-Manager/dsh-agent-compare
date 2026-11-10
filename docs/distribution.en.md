@@ -44,10 +44,13 @@ DSH's native Discover surface reads third-party plugin indexes. Each index suppl
 ## Storefront images
 
 - Icon: [`assets/icon.png`](../assets/icon.png), a 512 × 512 PNG, with [`SVG source`](../assets/icon.svg).
-- Ordered screenshots: [`screenshots.json`](../screenshots.json) at the repository root, using relative paths.
-- Capture facts: [`manifest.json`](media/screenshots/manifest.json) records the source package, host and image hashes.
+- Ordered gallery: [`screenshots.json`](../screenshots.json) at the repository root provides eight fresh GitHub HTTPS image URLs. The first two are the product overview and the actual comparison interface. Catalog galleries and README illustrations are separate inputs.
+- [Full gallery](storefront-gallery.md): two light-blue product illustrations and six interface views covering live pages, the conversation, settings, save and undo, English answers and history.
+- [Gallery manifest](../assets/readme/gallery-2.0/manifest.json) records image kinds, dimensions and hashes. The [original capture manifest](media/screenshots/manifest.json) remains separate.
 
-The screenshots use fixed candidates and real applications, shared checks, interactions and adoption. Local paths are hidden. The current captures use the published npm package 0.2.0-alpha.18 on DSH 0.2.1-rc.5. Consult individual model-run records for generation timing.
+The 2.0.0 interface captures use controlled candidates in an isolated DSH 0.2.2-rc.1 Web profile with Edge 156. All 95 installed runtime files match the current source. They show real application execution, answers, selection, saving and retained records; local paths are hidden. No user Desktop profile was used and no new external-model requests were made. Product illustrations are identified separately. These captures do not establish model quality or generation speed. Gallery assets remain outside the npm runtime package.
+
+Each catalog controls its own refresh and caching. A source update counts as synchronized only after the public listing displays it. GitHub Stars and npm downloads are separate live statistics: README badges use their respective sources, while catalog cards have their own fields. Missing means unknown, not zero; downloads are package requests, not unique users.
 
 ## Data and permissions
 

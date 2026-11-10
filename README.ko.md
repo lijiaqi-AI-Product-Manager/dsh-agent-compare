@@ -4,6 +4,9 @@
 
 # AgentCompare
 
+[![GitHub stars](https://img.shields.io/github/stars/lijiaqi-AI-Product-Manager/dsh-agent-compare?label=GitHub%20Stars&color=3657f5&style=flat&labelColor=0b1b4f)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers)
+[![npm downloads per month](https://img.shields.io/npm/dm/dsh-agent-compare?label=npm%20downloads%2Fmonth&color=3657f5&style=flat&labelColor=0b1b4f)](https://www.npmjs.com/package/dsh-agent-compare)
+
 [![Source version](https://img.shields.io/github/package-json/v/lijiaqi-AI-Product-Manager/dsh-agent-compare?label=source&color=3657f5&style=flat&labelColor=0b1b4f)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/package.json)
 [![npm version](https://img.shields.io/npm/v/dsh-agent-compare?label=npm&color=3657f5&style=flat&labelColor=0b1b4f&logo=npm&logoColor=white)](https://www.npmjs.com/package/dsh-agent-compare)
 [![CI](https://img.shields.io/github/actions/workflow/status/lijiaqi-AI-Product-Manager/dsh-agent-compare/ci.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat&labelColor=0b1b4f)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)
@@ -40,6 +43,19 @@ AgentCompare는 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 </p>
 
 <p align="center"><sub>功能示意 / Product illustrations · <a href="#demo">查看真实演示 / Watch the recorded workflow</a></sub></p>
+
+<a id="gallery"></a>
+
+## 최신 화면 살펴보기
+
+고정 후보를 사용한 실제 DSH 화면입니다. 대표 이미지와 흐름도는 기능 설명용입니다.
+
+<table>
+<tr><td><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png" width="590" alt="四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host"></td><td><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png" width="590" alt="主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host"></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png" width="590" alt="版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host"></td><td><img src="https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/06-english-answers.png" width="590" alt="英文回答并排比较 / Compare English answers; controlled candidates in a real DSH host"></td></tr>
+</table>
+
+[이미지 8장과 촬영 조건](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/storefront-gallery.md)
 
 <a id="demo"></a>
 
