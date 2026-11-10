@@ -187,6 +187,7 @@ window.fetch = async (url, init) => {
     runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,state:'judging',candidates:runs[selected].candidates.map(c=>c.label===body.label?{...c,...${JSON.stringify({ A, B })}[c.label],usage:c.usage,install:{argv:['npm','ci'],frozen:true,durationMs:1000,outcome:'passed'},error:undefined,canRetryVerification:false,verificationHistory:[...(c.verificationHistory??[]),{recordedAt:Date.now(),durationMs:10000,install:c.install,error:c.error}]}:c)};
     value=runs[selected];
   }
+  if (m[1] === 'explain' && selected >= 0) { const {reasons:_r,note:_n,...pick}=runs[selected].choice??{}; runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,choice:{...pick,...(body.reasons?.length?{reasons:body.reasons}:{}),...(body.note?{note:body.note}:{})}}; value=runs[selected]; }
   if (m[1] === 'cleanup' && selected >= 0) { runs[selected] = {...runs[selected],leftovers:undefined}; value=runs[selected]; }
   if (m[1] === 'releaseCopies' && selected >= 0 && !window.__actionPlans.find(plan=>plan.method===m[1])?.error) {runs[selected]={...runs[selected],rev:(runs[selected].rev??0)+1,copiesReleasedAt:Date.now(),leftovers:undefined,candidates:runs[selected].candidates.map(c=>({...c,previewUrl:undefined,hasScreenshot:true,canReopenPreview:false}))};value=runs[selected]}
   // Delayed snapshots intentionally ignore abort, exercising the client's own guards.

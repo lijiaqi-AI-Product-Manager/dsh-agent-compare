@@ -18,8 +18,8 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
-  Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, exampleTask, DEFAULT_GENERATION_MS, CANDIDATE_LABELS,
-  type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type CandidateLabel, type RunRecord, type Usage,
+  Comparer, publicView, RunStore, RecordUnavailableError, defaultHome, createExampleRepo, exampleTask, DEFAULT_GENERATION_MS, CANDIDATE_LABELS, PICK_REASONS,
+  type PickReason, type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type CandidateLabel, type RunRecord, type Usage,
 } from '../core/index.ts'
 import { identitiesShown } from '../core/run-view.ts'
 import { commandResultText, parseAbInput } from './conversation.ts'
@@ -686,6 +686,13 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       const pick = b.pick === 'none' ? 'none' : label(b.pick)
       if (pick === undefined) throw new HttpError(400, 'pick must be a candidate label or none')
       return present(await comparer.choose(runIdOf(b), pick, typeof b.note === 'string' ? b.note.slice(0, 500) : undefined))
+    },
+    /** Why the pick won: known reasons and a short note. The next step of the conversation hears it. */
+    async explain(b) {
+      const reasons = Array.isArray(b.reasons) ? b.reasons : []
+      if (reasons.length > PICK_REASONS.length || reasons.some(reason => !(PICK_REASONS as readonly unknown[]).includes(reason))) throw new HttpError(400, 'reasons must be known pick reasons')
+      if (b.note !== undefined && typeof b.note !== 'string') throw new HttpError(400, 'note must be text')
+      return present(await comparer.explainChoice(runIdOf(b), reasons as PickReason[], typeof b.note === 'string' ? b.note : undefined))
     },
     async preflight(b) { return { ...await comparer.adoptPreflight(runIdOf(b)), protectedWorktreeApply: true } },
     async adopt(b) { return present(await comparer.adopt(runIdOf(b), b.mode === 'branch' ? 'branch' : b.mode === 'folder' ? 'folder' : 'worktree')) },

@@ -1007,6 +1007,14 @@ try {
   await multi.getByRole('button', { name: '2 版', exact: true }).click()
   await page.waitForFunction(() => window.__requests.some(r => r.method === 'preferences' && r.body.value?.versions === 2))
   check(JSON.stringify((await savedPreferences()).styles.map(s => s.id)) === '["conservative","bold"]', 'fewer versions keep the first styles')
+  // A quick set chooses the count and every style in one tap.
+  check(await multi.getByRole('button', { name: /^经典对照/ }).getAttribute('aria-pressed') === 'true', 'the classic pair is recognised as the current set')
+  await multi.getByRole('button', { name: /^三种视觉/ }).click()
+  await page.waitForFunction(() => window.__requests.some(r => r.method === 'preferences' && r.body.value?.versions === 3 && r.body.value?.styles?.[0]?.id === 'minimal'))
+  check(JSON.stringify((await savedPreferences()).styles.map(s => s.id)) === '["minimal","polished","vibrant"]' && (await savedPreferences()).versions === 3, 'a quick set saves its count and styles together')
+  check(await multi.getByRole('button', { name: '3 版', exact: true }).getAttribute('aria-pressed') === 'true', 'the version count follows the quick set')
+  await multi.getByRole('button', { name: /^经典对照/ }).click()
+  await page.waitForFunction(() => window.__requests.some(r => r.method === 'preferences' && r.body.value?.versions === 2 && r.body.value?.styles?.[0]?.id === 'conservative'))
   await multi.getByRole('button', { name: '不同模型 · 同一风格', exact: true }).click()
   await multi.getByRole('button', { name: '3 版', exact: true }).click()
   await page.locator('.ac-models select[aria-label="第 3 个模型"]').waitFor()
@@ -1057,6 +1065,34 @@ try {
   await four.getByRole('region', { name: '候选 C', exact: true }).locator('.ac-picked').waitFor()
   check((await four.getByRole('region', { name: '候选 C', exact: true }).innerText()).includes('极简 · Minimal'), 'the pick reveals the style of the picked version')
   check((await requests('choose')).at(-1)?.body.pick === 'C', 'the pick must name the third version')
+  check(await page.evaluate(() => document.querySelectorAll('.ac-burst').length) <= 1, 'a pick bursts once, from the picked version')
+
+  // After the pick: why it won, saved through the host and kept in the record.
+  const why = four.getByRole('region', { name: '为什么选 C', exact: true })
+  await why.waitFor()
+  await why.getByRole('button', { name: '布局', exact: true }).click()
+  check(await why.getByRole('button', { name: '布局', exact: true }).getAttribute('aria-pressed') === 'true', 'a reason chip answers the tap at once')
+  await page.waitForFunction(() => window.__requests.some(r => r.method === 'explain'))
+  check((await requests('explain')).at(-1)?.body.reasons?.join() === 'layout', 'a reason chip saves that reason for the picked version')
+  // Quick taps are not lost while a save is running; they are saved together.
+  await why.getByRole('button', { name: '更简洁', exact: true }).click()
+  await why.getByRole('button', { name: '交互手感', exact: true }).click()
+  await page.waitForFunction(() => window.__requests.filter(r => r.method === 'explain').at(-1)?.body.reasons?.join() === 'layout,interaction,simple')
+  check((await requests('explain')).length === 2, 'two quick taps make one save')
+  await why.getByRole('button', { name: '交互手感', exact: true }).click()
+  await why.getByRole('button', { name: '更简洁', exact: true }).click()
+  await page.waitForFunction(() => window.__requests.filter(r => r.method === 'explain').at(-1)?.body.reasons?.join() === 'layout')
+  await why.getByRole('textbox', { name: '补充一句理由' }).fill('  按钮 更好找 ')
+  await why.getByRole('textbox', { name: '补充一句理由' }).press('Enter')
+  await page.waitForFunction(() => window.__requests.filter(r => r.method === 'explain').at(-1)?.body.note === '按钮 更好找')
+  await page.waitForFunction(() => document.querySelector('.ac-why.said'))
+  check((await requests('explain')).at(-1)?.body.reasons?.join() === 'layout', 'the note is saved trimmed, with the reasons already chosen')
+  check(await why.getByRole('button', { name: '布局', exact: true }).getAttribute('aria-pressed') === 'true', 'a saved reason shows as chosen')
+
+  // The glass lens sits exactly under the chosen option of each segmented control.
+  await page.waitForTimeout(700)
+  const lens = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] .ac-seg.ac-lensed')].map(seg => { const on = seg.querySelector(':scope > button.on'); const style = getComputedStyle(seg, '::before'); return { width: parseFloat(style.width), button: on?.offsetWidth ?? -1, opacity: Number(style.opacity) } }))
+  check(lens.length >= 2 && lens.every(item => Math.abs(item.width - item.button) < 1.5), `the lens matches the chosen option: ${JSON.stringify(lens)}`)
 
   // An open comparison shows every style before the pick and promises no reveal.
   await open('four-open')

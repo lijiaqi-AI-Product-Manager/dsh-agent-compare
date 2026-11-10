@@ -36,6 +36,8 @@ export async function withCurrentComparisonState(context: AssemblyContext, next:
     // The pick reveals its style; a blind comparison names nothing before it.
     ...(record.choice && record.choice.pick !== 'none' ? { pickedStyle: record.candidates.find(c => c.label === record!.choice!.pick)?.strategy.title ?? null } : {}),
     ...(record.choice?.initialPick === undefined ? {} : { blindPick: record.choice.initialPick }),
+    ...(record.choice?.reasons?.length ? { pickReasons: record.choice.reasons } : {}),
+    ...(record.choice?.note && record.choice.pick !== 'none' ? { pickNote: record.choice.note.slice(0, 200) } : {}),
     adoptionState: record.adoption?.state ?? 'not_adopted', adoptionMode: record.adoption?.mode ?? null,
     ...(record.adoption?.branch ? { branch: record.adoption.branch } : {}),
     ...(saved && record.adoption?.exportPath ? { savedFolder: record.adoption.exportPath } : {}),

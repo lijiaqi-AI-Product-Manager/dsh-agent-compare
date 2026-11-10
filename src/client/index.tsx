@@ -20,8 +20,9 @@ import { clientCapabilities } from './capabilities.js'
 import { WindowsProcessControl, WindowsProcessEvidence } from './windows-compat.js'
 import { ConversationContextControl, type ContextMode } from './conversation-context.js'
 import { CopyButton, ProjectNotes, ResultView } from './results.js'
-import { BlindControl, MAX_VERSIONS, MIN_VERSIONS, revealedStyleName, Segmented, StyleHabit, StylePicker, StyleSlots, stylesFor, VersionsControl, type StyleChoice } from './style-picker.js'
-import { LABELS, type Label, type StyleStat } from './model.js'
+import { BlindControl, MAX_VERSIONS, MIN_VERSIONS, revealedStyleName, Segmented, StyleCombos, StyleHabit, StylePicker, StyleSlots, stylesFor, VersionsControl, type StyleChoice } from './style-picker.js'
+import { LABELS, MAX_PICK_NOTE, PICK_REASONS, type Label, type PickReason, type StyleStat } from './model.js'
+import { attachFx, burst, LiquidMeter } from './fx.js'
 export const name = 'agent-compare-client'
 export const inject = ['slots', 'remote', 'remote.commands']
 interface SlotsLike {
@@ -195,7 +196,13 @@ function useTick(on: boolean): void {
 // ---- copy ----
 // ---- styles (scoped by the .ac- prefix) ----
 function Styles(): React.ReactElement {
-  return <style>{CSS}</style>
+  // The effects follow the root this style sheet sits in.
+  const sheet = useRef<HTMLStyleElement>(null)
+  useEffect(() => {
+    const root = sheet.current?.parentElement?.closest('.ac-root')
+    return root instanceof HTMLElement ? attachFx(root) : undefined
+  }, [])
+  return <style ref={sheet}>{CSS}</style>
 }
 const IconClose = (): React.ReactElement => (
   <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
@@ -269,7 +276,7 @@ function PatchReview({ runId, label }: { runId: string; label: Label }): React.R
 }
 /** A candidate set aside while narrowing down: one line, restorable. Nothing in the record changes. */
 function ExcludedCard({ c, onRestore }: { c: Cand; onRestore(): void }): React.ReactElement {
-  return <section className="ac-card ac-card-excluded" aria-label={t("候选 {0}（已排除）", { 0: c.label })}>
+  return <section className="ac-card ac-card-excluded" data-label={c.label} aria-label={t("候选 {0}（已排除）", { 0: c.label })}>
     <div className="ac-row"><span className="ac-label">{c.label}</span><span className="ac-meta">{t("已排除，暂不比较")}</span><span className="ac-spacer" /><button type="button" className="ac-text-btn" onClick={onRestore}>{t("恢复 {0}", { 0: c.label })}</button></div>
   </section>
 }
@@ -282,8 +289,24 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
   const live = c.previewUrl !== undefined && !['failed', 'cancelled', 'interrupted'].includes(c.stage)
   const step = busyStage(c.stage) && c.stage !== 'stopping' ? PIPELINE.findIndex((p) => p.stage === c.stage) + 1 : 0
   const model = revealed ? routeText(c.actualRoute ?? c.route) : ''
+  // The moment of the pick and the reveal: light sweeps the cards, the pick bursts. Only on the change, never on reload.
+  const card = useRef<HTMLElement>(null)
+  const seen = useRef({ picked, revealed })
+  useEffect(() => {
+    const before = seen.current
+    seen.current = { picked, revealed }
+    const element = card.current
+    if (!element) return
+    if (picked && !before.picked) burst(element.querySelector('.ac-label') ?? element)
+    if (revealed && !before.revealed) {
+      element.classList.add('ac-revealing')
+      const timer = setTimeout(() => element.classList.remove('ac-revealing'), 1400)
+      return () => { clearTimeout(timer); element.classList.remove('ac-revealing') }
+    }
+    return undefined
+  }, [picked, revealed])
   return (
-    <section className={`ac-card${picked ? ' picked' : ''}`} aria-label={t("候选 {0}", { 0: c.label })} hidden={hidden}>
+    <section ref={card} className={`ac-card${picked ? ' picked' : ''}`} data-label={c.label} aria-label={t("候选 {0}", { 0: c.label })} hidden={hidden}>
       <div className="ac-card-head">
         <div className="ac-row">
           <span className="ac-label">{c.label}</span>
@@ -326,7 +349,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         <Screenshots runId={run.runId} c={c} busy={busy} act={act} device={device} />
       ) : (
         <div className="ac-empty">
-          <div className="ac-skel"><i style={{ width: '60%' }} /><i /><i style={{ width: '80%' }} /></div>
+          {busyStage(c.stage) && c.stage !== 'stopping' ? <LiquidMeter level={step / PIPELINE.length} busy /> : <div className="ac-skel"><i style={{ width: '60%' }} /><i /><i style={{ width: '80%' }} /></div>}
           <div>{c.stage === 'cancelled' ? t("已停止") : c.stage === 'stopping' ? t("正在停止并回收资源…") : run.target !== undefined ? t("{0}…完成后这里会显示结果：页面、文件或回答", { 0: t(STAGE_TEXT[c.stage]) }) : t("{0}…构建产物启动后，这里会显示真实页面", { 0: t(STAGE_TEXT[c.stage]) })}</div>
         </div>
       )}
@@ -426,7 +449,10 @@ function ComposerSettings({ sessionId, session }: { sessionId: string; session?:
     {p.mode === 'cross-model' ? <div className="ac-models" role="group" aria-label={t("各版模型")}>{slots.map((slot, i) => <label key={i}><span className="ac-style-badge" aria-hidden="true">{blind ? i + 1 : LABELS[i]}</span><select aria-label={t("第 {0} 个模型", { 0: i + 1 })} disabled={loading || busy} value={slot.model ? `${slot.provider}/${slot.model}` : ''} onChange={e => { const item = models.find(m => `${m.provider}/${m.id}` === e.target.value); const next = slots.map((value, at) => at === i ? (item ? { provider: item.provider, model: item.id } : {}) : value); saveMode(sessionId, { ...p, versions, models: next }) }}><option value="">{t("选择已配置的模型")}</option>{models.map(m => <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`} disabled={slots.some((other, at) => at !== i && other.provider === m.provider && other.model === m.id)}>{m.name} · {m.providerName}</option>)}</select></label>)}
       <StylePicker index={0} shared open={!blind} choice={p.crossStyle ?? { id: 'balanced' }} disabled={busy || !mode.loaded} onChange={crossStyle => saveMode(sessionId, { ...p, crossStyle })} />
       {loading ? <span className="ac-meta" role="status">{t("正在读取模型…")}</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>{t("重试模型列表")}</button></span> : models.length < versions ? <span className="ac-meta">{t("当前可读取的模型不足 {0} 个，可减少版本数，或使用同一模型的不同风格。", { 0: versions })}</span> : null}</div>
-      : <StyleSlots styles={styles} blind={blind} disabled={busy || !mode.loaded} onChange={next => saveMode(sessionId, { ...p, versions, styles: next })} />}
+      : <>
+        <StyleSlots styles={styles} blind={blind} disabled={busy || !mode.loaded} onChange={next => saveMode(sessionId, { ...p, versions, styles: next })} />
+        <StyleCombos styles={styles} disabled={busy || !mode.loaded} onPick={next => saveMode(sessionId, { ...withVersions(p, next.length), versions: next.length, styles: next })} />
+      </>}
     <div className="ac-meta ac-settings-facts">
       {p.mode === 'same-model' && <span>{t("当前模型：")}{routeText(setup?.current) || (setup ? t("请先在输入框右下角选择模型") : t("正在读取…"))}</span>}
       {setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}>{t("项目：")}{setup.project.path}</span> : null}
@@ -577,6 +603,7 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue, exc
       return (
         <div className="ac-bar">
           <span className="ac-bar-text">{text}</span>
+          {picked !== undefined && !run.choice?.reasons?.length && !run.choice?.note && <WhyLink pick={picked.label} />}
           {alternatives.map(c => <button key={c.label} className={`ac-btn${!eligible && c.verdict?.eligible ? ' primary' : ''}`} disabled={busy} onClick={() => act('choose', { pick: c.label })} title={t("揭晓后改选；最初的盲选结果仍保留在记录中。")}>{t("改选 {0}", { 0: c.label })}</button>)}
           {(pick === 'none' || picked === undefined || (!eligible && !folder && !answer)) && <RerunControl run={run} sessionId={sessionId} busy={busy} act={act} />}
           {!answer && <button className="ac-btn" disabled={busy} onClick={() => act('reviewCopyCleanup')}>{t("整理工作副本")}</button>}
@@ -622,6 +649,52 @@ function ActionBar({ run, sessionId, busy, pending, act, onDone, onContinue, exc
         </div>
       )
   }
+}
+/** From the bar to the reasons below the results, so the results stay first. */
+function WhyLink({ pick }: { pick: Label }): React.ReactElement {
+  return <button type="button" className="ac-text-btn ac-why-link" onClick={event => {
+    const why = event.currentTarget.closest('dialog, .ac-root')?.querySelector<HTMLElement>('.ac-why')
+    why?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
+    why?.querySelector<HTMLElement>('button:not(:disabled)')?.focus({ preventScroll: true })
+  }}>{t("为什么选 {0}？", { 0: pick })}</button>
+}
+/** After a pick: why it won, in a few taps. The main conversation hears it with its next message. */
+function PickReasons({ run, busy, act }: { run: Run; busy: boolean; act: Act }): React.ReactElement | null {
+  const pick = run.choice?.pick
+  const order = PICK_REASONS.map(reason => reason.id)
+  const canonical = (list: readonly PickReason[]): PickReason[] => order.filter(id => list.includes(id))
+  const saved = canonical(run.choice?.reasons ?? [])
+  const savedNote = run.choice?.note ?? ''
+  const clean = (text: string): string => text.replace(/\s+/g, ' ').trim()
+  // Taps answer at once; quick taps are saved together once nothing else is running.
+  const [wanted, setWanted] = useState<{ reasons: PickReason[]; note: string }>()
+  const [draft, setDraft] = useState(savedNote)
+  const field = useRef<HTMLInputElement>(null)
+  const tried = useRef('')
+  useEffect(() => { if (document.activeElement !== field.current) setDraft(savedNote) }, [savedNote])
+  const shown = wanted ?? { reasons: saved, note: savedNote }
+  const key = (value: { reasons: readonly PickReason[]; note: string }): string => `${value.reasons.join(',')}|${value.note}`
+  useEffect(() => {
+    if (!wanted) return
+    if (key(wanted) === key({ reasons: saved, note: savedNote })) { setWanted(undefined); tried.current = ''; return }
+    // A save that did not take is not repeated; the comparison shows why.
+    if (busy || tried.current === key(wanted)) { if (!busy) setWanted(undefined); return }
+    const timer = setTimeout(() => { tried.current = key(wanted); act('explain', { reasons: wanted.reasons, note: wanted.note }) }, 450)
+    return () => clearTimeout(timer)
+  }, [wanted, busy, saved.join(','), savedNote])
+  if (!pick || pick === 'none') return null
+  const toggle = (id: PickReason): void => setWanted({ reasons: canonical(shown.reasons.includes(id) ? shown.reasons.filter(reason => reason !== id) : [...shown.reasons, id]), note: shown.note })
+  const commit = (): void => { const note = clean(draft); if (note !== shown.note) setWanted({ reasons: shown.reasons, note }) }
+  const said = saved.length > 0 || savedNote !== ''
+  return <section className={`ac-why${said ? ' said' : ''}`} aria-label={t("为什么选 {0}", { 0: pick })}>
+    <span className="ac-why-q">{t("为什么选 {0}？", { 0: pick })}</span>
+    <div className="ac-why-chips" role="group" aria-label={t("选择理由")}>
+      {PICK_REASONS.map(reason => { const on = shown.reasons.includes(reason.id); return <button key={reason.id} type="button" className={`ac-chip${on ? ' on' : ''}`} aria-pressed={on} onClick={() => toggle(reason.id)}>{t(reason.name)}</button> })}
+      <input ref={field} className="ac-why-note" type="text" maxLength={MAX_PICK_NOTE} value={draft} aria-label={t("补充一句理由")} placeholder={t("补一句，例如：按钮更好找")}
+        onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); commit() } }} />
+    </div>
+    <span className="ac-meta" role="status">{said ? t("已记下。主对话的下一条消息会带上这些理由，后续修改会保留这些优点。") : t("可选：选几个理由，主对话接着修改时会保留这些优点。")}</span>
+  </section>
 }
 function copySize(bytes: number): string { return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB` }
 function CopySpace({ run, sessionId, blocked, publish, requestKey = 0, onReleaseBusy }: { run: Run; sessionId?: string; blocked: boolean; publish(next: Run): void; requestKey?: number; onReleaseBusy(value: boolean): void }): React.ReactElement {
@@ -841,7 +914,8 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       })().catch(failed).finally(finished)
       return
     }
-    setPreflight(undefined)
+    // Saying why a version won leaves an open adoption review as it is.
+    if (method !== 'explain') setPreflight(undefined)
     call<Run | null>(method, { runId, sessionId, ...extra })
       .then((r) => { if (current() && r && typeof r === 'object' && 'runId' in r) publish(r, targetId) }, failed)
       .finally(finished)
@@ -896,11 +970,12 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
       <Banners run={run} />
       <div className="ac-compare-tools"><div className="ac-seg" role="group" aria-label={t("比较布局")} title={t("在卡片里按 1–{0} 专注某一版，按 0 回到全部", { 0: run.candidates.length })}>{(['side', ...run.candidates.filter(c => !excluded.has(c.label) || !judging).map(c => c.label)] as const).map((v) => <button key={v} className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{v === 'side' ? (run.candidates.length > 2 ? t("全部并排") : t("并排比较")) : t("专注 {0}", { 0: v })}</button>)}</div>{!contentOnly && <div className="ac-seg" aria-label={t("预览尺寸")}><button className={device === 'adaptive' ? 'on' : ''} aria-pressed={device === 'adaptive'} onClick={() => setDevice('adaptive')}>{t("适应窗口")}</button><button className={device === 'desktop' ? 'on' : ''} aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t("桌面 1280")}</button><button className={device === 'phone' ? 'on' : ''} aria-pressed={device === 'phone'} onClick={() => setDevice('phone')}>{t("手机 390")}</button></div>}<span className="ac-meta">{previewHint}</span></div>
       {previewHosts.length > 0 && <details className="ac-preview-limits"><summary>{t("预览环境与限制")}</summary><p>{independentHosts ? t("候选使用独立本地地址，避免同名 Cookie 相互影响。") : t("这条旧记录的预览没有独立本地域名，两个端口的 Cookie 可能相互影响；建议使用当前版本重新开始比较。")}{t("嵌入页面仍受浏览器的 Cookie 与存储策略限制；登录、外部后端和共享数据库暂不在支持范围内。重新启动预览会更换浏览器地址，页面内临时数据不保留；比较记录和验收截图仍保留。外部标签页可能使用不同的存储上下文。")}</p></details>}
-      <div className={`ac-grid count-${layout === 'side' ? (judging ? shown.length : run.candidates.length) : 1}${layout !== 'side' ? ' focus' : ''}`} onKeyDown={keyboard}>
+      <div className={`ac-grid count-${layout === 'side' ? (judging ? shown.length : run.candidates.length) : 1}${layout !== 'side' ? ' focus' : ''}`} data-state={run.state} onKeyDown={keyboard}>
         {run.candidates.map((c) => judging && excluded.has(c.label)
           ? (layout === 'side' ? <ExcludedCard key={c.label} c={c} onRestore={() => restore(c.label)} /> : null)
           : <CandidateCard key={c.label} run={run} c={c} revealed={revealed} picked={revealed && run.choice?.pick === c.label} busy={blocked} act={act} device={device} compact={compact === true} hidden={layout !== 'side' && layout !== c.label} dense={layout === 'side' && (judging ? shown.length : run.candidates.length) > 2} {...(canExclude ? { onExclude: () => exclude(c.label) } : {})} />)}
       </div>
+      {run.choice !== undefined && run.choice.pick !== 'none' && run.control?.allowed !== false && run.state !== 'recovery' && <PickReasons key={`${runId}:${run.choice.pick}`} run={run} busy={blocked} act={act} />}
       {/* Secondary facts follow the applications: what went in from the main conversation and whether the result came back. */}
       <ConversationLink run={run} />
       <Banners run={run} recordOnly />
@@ -909,7 +984,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   )
   if (!compact) return body
   return (
-    <div lang={currentLocale()} className="ac-root ac-inline" aria-label={t("A|B 比较 {0}", { 0: run.runId })}>
+    <div lang={currentLocale()} className="ac-root ac-inline" data-state={run.state} aria-label={t("A|B 比较 {0}", { 0: run.runId })}>
       <Styles />
       <div className="ac-inline-head">
         <span className="ac-logo">A|B</span>
