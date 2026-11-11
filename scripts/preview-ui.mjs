@@ -164,6 +164,7 @@ window.fetch = async (url, init) => {
     if (${JSON.stringify(error)} === 'preferences-pending' && body.value === undefined) await new Promise(resolve => { window.__releasePreferences=resolve });
     return realFetch('/harness/preferences',init);
   }
+  if (m[1] === 'contextPreview' && window.__holdContextPreview) await new Promise(resolve=>{window.__resumeContextPreview=()=>{window.__holdContextPreview=false;delete window.__resumeContextPreview;resolve()}});
   if (m[1] === 'list' && window.__historyDelayMs) await new Promise(resolve=>setTimeout(resolve,window.__historyDelayMs));
   let value = m[1] === 'latest' ? listHistory(body).runs[0] ?? null
     : m[1] === 'list' ? listHistory(body)
