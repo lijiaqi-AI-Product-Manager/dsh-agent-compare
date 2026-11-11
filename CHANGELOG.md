@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Refresh the interface with a luminous sky-blue palette, softer blue-grey typography, translucent blurred glass, gradient highlights and liquid reflections. Controls, selected labels, progress and pick effects share the palette; keyboard focus remains distinct, and reduced motion and transparency are respected.
+
 ## 2.0.0
 
 - **Upgrade notes.** Existing two-version records remain readable. Records with three or four versions, or with reasons for a pick, require 2.0.0 or later; earlier readers keep them read-only. Updating the plugin does not migrate or delete those records.
