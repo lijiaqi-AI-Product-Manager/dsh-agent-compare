@@ -127,7 +127,7 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
     lastError = new PreviewError(outcome === 'exited' ? '预览服务在响应前退出' : outcome === 'aborted' ? 'cancelled' : `预览服务 ${Math.round(timeoutMs / 1000)} 秒内没有响应`, log.toString())
     if (outcome === 'aborted') break
     // A port taken between probe and bind shows up as an early exit; retry with a new port.
-    if (outcome !== 'exited' || !/port .* (in use|already)/i.test(log.toString())) break
+    if (outcome !== 'exited' || !/(EADDRINUSE|port .* (in use|already))/i.test(log.toString())) break
   }
   throw lastError ?? new PreviewError('预览服务启动失败', '')
 }
