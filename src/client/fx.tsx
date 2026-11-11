@@ -70,7 +70,7 @@ export function attachFx(root: HTMLElement): () => void {
   }
 }
 
-const SPARKS = ['var(--ac-v-brand-2)', 'var(--ac-v-sky)', 'var(--ac-v-ice)', '#ffffff', 'var(--ac-v-accent)', '#ffb547']
+const SPARKS = ['var(--ac-v-brand-2)', 'var(--ac-v-sky)', 'var(--ac-v-ice)', 'var(--ac-v-soft)', 'var(--ac-v-accent)', '#ffb547']
 
 /** A short burst of light from `from`: the moment a pick lands. */
 export function burst(from: Element): void {

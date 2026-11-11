@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Refresh the interface with a luminous sky-blue palette, softer blue-grey typography, translucent blurred glass, gradient highlights and liquid reflections. Controls, selected labels, progress and pick effects share the palette; keyboard focus remains distinct, and reduced motion and transparency are respected.
+- Refresh the interface with a calm medium-light blue palette, blue-grey typography and translucent glass. Restrained gradient highlights, softer halos and liquid reflections add depth without a near-white wash; background stars stay still. Controls, selected labels, progress and pick effects share the palette; keyboard focus remains distinct, and reduced motion and transparency are respected.
 
 ## 2.0.0
 
