@@ -143,7 +143,7 @@ const VISUAL = `
 .ac-context{display:flex;flex-direction:column;gap:6px}
 .ac-context-label{font-size:12px;font-weight:600;color:var(--ac-fg)}
 .ac-context .ac-seg button{font-size:12px;height:28px;padding:0 12px}
-.ac-context-summary{font-size:12px;color:var(--ac-fg2)}.ac-context-summary>details{margin-top:4px}.ac-context-summary summary{cursor:pointer;color:var(--ac-v-ink);font-weight:600}
+.ac-context-summary{font-size:12px;color:var(--ac-fg2)}.ac-context-summary>details,.ac-context-reserved{margin-top:4px}.ac-context-reserved{visibility:hidden;font-weight:600}.ac-context-summary summary{cursor:pointer;color:var(--ac-v-ink);font-weight:600}
 .ac-context-picker{border-radius:14px;background:var(--ac-v-tint);padding:8px 10px;max-height:260px;overflow:auto}
 .ac-context-picker ul{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
 .ac-context-picker li label{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:10px;cursor:pointer;transition:background .16s}

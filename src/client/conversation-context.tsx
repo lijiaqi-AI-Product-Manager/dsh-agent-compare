@@ -64,7 +64,7 @@ export function ConversationContextControl({ sessionId, mode, turns, selected, d
       {mode === 'recent' && <label className="ac-budget"><span className="ac-sr">{t("带入的最近对话轮数")}</span><select aria-label={t("带入的最近对话轮数")} value={turns} disabled={disabled} onChange={event => onTurns(Number(event.target.value))}>{CONTEXT_TURNS.map(value => <option key={value} value={value}>{t("最近 {0} 轮对话", { 0: value })}</option>)}</select></label>}
       {mode === 'selected' && <button className="ac-text-btn" aria-expanded={picking} onClick={() => setPicking(value => !value)}>{picking ? t("收起消息列表") : t("选择消息（已选 {0} 条）", { 0: selected.length })}</button>}
     </div>
-    <div className="ac-context-summary" role="status">{summary}{preview && <details><summary>{t("查看将带入的内容")}</summary><pre className="ac-context-text" tabIndex={0}>{preview.text}</pre></details>}</div>
+    <div className="ac-context-summary" role="status">{summary}{preview ? <details><summary>{t("查看将带入的内容")}</summary><pre className="ac-context-text" tabIndex={0}>{preview.text}</pre></details> : mode !== 'none' ? <div className="ac-context-reserved" aria-hidden="true">{t("查看将带入的内容")}</div> : null}</div>
     {mode === 'selected' && picking && <div className="ac-context-picker" role="group" aria-label={t("选择要带入的主对话消息")}>
       {entriesError ? <p className="ac-feedback" role="alert">{entriesError} <button className="ac-text-btn" onClick={loadEntries}>{t("重新读取")}</button></p>
         : entries === undefined ? <p className="ac-meta" role="status">{t("正在读取主对话…")}</p>
