@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retry a preview on a new port when its startup exits with a raw address-in-use error. The existing three-attempt limit still applies; unrelated startup failures are reported immediately.
+
 - Refresh the interface with a calm medium-light blue palette, blue-grey typography and translucent glass. Restrained gradient highlights, softer halos and liquid reflections add depth without a near-white wash; background stars stay still. Controls, selected labels, progress and pick effects share the palette; keyboard focus remains distinct, and reduced motion and transparency are respected.
 
 ## 2.0.0

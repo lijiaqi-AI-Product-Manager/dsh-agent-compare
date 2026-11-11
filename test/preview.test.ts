@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { createServer, type Server } from 'node:http'
 import { isPreviewProcess, startVitePreview } from '../src/core/preview.ts'
 import { fetchPreview, parsePreviewUrl, previewRequest, PREVIEW_HOST } from '../src/core/preview-url.ts'
 import { prepareFixtureProcess, tmp } from './fixture.ts'
@@ -14,7 +15,63 @@ server.listen(port,'127.0.0.1',()=>{fs.writeFileSync('listening.json',JSON.strin
   return dir
 }
 
+
+async function occupyPort(port: number): Promise<Server> {
+  const server = createServer((_req, res) => { res.statusCode = 404; res.end('unrelated server') })
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve) })
+  return server
+}
+
+async function closeServer(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+}
+
 describe('local preview browser hosts', () => {
+  it('retries a raw address-in-use exit and leaves the occupied server running', async () => {
+    const dir = await project()
+    let calls = 0, occupiedPort = 0, occupied: Server | undefined
+    let preview: Awaited<ReturnType<typeof startVitePreview>> | undefined
+    try {
+      preview = await startVitePreview(dir, { timeoutMs: 15000, prepareProjectProcess: async request => {
+        if (++calls === 1) {
+          occupiedPort = Number(request.argv[request.argv.indexOf('--port') + 1])
+          occupied = await occupyPort(occupiedPort)
+        }
+        return prepareFixtureProcess(request)
+      } })
+      expect(calls).toBe(2)
+      expect(preview.port).not.toBe(occupiedPort)
+      const ready = await fetchPreview(preview.url)
+      expect(ready.status).toBe(200)
+      await ready.body?.cancel()
+      const response = await fetchPreview(`http://127.0.0.1:${occupiedPort}/`)
+      expect(response.status).toBe(404)
+      expect(await response.text()).toBe('unrelated server')
+    } finally { await preview?.stop(); if (occupied) await closeServer(occupied) }
+  }, 30000)
+
+  it('bounds raw address-in-use retries at three attempts', async () => {
+    const dir = await project(), occupied: Server[] = []
+    try {
+      await expect(startVitePreview(dir, { timeoutMs: 15000, prepareProjectProcess: async request => {
+        occupied.push(await occupyPort(Number(request.argv[request.argv.indexOf('--port') + 1])))
+        return prepareFixtureProcess(request)
+      } })).rejects.toThrow(/预览服务在响应前退出/)
+      expect(occupied).toHaveLength(3)
+      expect(occupied.every(server => server.listening)).toBe(true)
+    } finally { await Promise.all(occupied.map(closeServer)) }
+  }, 30000)
+
+  it('does not retry a non-port process failure', async () => {
+    const dir = await project()
+    let calls = 0
+    await expect(startVitePreview(dir, { timeoutMs: 15000, prepareProjectProcess: async request => {
+      calls++
+      return prepareFixtureProcess({ ...request, argv: [process.execPath, '-e', "process.stderr.write('startup failed');process.exit(1)"] })
+    } })).rejects.toThrow(/预览服务在响应前退出/)
+    expect(calls).toBe(1)
+  }, 15000)
+
   it('requires a Yarn wrapper to name the exact project, invocation and port', () => {
     const cwd = path.join(process.cwd(), 'copy with space')
     const preview = { cwd, port: 1234, pid: 3, url: 'http://127.0.0.1:1234/', kind: 'build' as const, launcher: 'yarn' as const }
