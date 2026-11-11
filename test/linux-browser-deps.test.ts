@@ -51,11 +51,12 @@ describe('Ubuntu browser dependency sources', () => {
     const probed: string[] = []
     const selected = await selectUbuntuBrowserMirror({ codename: 'noble', probe: async (url: string) => {
       probed.push(url)
+      if (new URL(url).hostname === 'mirrors.edge.kernel.org') return false
       if (new URL(url).hostname === 'archive.ubuntu.com') throw Object.assign(new Error('DNS unavailable'), { code: 'EAI_AGAIN' })
       return true
     } })
     expect(selected.mirror).toBe('https://security.ubuntu.com/ubuntu')
-    expect(probed).toHaveLength(4)
+    expect(probed).toHaveLength(3)
     expect(probed.every(url => url.endsWith('/dists/noble/InRelease'))).toBe(true)
     const file = '/etc/apt/sources.list.d/ubuntu.sources'
     const config = 'Types: deb\nURIs: https://archive.ubuntu.com/ubuntu/\nSuites: noble noble-updates noble-security\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n'
@@ -64,12 +65,14 @@ describe('Ubuntu browser dependency sources', () => {
     expect(f.files.get(file)).toBe(config.replace('https://archive.ubuntu.com/ubuntu/', 'https://security.ubuntu.com/ubuntu/'))
   })
 
-  it('keeps a healthy primary origin regardless of probe completion order', async () => {
+  it('does not start more requests after a healthy preferred origin', async () => {
+    const probed: string[] = []
     const selected = await selectUbuntuBrowserMirror({ codename: 'noble', probe: async (url: string) => {
-      if (new URL(url).hostname === 'archive.ubuntu.com') await new Promise(resolve => setTimeout(resolve, 5))
+      probed.push(new URL(url).hostname)
       return true
     } })
-    expect(selected.mirror).toBe('https://archive.ubuntu.com/ubuntu')
+    expect(selected.mirror).toBe('https://mirrors.edge.kernel.org/ubuntu')
+    expect(probed).toEqual(['mirrors.edge.kernel.org'])
   })
 
   it('bounds stalled probes, aborts them and fails when all origins are unavailable', async () => {
@@ -77,7 +80,7 @@ describe('Ubuntu browser dependency sources', () => {
     await expect(selectUbuntuBrowserMirror({ codename: 'noble', timeoutMs: 10, probe: async (_url: string, { signal }: { signal: AbortSignal }) => {
       signals.push(signal)
       return await new Promise(() => {})
-    } })).rejects.toThrow('No supported Ubuntu HTTPS archive responded within 10 ms')
+    } })).rejects.toThrow('No supported Ubuntu HTTPS archive responded after 4 bounded 10 ms probes')
     expect(signals).toHaveLength(4)
     expect(signals.every(signal => signal.aborted)).toBe(true)
   })
@@ -89,12 +92,14 @@ describe('Ubuntu browser dependency sources', () => {
   })
 
   it('uses the independent signed archive when all Ubuntu-domain origins fail', async () => {
+    const probed: string[] = []
     const selected = await selectUbuntuBrowserMirror({ codename: 'noble', probe: async (url: string) => {
+      probed.push(new URL(url).hostname)
       if (new URL(url).hostname.endsWith('.ubuntu.com')) throw Object.assign(new Error('DNS unavailable'), { code: 'EAI_AGAIN' })
       return true
     } })
     expect(selected.mirror).toBe('https://mirrors.edge.kernel.org/ubuntu')
-    expect(selected.probes.filter(result => !result.reachable).every(result => result.reason === 'EAI_AGAIN')).toBe(true)
+    expect(probed).toEqual(['mirrors.edge.kernel.org'])
     const file = '/etc/apt/apt-mirrors-security.txt', f = fixture({ [file]: 'https://security.ubuntu.com/ubuntu/ priority:1\n' })
     await configureUbuntuBrowserSources(f.io, selected.mirror)
     expect(f.files.get(file)).toBe('https://mirrors.edge.kernel.org/ubuntu/ priority:1\n')
