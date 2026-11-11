@@ -12,6 +12,11 @@ const ORIGINAL_BLUE_DETAILS = `
 .ac-settings-head span:not(.ac-logo),.ac-settings-facts,.ac-context-label,.ac-context-summary{font-size:12px;line-height:1.65}
 .ac-root :is(.ac-btn,.ac-chip,.ac-tab,.ac-seg button,.ac-icon-btn,.ac-text-btn):focus-visible{outline:2px solid var(--ac-v-ink);outline-offset:3px}
 .ac-root[lang=en] .ac-btn{line-height:1.4}
+@media(prefers-color-scheme:light){
+.ac-root{--ac-v-ink:#2f4ed5;--ac-v-grad:linear-gradient(135deg,#2e4cdb 0%,#385af0 48%,#4265f8 100%)}
+.ac-root .ac-chip.on{background:#385af0 var(--ac-v-grad)}
+.ac-mode-btn.on{background:#385af0 linear-gradient(135deg,#2e4cdb,#385af0 55%,#3779ec)}
+}
 @media(max-width:600px){.ac-title{font-size:14px}.ac-head{gap:6px}.ac-card-head{padding:11px 12px}.ac-card-head .ac-meta,.ac-card-evidence summary{font-size:11px}.ac-root .ac-bar .ac-btn{min-height:42px}.ac-settings-row>.ac-seg button{min-height:36px}}
 `
 
