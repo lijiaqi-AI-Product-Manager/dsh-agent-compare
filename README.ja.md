@@ -181,6 +181,8 @@ npm run test:ui
 
 ## プロジェクトの推移
 
+**統計の補足（2026-11-13）：** 11 月 11 日（UTC）は 156 件のダウンロードリクエストです。[日付・保守・公開状況の説明（英語）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/download-statistics-2026-11-13.en.md)。リクエスト数はユーザー数を直接表しません。
+
 Star 履歴は毎日自動更新されます。更新日は UTC、Star の日付は GitHub の集計基準です。 npm の日別ダウンロードリクエスト数も表示します。
 
 <a href="https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers">

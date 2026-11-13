@@ -366,6 +366,8 @@ MIT
 
 ## Project growth
 
+**Statistics note (2026-11-13):** The November 11 UTC point records 156 download requests. See [dates, maintenance and publication status](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/download-statistics-2026-11-13.en.md). Requests do not directly measure users.
+
 Star history updates daily. Refresh dates use UTC; Star dates follow GitHub's aggregates. Daily npm download requests are also shown.
 
 <a href="https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers">
