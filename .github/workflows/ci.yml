@@ -36,6 +36,8 @@ jobs:
       - run: npm install --global npm@12.2.2 --ignore-scripts
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run check:download-stats
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 26
       - run: npm run check:test-projects
         if: matrix.os == 'ubuntu-latest' && matrix.node == 26
       - run: npm test

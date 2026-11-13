@@ -9,7 +9,7 @@ import { chineseGuideAlias } from './chinese-guide-alias.mjs'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const canonical = ['README.md', 'README.en.md', 'README.ja.md', 'README.ko.md', 'README.es.md', 'README.pt-BR.md', 'README.fr.md', 'README.de.md']
 const guides = [...canonical, 'README.zh.md']
-const referenceDocs = ['docs/package-managers.md', 'docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md', 'docs/quickstart.md', 'docs/quickstart.en.md', 'docs/maintenance.md', 'docs/maintenance.en.md', 'docs/distribution.md', 'docs/distribution.en.md', 'docs/first-use.md', 'docs/windows-process-compat.md', 'docs/windows-process-compat.en.md', 'docs/storefront-gallery.md', 'docs/download-statistics-2026-11-13.md', 'docs/download-statistics-2026-11-13.en.md']
+const referenceDocs = ['docs/package-managers.md', 'docs/demo.md', 'docs/runs-and-recovery.md', 'docs/runs-and-recovery.en.md', 'docs/quickstart.md', 'docs/quickstart.en.md', 'docs/maintenance.md', 'docs/maintenance.en.md', 'docs/distribution.md', 'docs/distribution.en.md', 'docs/first-use.md', 'docs/windows-process-compat.md', 'docs/windows-process-compat.en.md', 'docs/storefront-gallery.md', 'docs/maintenance-update-2026-11-11.md', 'docs/maintenance-update-2026-11-11.en.md', 'docs/npm-total-downloads.md']
 const repositoryOnlyDocs = new Set(['docs/demo.md', 'docs/first-use.md', 'docs/distribution.md', 'docs/distribution.en.md'])
 const captureManifest = JSON.parse(await readFile(path.join(root, 'docs/media/screenshots/manifest.json'), 'utf8'))
 const mediaFiles = ['docs/media/comparison-preview.gif', 'docs/media/comparison-workflow.mp4', 'docs/media/social-preview.png', 'docs/media/manifest.json', 'assets/icon.png', 'assets/icon.svg', 'screenshots.json', 'docs/media/screenshots/manifest.json', ...captureManifest.files.map(file => file.path)]
@@ -34,7 +34,9 @@ for (const [file, source] of contents) {
     assert.ok(source.includes(`add ${manifest.name}@${manifest.version}`), `${file}: missing the current pinned npm installation target`)
     assert.ok(source.includes(`${repository}/issues/4`), `${file}: missing listing and review status records`)
     assert.ok(source.includes('img.shields.io/github/stars/lijiaqi-AI-Product-Manager/dsh-agent-compare?'), `${file}: missing live Star badge`)
-    assert.ok(source.includes('img.shields.io/npm/dm/dsh-agent-compare?'), `${file}: missing monthly npm download badge`)
+    assert.ok(source.includes(repositoryMedia + 'assets/statistics/npm-total-badge.svg'), `${file}: missing cumulative npm download badge`)
+    assert.ok(!source.includes('/assets/growth/dsh-agent-compare/stars-'), `${file}: Star history chart is withdrawn`)
+    assert.ok(!source.includes('/assets/growth/dsh-agent-compare/downloads-'), `${file}: daily npm chart is withdrawn`)
     assert.ok(source.includes(`${repositoryFiles}docs/storefront-gallery.md`), `${file}: missing current gallery`)
     for (const image of ['hero-bilingual.webp', 'comparison-workflow.webp']) assert.match(source, new RegExp(`!\\[[^\\]]+\\]\\(https://raw\\.githubusercontent\\.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/${image.replace('.', '\\.')}\\)`), `${file}: use portable Markdown for the ${image} image`)
     const archives = [...source.matchAll(/dsh-agent-compare-[\w.\-]+\.tgz/g)].map(match => match[0])

@@ -67,7 +67,8 @@
     "test:fast": "npm run build && vitest run --project unit",
     "test:integration": "npm run build && vitest run --project integration",
     "check:test-projects": "node scripts/check-test-projects.mjs",
-    "test:managers": "npm run build && node scripts/test-managers.mjs"
+    "test:managers": "npm run build && node scripts/test-managers.mjs",
+    "check:download-stats": "node --test test/npm-total-downloads.node.mjs && node scripts/npm-total-downloads.mjs --check"
   },
   "keywords": [
     "dsh",
