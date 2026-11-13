@@ -1,0 +1,57 @@
+{
+  "schema": "agentcompare.npm-total/v1",
+  "package": "dsh-agent-compare",
+  "firstPublishedAt": "2026-11-03T10:41:11.580Z",
+  "firstDay": "2026-11-03",
+  "asOf": "2026-11-11",
+  "total": 25828,
+  "checkedAt": "2026-11-13T07:12:52.424Z",
+  "timeZone": "UTC",
+  "unit": "download requests",
+  "includes": "All published versions; repeated and automated requests may be included",
+  "sources": {
+    "registry": "https://registry.npmjs.org/dsh-agent-compare",
+    "lastAvailableDay": "https://api.npmjs.org/downloads/point/last-day/dsh-agent-compare",
+    "ranges": [
+      "https://api.npmjs.org/downloads/range/2026-11-03:2026-11-11/dsh-agent-compare"
+    ]
+  },
+  "daily": [
+    {
+      "day": "2026-11-03",
+      "downloads": 478
+    },
+    {
+      "day": "2026-11-04",
+      "downloads": 380
+    },
+    {
+      "day": "2026-11-05",
+      "downloads": 266
+    },
+    {
+      "day": "2026-11-06",
+      "downloads": 512
+    },
+    {
+      "day": "2026-11-07",
+      "downloads": 1800
+    },
+    {
+      "day": "2026-11-08",
+      "downloads": 5386
+    },
+    {
+      "day": "2026-11-09",
+      "downloads": 7071
+    },
+    {
+      "day": "2026-11-10",
+      "downloads": 9779
+    },
+    {
+      "day": "2026-11-11",
+      "downloads": 156
+    }
+  ]
+}
