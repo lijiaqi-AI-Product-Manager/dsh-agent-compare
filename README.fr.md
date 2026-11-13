@@ -183,6 +183,8 @@ Licence [MIT](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/bl
 
 ## Évolution du projet
 
+**Note statistique (2026-11-13) :** Le 11 novembre UTC compte 156 demandes de téléchargement. [Dates, maintenance et publication (en anglais)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/download-statistics-2026-11-13.en.md). Les demandes ne mesurent pas directement les utilisateurs.
+
 L’historique des Stars est actualisé chaque jour. Les dates de mise à jour sont en UTC ; celles des Stars suivent les agrégats GitHub. Les demandes quotidiennes de téléchargement sur npm sont également affichées.
 
 <a href="https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers">

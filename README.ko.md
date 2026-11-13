@@ -183,6 +183,8 @@ npm run test:ui
 
 ## 프로젝트 성장
 
+**통계 안내(2026-11-13):** 11월 11일(UTC)은 다운로드 요청 156건입니다. [날짜·유지보수·배포 상태 설명(영문)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/download-statistics-2026-11-13.en.md)을 확인하세요. 요청 수는 사용자 수를 직접 나타내지 않습니다.
+
 Star 기록은 매일 갱신됩니다. 갱신 날짜는 UTC이며 Star 날짜는 GitHub의 집계 기준을 따릅니다. npm의 일별 다운로드 요청 수도 표시합니다.
 
 <a href="https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers">
