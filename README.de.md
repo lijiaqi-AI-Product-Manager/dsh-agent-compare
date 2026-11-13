@@ -20,7 +20,13 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **2.0.0 · Stabile Version.** DSH Desktop und Web, mit chinesischer und englischer Oberfläche. Antworten, Dateien oder Webseiten aus jedem Ordner im Hauptgespräch vergleichen und konfigurierte Modelle weiterverwenden.
+> **2.1.0 · Stabile Version.** DSH Desktop und Web, mit chinesischer und englischer Oberfläche. Antworten, Dateien oder Webseiten aus jedem Ordner im Hauptgespräch vergleichen und konfigurierte Modelle weiterverwenden.
+
+**Neu in 2.1.0:**
+- **Helleres, klareres Flüssigglas.** Das Blau ist heller; die Arbeitsfläche liegt eine Stufe tiefer als das Glas, mit weichem Licht von oben. Glas gibt es in drei Stärken (dünn, dick und fast deckend), mit hellem Rand und einem Hauch Cyan und Flieder an den Kanten; nur die schwebende Aktionsleiste zeichnet weich, was hinter ihr liegt.
+- **Leichtere Schaltflächen und Schrift.** Volles Blau bleibt der Hauptaktion, der gewählten Option und den Versionsbuchstaben vorbehalten; andere Schaltflächen sind blassblaues Glas mit blauer Schrift in normaler Stärke.
+- **Gleitende Bedienelemente.** Der Verlaufsfilter „Needs attention only“ ist ein Schiebeschalter; Segmentschalter sitzen in einer Rille, und die Wahl einer Option verschiebt ihre Nachbarn nicht mehr. Kontrollkästchen und Auswahllisten teilen sich einen Glasstil.
+- **Überall lesbar.** Kontrast Glyphe für Glyphe in 19 Zuständen der Oberfläche je Thema gemessen: jeder Text erreicht mindestens 4.5:1. Nebeneinander stehende Versionen sind gleich hoch.
 
 **Neu in 2.0.0:** Vergleiche **2, 3 oder 4 Versionen** gleichzeitig. Jede Version kann einen **Stil** erhalten (Umfang: konservativ, mutig; Wirkung: minimal, ausgefeilt, lebendig; Priorität: zugänglich, gründlich, schlank; oder eine eigene Zeile). Vergleiche **blind** (Stile nach der Wahl aufgedeckt) oder **offen** (Stile von Anfang an sichtbar). Bei drei oder vier Versionen legst du verworfene Versionen **beiseite**, damit die übrigen nebeneinander stehen; in der Karte fokussieren die Tasten 1–4 eine Version.
 - **Neue Oberfläche in blauem Flüssigglas.** Aurora und Sternenstaub hinter Glasflächen, eine Glaslinse, die zwischen Optionen gleitet, und flüssiger Fortschritt; ein Lichtfunke bei der Wahl und ein Lichtstreif beim Aufdecken. Dunkelmodus, reduzierte Bewegung und hoher Kontrast werden unterstützt.
@@ -93,7 +99,7 @@ Entwicklungsgrundlage sind Node 26.13.0 und npm 12.2.2. Die aktuellen Prüfungen
 Installiere das npm-Paket im voreingestellten Web-Profil. Das npm-Badge zeigt den Veröffentlichungsstatus:
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@2.0.0
+dsh plugin --profile web add dsh-agent-compare@2.1.0
 ```
 
 Für ein anderes selbst verwaltetes Profil ersetzt du `web` durch dessen tatsächlichen Namen.
@@ -110,7 +116,7 @@ npm pack
 Ersetze `<your-profile>` durch den tatsächlichen Profilnamen:
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.1.0.tgz
 ```
 
 Starte DSH neu. Beende vor einem Update aktive Vergleiche und schließe ältere Instanzen, die dieselben Aufzeichnungen verwenden. Gleichzeitige Änderungen durch unterschiedliche Plugin-Versionen werden nicht unterstützt.

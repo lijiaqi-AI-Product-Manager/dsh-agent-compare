@@ -20,7 +20,13 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **2.0.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare 2–4 versions of answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
+> **2.1.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare 2–4 versions of answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
+
+**New in 2.1.0:**
+- **Brighter, clearer liquid glass.** The blue is lighter; the workspace sits one step deeper than the glass on it, with soft light from the top. Glass comes thin, thick and nearly solid, with a bright rim and a breath of cyan and lilac at its edges, and only the floating action bar blurs what is behind it.
+- **Lighter buttons and text.** Solid blue is kept for the main action, the chosen option and the version letters; other buttons are pale blue glass with blue words in regular weight.
+- **Controls that slide.** **Needs attention only** in the history is a sliding switch; segmented controls sit in a groove, and choosing an option no longer shifts its neighbours. Ticks and selects share one glass style.
+- **Readable everywhere.** Measured glyph by glyph in 19 interface states of each theme: every text is at least 4.5:1. Versions beside each other share one height.
 
 **New in 2.0.0:**
 - **A new blue liquid-glass interface.** Aurora and star dust behind glass panels, a glass lens that slides between options and liquid progress; a burst of light when you pick and a sweep of light at the reveal. Dark mode, reduced motion and high-contrast mode are supported.
@@ -111,7 +117,7 @@ These commands target a self-managed DSH Web profile. The desktop application's 
 Install the npm package into the default Web profile (the npm badge above shows registry status):
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@2.0.0
+dsh plugin --profile web add dsh-agent-compare@2.1.0
 ```
 
 For another self-managed profile, replace `web` with its actual name.
@@ -129,7 +135,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.1.0.tgz
 ```
 
 After restarting DSH, enable **A|B at the bottom left of the conversation composer**:

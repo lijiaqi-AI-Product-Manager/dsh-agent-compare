@@ -40,7 +40,7 @@ export function stylesFor(count: number, current: readonly StyleChoice[] | undef
 
 export function Segmented<T extends string | number>({ label, value, options, onChange, disabled }: { label: string; value: T; options: ReadonlyArray<{ value: T; text: string; title?: string }>; onChange(value: T): void; disabled?: boolean }): React.ReactElement {
   return <div className="ac-seg" role="group" aria-label={label}>
-    {options.map(option => <button key={String(option.value)} type="button" className={value === option.value ? 'on' : ''} aria-pressed={value === option.value} disabled={disabled} {...(option.title ? { title: option.title } : {})} onClick={() => { if (value !== option.value) onChange(option.value) }}>{option.text}</button>)}
+    {options.map(option => <button key={String(option.value)} type="button" className={value === option.value ? 'on' : ''} aria-pressed={value === option.value} disabled={disabled} data-text={option.text} {...(option.title ? { title: option.title } : {})} onClick={() => { if (value !== option.value) onChange(option.value) }}>{option.text}</button>)}
   </div>
 }
 

@@ -40,7 +40,7 @@ export function attachFx(root: HTMLElement): () => void {
     }
   }
   const light = (event: PointerEvent): void => {
-    const target = (event.target as Element | null)?.closest?.('.ac-card, .ac-composer-settings, .ac-hrow, .ac-btn.primary, .ac-logo')
+    const target = (event.target as Element | null)?.closest?.('.ac-card, .ac-composer-settings, .ac-action-dock, .ac-why, .ac-hrow, .ac-btn.primary, .ac-logo')
     if (!(target instanceof HTMLElement) || !owns(root, target)) return
     const box = target.getBoundingClientRect()
     if (!box.width || !box.height) return

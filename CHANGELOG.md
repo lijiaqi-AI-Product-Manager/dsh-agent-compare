@@ -1,10 +1,26 @@
 # Changelog
 
-## Unreleased
+## 2.1.0
 
+- **Upgrade notes.** Records, settings and routes are unchanged; everything written by 2.0.0 opens as before. This release changes how the interface looks and reads, and fixes the problems listed below.
+- **Brighter liquid glass.** The blue is lighter and the glass reads as glass:
+  - the workspace sits one step deeper than the surfaces on it, with soft light sinking in from the top, so translucent panels have something to show through;
+  - glass comes in three thicknesses: a thin floating action bar, thicker cards that keep text easy to read, and nearly solid fields;
+  - edges carry the material: a bright rim on top, a breath of cyan and lilac where light bends, and a soft blue shadow instead of a grey one;
+  - only the bars that float over other content blur what is behind them.
+- **Lighter controls.** Solid blue is kept for the main action, the chosen option and the version letters. Other buttons are pale blue glass with blue words, and blue text is set in regular weight instead of bold.
+- **Sliding controls.**
+  - The history filter **Needs attention only** is a switch: a bead that slides in a groove. It is announced as a switch and still works with Space.
+  - The lens of a segmented control sits in a visible groove. Choosing an option or a tab no longer shifts its neighbours.
+  - Message ticks and every select share one glass style and one chevron.
+- **Tidier comparison.** Versions beside each other share one height, and their evidence lines sit on the same row. The action bar floats above the versions as a capsule and catches the light under the pointer. Hairlines between sections are gone; spacing and surfaces separate them.
+- **Readable everywhere.** Text contrast was measured on the rendered interface, glyph by glyph, in 19 interface states of the light theme and of the dark theme; every text is at least 4.5:1. This fixes white text on the version letters and the logo, which measured as low as 3.1:1, the Star link in the action bar, small main buttons and the selected tab in the dark theme.
+- **Dark theme.** Glass turns deep blue and the drifting light patches are removed, because on a dark ground they read as smudges. The opacity of the star dust now follows the theme; its animation used to override it.
+- **Phone width.** The workspace sheet is rounded only at the top, so no backdrop shows at its bottom corners.
+- The progress sphere is clearer and holds a lighter liquid.
+- Reduced transparency makes every surface solid, and forced colours fall back to system checkboxes and selects.
+- The settings strip keeps its height while the conversation context preview loads, so its controls no longer jump.
 - Retry a preview on a new port when its startup exits with a raw address-in-use error. The existing three-attempt limit still applies; unrelated startup failures are reported immediately.
-
-- Refresh the interface with a calm medium-light blue palette, blue-grey typography and translucent glass. Restrained gradient highlights, softer halos and liquid reflections add depth without a near-white wash; background stars stay still. Controls, selected labels, progress and pick effects share the palette; keyboard focus remains distinct, and reduced motion and transparency are respected.
 
 ## 2.0.0
 

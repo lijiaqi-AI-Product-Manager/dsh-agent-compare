@@ -20,7 +20,13 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **2.0.0 · 正式版。** DSH 桌面端与 Web 端，中英双语。在主对话内比较 2–4 版回答、文件或网页；普通文件夹也能开始，复用已配置模型。
+> **2.1.0 · 正式版。** DSH 桌面端与 Web 端，中英双语。在主对话内比较 2–4 版回答、文件或网页；普通文件夹也能开始，复用已配置模型。
+
+**2.1.0 新增：**
+- **更亮、更通透的液态玻璃。** 蓝色整体调浅；底色比玻璃深一级，顶部有柔光。玻璃分薄、厚、近实三档，边缘是亮边加一点青与淡紫的折射，只有悬浮的操作栏才模糊背后的内容。
+- **更轻的按钮和文字。** 实心蓝只留给主操作、选中项和版本字母；其余按钮是浅蓝玻璃配蓝字，蓝字不再加粗。
+- **会滑动的控件。** 历史记录的「只看需处理」是滑动开关；分段切换嵌在凹槽里，切换时旁边的选项不再跳动；勾选框和下拉框统一成同一种玻璃样式。
+- **每个字都看得清。** 浅色和深色各 19 个界面状态逐字实测，所有文字对比度不低于 4.5:1；并排的版本等高对齐。
 
 **2.0.0 新增：**
 - **全新蓝色液态玻璃界面。** 极光与星尘背景、玻璃面板、会滑动的玻璃选择器、液体进度球；选中时光粒迸发，揭晓时光束扫过。深色模式、减弱动效与高对比模式都已适配。
@@ -109,7 +115,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 安装 npm 包到默认 Web profile（公开发布状态见顶部 npm 徽章）：
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@2.0.0
+dsh plugin --profile web add dsh-agent-compare@2.1.0
 ```
 
 如使用其他自行运行的 profile，请将 `web` 换成实际名称。
@@ -127,7 +133,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-2.0.0.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-2.1.0.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：
