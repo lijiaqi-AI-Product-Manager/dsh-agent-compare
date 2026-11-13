@@ -2,7 +2,8 @@ name: Cumulative npm downloads
 
 on:
   schedule:
-    - cron: '41 1,13 * * *'
+    # 19:00 Asia/Shanghai (UTC+8), once daily.
+    - cron: '0 11 * * *'
   workflow_dispatch:
 
 permissions:
