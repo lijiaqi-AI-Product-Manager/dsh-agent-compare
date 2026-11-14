@@ -588,4 +588,8 @@ display:flex;flex-direction:column;overflow:hidden;animation:ac-rise .18s ease-o
 ${VISUAL}
 ${DETAILS}
 @media(max-width:600px){.ac-language select{max-width:72px}.ac-header-tools{gap:4px}.ac-header-tools .ac-header-btn{width:28px;min-width:28px;padding:0;justify-content:center}.ac-header-label{display:none}.ac-header-glyph{display:block}.ac-settings-row>.ac-budget{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%;flex:1 1 220px}.ac-settings-row>.ac-budget select{min-width:0;flex:1;max-width:100%}.ac-settings-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:8px}.ac-settings-head>div{display:contents}.ac-settings-head .ac-logo{grid-column:1;grid-row:1}.ac-settings-head b{grid-column:2;grid-row:1}.ac-settings-head>div>span{grid-column:1/-1;grid-row:2;margin:0}.ac-settings-head>button{grid-row:1}.ac-root[lang=en] .ac-bar .ac-btn{min-width:100px}.ac-root[lang=en] .ac-settings-row>.ac-seg{flex-wrap:wrap;max-width:100%}}
+@media(max-width:600px){
+.ac-root[lang=en] .ac-bar .ac-btn{flex:1 1 88px;min-width:88px}
+.ac-root[lang=en] .ac-bar .ac-btn.primary{flex-grow:1.35;flex-basis:112px;min-width:112px}
+}
 `

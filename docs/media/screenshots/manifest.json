@@ -4,7 +4,7 @@
   "packageVersion": "2.1.0",
   "sourceCommit": "2b5c9920378b8414dfa1449033808385c30f55c8",
   "packageArchiveSha256": "804d302ce8e4d018664d5c5744b09eb4d78ec0ed1c1222e33fa44ffbcb363e8b",
-  "archiveNote": "Recorded from this commit's build, packed as a uniquely versioned development archive and installed in an isolated test profile; all 95 installed runtime files matched that captured build byte for byte. These captures demonstrate the interface at the recorded commit. Later static-preview authority validation is verified separately and is not evidenced by these images.",
+  "archiveNote": "Recorded from this commit's build, packed as a uniquely versioned development archive and installed in an isolated test profile; all 95 installed runtime files matched that captured build byte for byte. These captures demonstrate the interface at the recorded commit. Later static-preview authority and English phone-action layout fixes are verified separately and are not evidenced by these images.",
   "hostVersion": "0.2.2-rc.1",
   "scenario": "Controlled candidates; four independently interactive pages in a blind comparison, two set aside, a pick with reasons and a save into a new folder. No external model request.",
   "privatePathsHidden": true,

@@ -26,6 +26,7 @@
 - **Readable everywhere.** Text contrast was measured on the rendered interface, glyph by glyph, in 19 interface states of the light theme and of the dark theme, and on the action bar with black, white and red candidate pages scrolled beneath it; every text is at least 4.5:1. This fixes white text on the version letters and the logo, which measured as low as 3.1:1, the Star link in the action bar, small main buttons and the selected tab in the dark theme.
 - **Dark theme.** Glass turns deep blue and the drifting light patches are removed, because on a dark ground they read as smudges. The opacity of the star dust now follows the theme; its animation used to override it.
 - **Phone width.** The workspace sheet is rounded only at the top, so no backdrop shows at its bottom corners.
+- **English phone actions.** The primary action gets more horizontal room beside secondary actions. Wider platform fonts no longer push "Review and adopt A" onto a third line and hide the initial application pixels in restored history. Full labels, status facts and the 120-pixel first-view check are retained.
 - The progress sphere is clearer and holds a lighter liquid.
 - Reduced transparency makes every surface solid, and forced colours fall back to system checkboxes and selects.
 - The settings strip keeps its height while the conversation context preview loads, so its controls no longer jump.

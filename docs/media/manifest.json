@@ -4,7 +4,7 @@
     "version": "2.1.0 release candidate",
     "commit": "2b5c9920378b8414dfa1449033808385c30f55c8",
     "archiveSha256": "804d302ce8e4d018664d5c5744b09eb4d78ec0ed1c1222e33fa44ffbcb363e8b",
-    "archiveNote": "Recorded from this commit's build, packed as a uniquely versioned development archive and installed in an isolated test profile; all 95 installed runtime files matched that captured build byte for byte. These recordings demonstrate the interface and workflow at the recorded commit. Later static-preview authority validation is verified separately and is not evidenced by this recording.",
+    "archiveNote": "Recorded from this commit's build, packed as a uniquely versioned development archive and installed in an isolated test profile; all 95 installed runtime files matched that captured build byte for byte. These recordings demonstrate the interface and workflow at the recorded commit. Later static-preview authority and English phone-action layout fixes are verified separately and are not evidenced by this recording.",
     "host": "0.2.2-rc.1",
     "browser": "Microsoft Edge 157.0.4341.42 (headless)",
     "os": "Windows",
