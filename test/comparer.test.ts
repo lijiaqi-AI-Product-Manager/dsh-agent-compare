@@ -298,7 +298,8 @@ describe.concurrent('comparison run', () => {
 })
 
 describe.concurrent('adoption', () => {
-  it('a preview stopped by a host restart can be opened again from its copy', async () => {
+  // Keep native Windows ownership queries separate from concurrent fixture builds.
+  it('a preview stopped by a host restart can be opened again from its copy', { concurrent: process.platform !== 'win32', timeout: T }, async () => {
     const { store, comparer, runId, done } = await setup({})
     const previous = done.candidates[0]!.preview!
     await comparer.dispose()
@@ -343,7 +344,7 @@ describe.concurrent('adoption', () => {
     } finally {
       if (!cleanupFinished) await after.cleanup(runId)
     }
-  }, T)
+  })
 
   it('writes exactly the checked tree, keeps index and HEAD, then releases copies and previews', async () => {
     const { repo, store, comparer, runId, done } = await setup({})
