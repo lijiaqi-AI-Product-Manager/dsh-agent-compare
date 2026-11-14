@@ -23,6 +23,7 @@
 > **2.1.0 · Versión estable.** DSH Desktop y Web, con interfaz en chino e inglés. Compara respuestas, archivos o páginas web en la conversación principal desde cualquier carpeta, reutilizando los modelos configurados.
 
 **Novedades de 2.1.0:**
+- **Un saludo o una pregunta recibe respuestas.** El tipo de resultado lo decide la petición, no la carpeta: saluda o pregunta dentro de un proyecto que se puede compilar y cada versión responde en su propio estilo para compararlas en paralelo, sin construir una página; si pides cambiar el proyecto, se implementa como antes.
 - **Vidrio líquido más claro y luminoso.** El azul es más claro; el espacio de trabajo queda un nivel por debajo del vidrio, con luz suave desde arriba. El vidrio tiene tres grosores (fino, grueso y casi sólido), con un borde brillante y un toque de cian y lila en los cantos; solo la barra de acciones flotante desenfoca lo que hay detrás.
 - **Botones y texto más ligeros.** El azul sólido se reserva para la acción principal, la opción elegida y las letras de versión; los demás botones son de vidrio azul pálido con texto azul en peso normal.
 - **Controles que se deslizan.** El filtro «Needs attention only» del historial es un interruptor deslizante; los controles segmentados se asientan en una ranura y elegir una opción ya no desplaza a las vecinas. Las casillas y los desplegables comparten un mismo estilo de vidrio.

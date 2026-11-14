@@ -23,6 +23,7 @@
 > **2.1.0 · Stabile Version.** DSH Desktop und Web, mit chinesischer und englischer Oberfläche. Antworten, Dateien oder Webseiten aus jedem Ordner im Hauptgespräch vergleichen und konfigurierte Modelle weiterverwenden.
 
 **Neu in 2.1.0:**
+- **Ein Gruß oder eine Frage bekommt Antworten.** Die Anfrage bestimmt die Art des Ergebnisses, nicht der Ordner: Wer in einem baubaren Projekt grüßt oder eine Frage stellt, erhält von jeder Version eine Antwort im eigenen Stil zum Vergleich nebeneinander, statt einer gebauten Seite; eine Bitte um Änderungen am Projekt wird weiterhin umgesetzt.
 - **Helleres, klareres Flüssigglas.** Das Blau ist heller; die Arbeitsfläche liegt eine Stufe tiefer als das Glas, mit weichem Licht von oben. Glas gibt es in drei Stärken (dünn, dick und fast deckend), mit hellem Rand und einem Hauch Cyan und Flieder an den Kanten; nur die schwebende Aktionsleiste zeichnet weich, was hinter ihr liegt.
 - **Leichtere Schaltflächen und Schrift.** Volles Blau bleibt der Hauptaktion, der gewählten Option und den Versionsbuchstaben vorbehalten; andere Schaltflächen sind blassblaues Glas mit blauer Schrift in normaler Stärke.
 - **Gleitende Bedienelemente.** Der Verlaufsfilter „Needs attention only“ ist ein Schiebeschalter; Segmentschalter sitzen in einer Rille, und die Wahl einer Option verschiebt ihre Nachbarn nicht mehr. Kontrollkästchen und Auswahllisten teilen sich einen Glasstil.

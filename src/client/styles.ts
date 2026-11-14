@@ -19,11 +19,13 @@ const DETAILS = `
  * Visual layer: a bright DeepSeek-like blue in liquid glass.
  *
  * The workspace is one step deeper than the glass on it, with soft light
- * sinking in from the top. Glass comes in three thicknesses: thin for the
- * floating action bar, thicker for cards so text stays easy to read, and
- * nearly solid for fields. Edges carry the material: a bright rim on top, a
- * breath of cyan and lilac where light bends, and a soft blue shadow below.
- * Only bars that float over other content blur what is behind them.
+ * sinking in from the top. Glass comes in three thicknesses: thin for
+ * panels that rest on the workspace, thicker for cards so text stays easy
+ * to read, and nearly solid for fields and for the action bar, which floats
+ * over candidate pages of any colour and must stay readable on all of them.
+ * Edges carry the material: a bright rim on top, a breath of cyan and lilac
+ * where light bends, and a soft blue shadow below. Only bars that float
+ * over other content blur what is behind them.
  *
  * Solid blue is kept for the main action, the chosen option and the version
  * letters; other controls are pale blue glass with blue words. A glass lens
@@ -43,6 +45,7 @@ const VISUAL = `
 --ac-v-grad:linear-gradient(120deg,#4866fa 0%,#3f6af4 52%,#316de7 100%);
 --ac-v-flow:linear-gradient(90deg,#4d6bfe,#45b6ff,#8ea4ff,#4d6bfe);
 --ac-g-panel:linear-gradient(180deg,rgba(255,255,255,.64),rgba(255,255,255,.46));
+--ac-g-bar:linear-gradient(180deg,rgba(255,255,255,.97),rgba(255,255,255,.93));
 --ac-g-card:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.93) 62%);
 --ac-g-field:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.72));
 --ac-g-lens:linear-gradient(180deg,#fff,rgba(255,255,255,.8));
@@ -72,8 +75,8 @@ const VISUAL = `
 .ac-head,.ac-run-heading,.ac-bar,.ac-inline-head,.ac-conversation-run-head,.ac-shotbar,.ac-shottools,.ac-history-controls,.ac-history-pages{border-color:transparent}
 .ac-head,.ac-inline-head{background:transparent}.ac-run-heading{padding-bottom:8px}.ac-history-controls{padding-bottom:2px}.ac-history-pages{padding-top:4px}
 .ac-header-caption{border-left-color:color-mix(in srgb,var(--ac-v-brand) 20%,transparent)}.ac-copy-plan{border-top-color:var(--ac-v-edge)}
-/* the action bar floats: a capsule of thin glass above the versions */
-.ac-action-dock{top:8px;margin:4px 16px 0;border-radius:24px;background:radial-gradient(260px 120px at var(--ac-mx,50%) var(--ac-my,-140%),var(--ac-g-spot),transparent 70%),var(--ac-g-panel);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);box-shadow:var(--ac-v-rim),var(--ac-g-depth),0 0 0 1px rgba(52,84,180,.07),0 1px 2px rgba(28,48,120,.05),0 24px 44px -28px rgba(64,104,236,.62)}
+/* the action bar floats: a capsule of nearly solid glass, readable over a candidate page of any colour */
+.ac-action-dock{top:8px;margin:4px 16px 0;border-radius:24px;background:radial-gradient(260px 120px at var(--ac-mx,50%) var(--ac-my,-140%),var(--ac-g-spot),transparent 70%),var(--ac-g-bar);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);box-shadow:var(--ac-v-rim),var(--ac-g-depth),0 0 0 1px rgba(52,84,180,.07),0 1px 2px rgba(28,48,120,.05),0 24px 44px -28px rgba(64,104,236,.62)}
 .ac-action-dock::after{content:"";position:absolute;left:1px;right:1px;top:1px;height:52%;border-radius:23px 23px 50% 50%/23px 23px 100% 100%;background:linear-gradient(180deg,rgba(255,255,255,.46),rgba(255,255,255,0));pointer-events:none}
 .ac-action-dock>.ac-bar{position:relative;z-index:1;background:transparent;border-radius:inherit;padding:10px 12px 10px 20px}
 .ac-inline .ac-action-dock{position:relative;top:0;margin:8px 12px 0}.ac-conversation-run .ac-action-dock{position:sticky;top:6px}
@@ -296,7 +299,7 @@ const VISUAL = `
 /* dark: deeper glass with a blue cast; no light patches, which read as smudges on a dark ground */
 @media(prefers-color-scheme:dark){.ac-root{--ac-v-brand:#7089ff;--ac-v-brand-2:#93a5ff;--ac-v-ink:#c0caff;--ac-v-doing:#ffb547;--ac-v-ring:#6f83f0;--ac-brand:var(--ac-v-brand);
 --ac-fg:var(--dsw-alias-label-primary,#0f1115);--ac-fg2:var(--dsw-alias-label-secondary,#4b5260);--ac-fg3:var(--dsw-alias-label-secondary,#596475);
---ac-g-panel:linear-gradient(180deg,rgba(52,62,108,.6),rgba(32,39,72,.54));--ac-g-card:linear-gradient(180deg,rgba(42,51,92,.62),rgba(24,30,54,.84) 62%);--ac-g-field:linear-gradient(180deg,rgba(16,21,42,.6),rgba(10,14,30,.5));--ac-g-lens:linear-gradient(180deg,rgba(112,137,255,.42),rgba(77,107,254,.26));
+--ac-g-panel:linear-gradient(180deg,rgba(52,62,108,.6),rgba(32,39,72,.54));--ac-g-bar:linear-gradient(180deg,rgba(44,53,98,.96),rgba(30,37,72,.94));--ac-g-card:linear-gradient(180deg,rgba(42,51,92,.62),rgba(24,30,54,.84) 62%);--ac-g-field:linear-gradient(180deg,rgba(16,21,42,.6),rgba(10,14,30,.5));--ac-g-lens:linear-gradient(180deg,rgba(112,137,255,.42),rgba(77,107,254,.26));
 --ac-g-stroke:linear-gradient(170deg,rgba(255,255,255,.34),rgba(255,255,255,.07) 30%,rgba(143,227,255,.26) 54%,rgba(255,255,255,.05) 74%,rgba(160,140,255,.3));
 --ac-g-depth:inset 0 -14px 18px -16px rgba(77,107,254,.34);--ac-g-spot:rgba(143,163,255,.14);--ac-g-dust:.32;
 --ac-v-rim:inset 0 1px 0 rgba(255,255,255,.13),inset 0 0 0 1px rgba(255,255,255,.05);

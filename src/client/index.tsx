@@ -350,7 +350,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
       ) : (
         <div className="ac-empty">
           {busyStage(c.stage) && c.stage !== 'stopping' ? <LiquidMeter level={step / PIPELINE.length} busy /> : <div className="ac-skel"><i style={{ width: '60%' }} /><i /><i style={{ width: '80%' }} /></div>}
-          <div>{c.stage === 'cancelled' ? t("已停止") : c.stage === 'stopping' ? t("正在停止并回收资源…") : run.target !== undefined ? t("{0}…完成后这里会显示结果：页面、文件或回答", { 0: t(STAGE_TEXT[c.stage]) }) : t("{0}…构建产物启动后，这里会显示真实页面", { 0: t(STAGE_TEXT[c.stage]) })}</div>
+          <div>{c.stage === 'cancelled' ? t("已停止") : c.stage === 'stopping' ? t("正在停止并回收资源…") : run.target !== undefined || !['installing', 'verifying', 'previewing'].includes(c.stage) ? t("{0}…完成后这里会显示结果：页面、文件或回答", { 0: t(STAGE_TEXT[c.stage]) }) : t("{0}…构建产物启动后，这里会显示真实页面", { 0: t(STAGE_TEXT[c.stage]) })}</div>
         </div>
       )}
       <div className="ac-card-evidence">

@@ -23,6 +23,7 @@
 > **2.1.0 · Version stable.** DSH Desktop et Web, avec interface en chinois et en anglais. Comparez réponses, fichiers ou pages web dans la conversation principale depuis tout dossier, avec vos modèles configurés.
 
 **Nouveautés de la version 2.1.0 :**
+- **Un bonjour ou une question reçoit des réponses.** C'est la demande qui décide du type de résultat, pas le dossier : dites bonjour ou posez une question dans un projet qui peut être compilé, et chaque version répond dans son propre style pour une comparaison côte à côte, sans construire de page ; une demande de modification du projet est toujours implémentée.
 - **Un verre liquide plus clair et plus lumineux.** Le bleu est plus clair ; l'espace de travail se situe un niveau sous le verre, avec une lumière douce venue du haut. Le verre existe en trois épaisseurs (fin, épais et presque opaque), avec un liseré brillant et une touche de cyan et de lilas sur les arêtes ; seule la barre d'actions flottante floute ce qui se trouve derrière elle.
 - **Des boutons et un texte plus légers.** Le bleu plein est réservé à l'action principale, à l'option choisie et aux lettres de version ; les autres boutons sont en verre bleu pâle avec un texte bleu en graisse normale.
 - **Des contrôles qui glissent.** Le filtre « Needs attention only » de l'historique est un interrupteur à glissière ; les contrôles segmentés reposent dans une rainure et choisir une option ne décale plus ses voisines. Cases à cocher et listes partagent le même style de verre.

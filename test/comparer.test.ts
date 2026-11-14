@@ -17,7 +17,7 @@ import { fixtureRepo, prepareFixtureProcess, tmp } from './fixture.ts'
 type Edit = (dir: string, req: AgentRunRequest) => Promise<void>
 
 /** Plays both agents: A and B get their own edit function. `hang` agents never finish (after their edit, if any). */
-function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean } = {}): AgentRunner {
+function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; silent?: 'A' | 'B' } = {}): AgentRunner {
   return {
     isolation: 'own-root',
     async run(req) {
@@ -30,13 +30,13 @@ function scripted(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editT
         return { stopReason: 'aborted', usage: { kind: 'unknown', reason: 'scripted' } }
       }
       await (edits[req.label] ?? defaultEdit)(req.cwd, req)
-      return { stopReason: 'completed', summary: `scripted ${req.label}`, usage: { kind: 'reported', inputTokens: 10, outputTokens: 5, totalTokens: 15 } }
+      return { stopReason: 'completed', summary: opts.silent === req.label ? '' : `scripted ${req.label}`, usage: { kind: 'reported', inputTokens: 10, outputTokens: 5, totalTokens: 15 } }
     },
   }
 }
 const defaultEdit: Edit = async (dir, req) => writeFile(path.join(dir, 'index.html'), `<h1>shop ${req.label}</h1>\n`)
 
-async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; generationMs?: number; onUpdate?: ComparerOptions['onUpdate']; prepareProjectProcess?: ComparerOptions['prepareProjectProcess'] } = {}) {
+async function setup(edits: { A?: Edit; B?: Edit }, opts: { hang?: 'A' | 'B'; editThenHang?: boolean; silent?: 'A' | 'B'; generationMs?: number; onUpdate?: ComparerOptions['onUpdate']; prepareProjectProcess?: ComparerOptions['prepareProjectProcess'] } = {}) {
   const repo = await fixtureRepo()
   const store = new RunStore(await tmp('ac-home'))
   const comparer = new Comparer({ prepareProjectProcess: opts.prepareProjectProcess ?? prepareFixtureProcess, store, runner: scripted(edits, opts), version: 'test', browserChecks: false, previewTimeoutMs: 120_000, ...(opts.generationMs ? { generationMs: opts.generationMs } : {}), ...(opts.onUpdate ? { onUpdate: opts.onUpdate } : {}) })
@@ -224,6 +224,36 @@ describe.concurrent('comparison run', () => {
     await expect(comparer.retryVerification(runId, 'A')).rejects.toThrow('锁文件不一致')
     expect(done.candidates[1]!.stage).toBe('ready')
     await comparer.cleanup(runId)
+  }, T)
+
+  it('a greeting inside a project that can be built is answered, not built', async () => {
+    const prompts: string[] = []
+    // A replies and changes nothing; B changes the page as before.
+    const { repo, comparer, runId, done } = await setup({ A: async (_dir, req) => { prompts.push(req.prompt) } })
+    try {
+      const [a, b] = done.candidates
+      expect(prompts[0]).toContain('reply with the complete answer and change no files')
+      expect(a).toMatchObject({ stage: 'ready', result: 'answer', summary: 'scripted A', checks: [], touchedFiles: [], generation: { ended: 'completed' } })
+      // Nothing is installed, checked or served for a reply.
+      expect(a!.install).toBeUndefined()
+      expect(a!.preview).toBeUndefined()
+      expect(a!.verdict).toMatchObject({ eligible: true, reasons: [] })
+      expect(b!.stage).toBe('ready')
+      expect(b!.result).toBeUndefined()
+      expect(b!.preview).toBeDefined()
+      await comparer.choose(runId, 'A')
+      await expect(comparer.adopt(runId, 'worktree')).rejects.toThrow(/只有回答/)
+      expect(await readFile(path.join(repo, 'index.html'), 'utf8')).toBe('<h1>shop</h1>\n')
+    } finally { await comparer.cleanup(runId) }
+  }, T)
+
+  it('a candidate that changed nothing and said nothing still fails in a project', async () => {
+    const { comparer, runId, done } = await setup({ A: async () => {} }, { silent: 'A' })
+    try {
+      expect(done.candidates[0]).toMatchObject({ stage: 'failed', error: { stage: 'sealing', message: expect.stringContaining('没有改动任何文件') } })
+      expect(done.candidates[0]!.result).toBeUndefined()
+      expect(done.candidates[1]!.stage).toBe('ready')
+    } finally { await comparer.cleanup(runId) }
   }, T)
 
   it('a generation over budget with nothing written fails that candidate only', async () => {

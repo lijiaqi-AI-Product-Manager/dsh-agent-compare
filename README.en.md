@@ -23,6 +23,7 @@
 > **2.1.0 · Stable release.** DSH Desktop + Web, with Chinese and English interfaces. Compare 2–4 versions of answers, files or web pages in the main conversation, starting from any folder and reusing configured models.
 
 **New in 2.1.0:**
+- **A greeting or a question gets answers.** The request decides the result, not the folder: say hello or ask a question inside a project that can be built, and each version replies in its own style for a side-by-side comparison instead of building a page; a request to change the project is still implemented.
 - **Brighter, clearer liquid glass.** The blue is lighter; the workspace sits one step deeper than the glass on it, with soft light from the top. Glass comes thin, thick and nearly solid, with a bright rim and a breath of cyan and lilac at its edges, and only the floating action bar blurs what is behind it.
 - **Lighter buttons and text.** Solid blue is kept for the main action, the chosen option and the version letters; other buttons are pale blue glass with blue words in regular weight.
 - **Controls that slide.** **Needs attention only** in the history is a sliding switch; segmented controls sit in a groove, and choosing an option no longer shifts its neighbours. Ticks and selects share one glass style.
