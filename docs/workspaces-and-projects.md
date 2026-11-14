@@ -16,6 +16,7 @@ A|B 不再只限于 Git 仓库根目录下的 Vite 项目。打开任何目录�
 - 项目在仓库的子目录里（例如 monorepo 的 `apps/web`）时，安装、检查和预览都在这个子目录运行。
 - 不是 Vite 的项目，会以 `PORT` 和 `HOST=127.0.0.1` 运行它的 `dev` 或 `start` 脚本。服务没有在这个端口响应时，这一版按文件比较，不算失败。
 - 静态网页由插件自带的只读服务提供，只能读取副本里的文件，不列目录，也不会跟随指向副本外的链接。
+- 静态预览只接受本次分配的域名和端口，以及同端口的回环地址；其它域名、错误端口、缺失或重复的 Host 不会得到文件。转发请求头不能改变这个限制。
 - `package.json` 无法使用时（例如有多个锁文件），这次不安装依赖，并在设置条里说明原因；比较照常进行。
 
 ## 不是 Git 仓库的目录
@@ -69,6 +70,8 @@ Project details:
 - **Subfolder projects.** A project in a repository subfolder (such as `apps/web`) installs, checks and previews there.
 - **Non-Vite servers.** Non-Vite projects run their `dev` or `start` script with `PORT` and `HOST=127.0.0.1`. A server that does not answer on that port is compared by its files, not failed.
 - **Static pages.** Static pages are served read-only from inside the copy, with no directory listings and no links outside it.
+
+**Static previews.** The built-in read-only server accepts only its assigned browser hostname and port, plus local loopback aliases on that port. Unrelated, missing or duplicate Host headers cannot retrieve files; forwarded-host headers do not change this rule. Project-provided servers retain their own Host policies.
 
 **Outside Git**, both versions work in a private empty folder, and nothing in your folder is read or written.
 - **Answers.** Answers are shown side by side before the pick, and the picked answer enters the main conversation's memory.
