@@ -207,7 +207,9 @@ const VISUAL = `
 .ac-context-role.user{background:color-mix(in srgb,var(--ac-v-brand) 14%,var(--ac-bg))}.ac-context-role.note{background:color-mix(in srgb,var(--ac-v-accent) 55%,var(--ac-bg))}.ac-context-role.assistant{background:color-mix(in srgb,var(--ac-v-sky) 16%,var(--ac-bg))}
 .ac-context-preview{flex:1;min-width:0;font-size:12px;line-height:1.5;color:var(--ac-fg);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .ac-rerun{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ac-result{display:flex;flex-direction:column;gap:8px;padding:12px 14px;min-height:220px;max-height:560px;flex:1}
+.ac-result{display:flex;flex-direction:column;gap:8px;padding:12px 14px;min-height:150px;max-height:560px;flex:1}
+/* a result read as content sizes to what it holds; cards in a row still share one height */
+.ac-card:has(>.ac-result){min-height:0}
 .ac-result-head{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
 .ac-result-head>.ac-copy{margin-left:auto}
 .ac-grid:has(.ac-result){align-items:stretch}

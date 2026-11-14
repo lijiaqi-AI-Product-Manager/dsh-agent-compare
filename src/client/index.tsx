@@ -368,7 +368,7 @@ function CandidateCard({ run, c, revealed, picked, busy, act, device, compact, h
         )}
         {revealed && c.summary && <div className="ac-summary"><small>{t("候选说明（原文）")}</small>{c.summary}</div>}</details>
         {!!c.verificationHistory?.length && <details className="ac-details"><summary>{t("先前验收记录 · ")}{c.verificationHistory.length}{t(" 次")}</summary><ol>{c.verificationHistory.map((attempt, index) => <li key={index}><b>{attempt.install?.failure?.summary ?? attempt.error?.message.split('\n')[0] ?? t("先前验收未完成")}</b><div className="ac-meta">{t("重试前归档于 ")}{when(attempt.recordedAt)} · {attempt.durationMs === undefined ? t("耗时未知") : fmt(attempt.durationMs)}{attempt.install?.failure?.code ? ` · ${attempt.install.failure.code}` : ''}</div><Checks checks={attempt.checks} /></li>)}</ol></details>}
-        {revealed && c.patchStats && <PatchReview runId={run.runId} label={c.label} />}
+        {revealed && c.patchStats && c.result !== 'answer' && <PatchReview runId={run.runId} label={c.label} />}
       </div>
     </section>
   )
