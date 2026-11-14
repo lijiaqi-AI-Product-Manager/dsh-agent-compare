@@ -139,8 +139,8 @@ export async function startVitePreview(dir: string, opts: { kind?: 'build' | 'de
  */
 export function startStaticPreview(dir: string, entry: string, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<Preview> {
   if (!entry || path.isAbsolute(entry) || entry.split(/[\\/]/).includes('..')) return Promise.reject(new PreviewError('静态页面入口无效', ''))
-  return startHelperPreview(dir, opts, async port => ({
-    argv: [process.execPath, PREVIEW_RUNNER, 'static', '--port', String(port), '--cwd', dir, '--entry', entry],
+  return startHelperPreview(dir, opts, async (port, host) => ({
+    argv: [process.execPath, PREVIEW_RUNNER, 'static', '--port', String(port), '--cwd', dir, '--entry', entry, '--browser-host', host],
     env: helperEnvironment(),
   }))
 }
@@ -172,7 +172,7 @@ function helperEnvironment(): NodeJS.ProcessEnv {
 }
 
 async function startHelperPreview(dir: string, opts: { timeoutMs?: number; signal?: AbortSignal },
-  launch: (port: number) => Promise<{ argv: string[]; env: NodeJS.ProcessEnv; observeStderr?: (chunk: string) => void }>): Promise<Preview> {
+  launch: (port: number, host: string) => Promise<{ argv: string[]; env: NodeJS.ProcessEnv; observeStderr?: (chunk: string) => void }>): Promise<Preview> {
   if (!existsSync(PREVIEW_RUNNER)) throw new PreviewError('预览辅助进程缺失，请重新安装插件', '')
   const timeoutMs = opts.timeoutMs ?? 60_000
   const host = `ac-${randomBytes(16).toString('hex')}.localhost`
@@ -180,7 +180,7 @@ async function startHelperPreview(dir: string, opts: { timeoutMs?: number; signa
   for (let attempt = 0; attempt < 3; attempt++) {
     opts.signal?.throwIfAborted()
     const port = await freePort()
-    const launched = await launch(port)
+    const launched = await launch(port, host)
     const child = startLongRunning(launched.argv, { cwd: dir, env: launched.env })
     const log = new DiagnosticLog(6000)
     let closed = false

@@ -2,6 +2,7 @@
 
 ## 2.1.0
 
+- **Static-preview authority validation.** The built-in read-only server accepts its assigned local hostname and port, plus explicit loopback aliases, and rejects unrelated, missing or duplicate Host headers. Forwarded-host headers do not bypass it; project-provided servers retain their own policies.
 - **Upgrade notes.** Records, settings and routes are unchanged; everything written by 2.0.0 opens as before. One behaviour changes: inside a project that can be built, a version that replies without changing files is now a finished answer instead of a failure. The rest of this release changes how the interface looks and reads, and fixes the problems listed below.
 - **A greeting or a question gets answers, not pages.** The request decides the kind of result, not the folder it was sent from.
   - Before, every request sent from a repository with a runnable project was treated as a change to that project. Sending "你好" there made each version build a greeting into the app, and a version that only replied was marked as failed.
