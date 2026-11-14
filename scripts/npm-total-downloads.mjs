@@ -108,11 +108,12 @@ export function renderTotal(snapshot, theme = 'light', mobile = false) {
 }
 
 export function renderBadge(snapshot) {
-  const value = formatted(snapshot.total), left = 88, right = Math.max(66, value.length * 7 + 18), width = left + right
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="20" role="img" aria-label="npm total downloads: ' + escape(value) + '">' +
+  const label = 'npm download/下载量'
+  const value = formatted(snapshot.total), left = 152, right = Math.max(66, value.length * 7 + 18), width = left + right
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="20" role="img" aria-label="' + escape(label) + ': ' + escape(value) + '">' +
     '<title>npm total download requests: ' + escape(value) + '; ' + escape(snapshot.firstDay + ' through ' + snapshot.asOf + ' UTC') + '</title>' +
     '<clipPath id="r"><rect width="' + width + '" height="20" rx="4"/></clipPath><g clip-path="url(#r)"><rect width="' + left + '" height="20" fill="#5872b5"/><rect x="' + left + '" width="' + right + '" height="20" fill="#e4efff"/></g>' +
-    '<g font-family="Verdana,DejaVu Sans,sans-serif" font-size="11" text-anchor="middle"><text x="' + left/2 + '" y="14" fill="#fff">npm total</text><text x="' + (left+right/2) + '" y="14" fill="#304b8b">' + escape(value) + '</text></g></svg>\n'
+    '<g font-family="Verdana,DejaVu Sans,sans-serif" font-size="11" text-anchor="middle"><text x="' + left/2 + '" y="14" fill="#fff">' + escape(label) + '</text><text x="' + (left+right/2) + '" y="14" fill="#304b8b">' + escape(value) + '</text></g></svg>\n'
 }
 
 export function totalAssets(snapshot) {
