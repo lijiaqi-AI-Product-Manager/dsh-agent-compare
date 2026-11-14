@@ -24,7 +24,7 @@
 
 **New in 2.1.0:**
 - **A greeting or a question gets answers.** The request decides the result, not the folder: say hello or ask a question inside a project that can be built, and each version replies in its own style for a side-by-side comparison instead of building a page; a request to change the project is still implemented.
-- **Brighter, clearer liquid glass.** The blue is lighter; the workspace sits one step deeper than the glass on it, with soft light from the top. Glass comes thin, thick and nearly solid, with a bright rim and a breath of cyan and lilac at its edges, and only the floating action bar blurs what is behind it.
+- **Brighter, clearer liquid glass.** The blue is lighter; the workspace sits one step deeper than the glass on it, with soft light from the top. Glass comes thin, thick and nearly solid, with a bright rim and a breath of cyan and lilac at its edges, and only the floating action bar and settings strip blur what is behind them.
 - **Lighter buttons and text.** Solid blue is kept for the main action, the chosen option and the version letters; other buttons are pale blue glass with blue words in regular weight.
 - **Controls that slide.** **Needs attention only** in the history is a sliding switch; segmented controls sit in a groove, and choosing an option no longer shifts its neighbours. Ticks and selects share one glass style.
 - **Readable everywhere.** Measured glyph by glyph in 19 interface states of each theme: every text is at least 4.5:1. Versions beside each other share one height.
@@ -71,7 +71,7 @@ Try the live pages, compare in the conversation, choose styles and keep your rea
 
 ![四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+![打招呼得到四种回答 / A greeting answered four ways; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ![版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png)
 
@@ -87,7 +87,7 @@ Try the live pages, compare in the conversation, choose styles and keep your rea
 
 [![Fixed-candidate workflow: four live pomodoro pages, two set aside, C picked, the styles revealed and the reasons given](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-A controlled-candidate recording in a real DSH host, from the 2.0.0 release-candidate source with the Chinese interface:
+A controlled-candidate recording in a real DSH host, from the 2.1.0 release-candidate source with the Chinese interface:
 - Four versions each build a pomodoro page in a plain folder, and all four live pages can be used.
 - Two are set aside, and the remaining two move up side by side.
 - The pick reveals every style, with a burst of light and a sweep across the cards.
@@ -96,7 +96,7 @@ A controlled-candidate recording in a real DSH host, from the 2.0.0 release-cand
 
 The video cuts waiting and keeps the rest at the original speed. Local paths are hidden.
 
-[Full video (13 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Full video (28 seconds)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Method and results](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 [Four-step quick start](docs/quickstart.en.md) · [Troubleshooting a run](docs/runs-and-recovery.en.md)
 

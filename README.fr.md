@@ -24,7 +24,7 @@
 
 **Nouveautés de la version 2.1.0 :**
 - **Un bonjour ou une question reçoit des réponses.** C'est la demande qui décide du type de résultat, pas le dossier : dites bonjour ou posez une question dans un projet qui peut être compilé, et chaque version répond dans son propre style pour une comparaison côte à côte, sans construire de page ; une demande de modification du projet est toujours implémentée.
-- **Un verre liquide plus clair et plus lumineux.** Le bleu est plus clair ; l'espace de travail se situe un niveau sous le verre, avec une lumière douce venue du haut. Le verre existe en trois épaisseurs (fin, épais et presque opaque), avec un liseré brillant et une touche de cyan et de lilas sur les arêtes ; seule la barre d'actions flottante floute ce qui se trouve derrière elle.
+- **Un verre liquide plus clair et plus lumineux.** Le bleu est plus clair ; l'espace de travail se situe un niveau sous le verre, avec une lumière douce venue du haut. Le verre existe en trois épaisseurs (fin, épais et presque opaque), avec un liseré brillant et une touche de cyan et de lilas sur les arêtes ; seules la barre d'actions flottante et la barre de réglages floutent ce qui se trouve derrière elles.
 - **Des boutons et un texte plus légers.** Le bleu plein est réservé à l'action principale, à l'option choisie et aux lettres de version ; les autres boutons sont en verre bleu pâle avec un texte bleu en graisse normale.
 - **Des contrôles qui glissent.** Le filtre « Needs attention only » de l'historique est un interrupteur à glissière ; les contrôles segmentés reposent dans une rainure et choisir une option ne décale plus ses voisines. Cases à cocher et listes partagent le même style de verre.
 - **Lisible partout.** Contraste mesuré glyphe par glyphe dans 19 états de l'interface par thème : tout le texte atteint au moins 4.5:1. Les versions côte à côte ont la même hauteur.
@@ -58,7 +58,7 @@ Captures réelles de DSH avec des candidats contrôlés. La couverture et le par
 
 ![四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+![打招呼得到四种回答 / A greeting answered four ways; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ![版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png)
 
@@ -74,11 +74,11 @@ Captures réelles de DSH avec des candidats contrôlés. La couverture et le par
 
 [![Exemple à candidats fixes : quatre pages pomodoro en direct, deux mises de côté, C choisie et les styles révélés](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Enregistrement à candidats fixes dans un hôte DSH réel, à partir du code candidat de la 2.0.0, avec l'interface chinoise. Quatre versions créent une page pomodoro dans un dossier ordinaire, et les quatre pages en direct sont utilisables. Deux sont mises de côté, les autres se comparent côte à côte, le choix révèle chaque style et le résultat est enregistré dans un nouveau dossier avant de reprendre la conversation. La vidéo coupe les attentes et garde le reste à vitesse normale. Les chemins locaux sont masqués.
+Enregistrement à candidats fixes dans un hôte DSH réel, à partir du code candidat de la 2.1.0, avec l'interface chinoise. Quatre versions créent une page pomodoro dans un dossier ordinaire, et les quatre pages en direct sont utilisables. Deux sont mises de côté, les autres se comparent côte à côte, le choix révèle chaque style et le résultat est enregistré dans un nouveau dossier avant de reprendre la conversation. La vidéo coupe les attentes et garde le reste à vitesse normale. Les chemins locaux sont masqués.
 
 Après le choix, deux raisons (mise en page, plus simple) sont cochées ; elles parviennent à la requête suivante de la conversation principale.
 
-[Vidéo complète (13 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Vidéo complète (28 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <details>
 <summary>English answers · 390 px</summary>

@@ -10,11 +10,12 @@
   - Answers are compared side by side with the existing answer cards. One version may answer while another changes the project; each card says which. An answer has no files, so it cannot be adopted; the picked answer still enters the main conversation's memory.
   - In a project that can be built, a reply without file changes counts only when that version finished normally. A version cut off by the time limit, stopped midway, or silent still fails, as before.
   - While a version is still working, its card no longer promises a page; it says the result may be a page, files or an answer.
+  - After the reveal, an answer no longer offers to show a code change, and cards that hold answers or written files size to their content instead of keeping the height reserved for a live page.
 - **Brighter liquid glass.** The blue is lighter and the glass reads as glass:
   - the workspace sits one step deeper than the surfaces on it, with soft light sinking in from the top, so translucent panels have something to show through;
   - glass comes in three thicknesses: thin panels, thicker cards that keep text easy to read, and nearly solid fields. The floating action bar is nearly solid too, so its text stays readable over a candidate page of any colour;
   - edges carry the material: a bright rim on top, a breath of cyan and lilac where light bends, and a soft blue shadow instead of a grey one;
-  - only the bars that float over other content blur what is behind them.
+  - only the action bar and the settings strip, which float over other content, blur what is behind them.
 - **Lighter controls.** Solid blue is kept for the main action, the chosen option and the version letters. Other buttons are pale blue glass with blue words, and blue text is set in regular weight instead of bold.
 - **Sliding controls.**
   - The history filter **Needs attention only** is a switch: a bead that slides in a groove. It is announced as a switch and still works with Space.

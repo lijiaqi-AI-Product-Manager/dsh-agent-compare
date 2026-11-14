@@ -24,7 +24,7 @@
 
 **Neu in 2.1.0:**
 - **Ein Gruß oder eine Frage bekommt Antworten.** Die Anfrage bestimmt die Art des Ergebnisses, nicht der Ordner: Wer in einem baubaren Projekt grüßt oder eine Frage stellt, erhält von jeder Version eine Antwort im eigenen Stil zum Vergleich nebeneinander, statt einer gebauten Seite; eine Bitte um Änderungen am Projekt wird weiterhin umgesetzt.
-- **Helleres, klareres Flüssigglas.** Das Blau ist heller; die Arbeitsfläche liegt eine Stufe tiefer als das Glas, mit weichem Licht von oben. Glas gibt es in drei Stärken (dünn, dick und fast deckend), mit hellem Rand und einem Hauch Cyan und Flieder an den Kanten; nur die schwebende Aktionsleiste zeichnet weich, was hinter ihr liegt.
+- **Helleres, klareres Flüssigglas.** Das Blau ist heller; die Arbeitsfläche liegt eine Stufe tiefer als das Glas, mit weichem Licht von oben. Glas gibt es in drei Stärken (dünn, dick und fast deckend), mit hellem Rand und einem Hauch Cyan und Flieder an den Kanten; nur die schwebende Aktionsleiste und die Einstellungsleiste zeichnen weich, was hinter ihnen liegt.
 - **Leichtere Schaltflächen und Schrift.** Volles Blau bleibt der Hauptaktion, der gewählten Option und den Versionsbuchstaben vorbehalten; andere Schaltflächen sind blassblaues Glas mit blauer Schrift in normaler Stärke.
 - **Gleitende Bedienelemente.** Der Verlaufsfilter „Needs attention only“ ist ein Schiebeschalter; Segmentschalter sitzen in einer Rille, und die Wahl einer Option verschiebt ihre Nachbarn nicht mehr. Kontrollkästchen und Auswahllisten teilen sich einen Glasstil.
 - **Überall lesbar.** Kontrast Glyphe für Glyphe in 19 Zuständen der Oberfläche je Thema gemessen: jeder Text erreicht mindestens 4.5:1. Nebeneinander stehende Versionen sind gleich hoch.
@@ -58,7 +58,7 @@ Echte DSH-Aufnahmen mit kontrollierten Kandidaten. Titelbild und Ablaufgrafik si
 
 ![四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+![打招呼得到四种回答 / A greeting answered four ways; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ![版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png)
 
@@ -74,11 +74,11 @@ Echte DSH-Aufnahmen mit kontrollierten Kandidaten. Titelbild und Ablaufgrafik si
 
 [![Beispiel mit festen Kandidaten: vier laufende Pomodoro-Seiten, zwei beiseitegelegt, C gewählt und die Stile aufgedeckt](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Aufzeichnung mit festen Kandidaten in einem echten DSH-Host, aus dem Quellstand des 2.0.0-Kandidaten und mit chinesischer Oberfläche. Vier Versionen bauen in einem gewöhnlichen Ordner je eine Pomodoro-Seite, und alle vier laufenden Seiten lassen sich bedienen. Zwei werden beiseitegelegt, die übrigen stehen nebeneinander, die Wahl deckt jeden Stil auf, und das Ergebnis wird in einem neuen Ordner gespeichert, bevor das Gespräch weitergeht. Das Video lässt Wartezeiten aus und zeigt den Rest in normaler Geschwindigkeit. Lokale Pfade sind ausgeblendet.
+Aufzeichnung mit festen Kandidaten in einem echten DSH-Host, aus dem Quellstand des 2.1.0-Kandidaten und mit chinesischer Oberfläche. Vier Versionen bauen in einem gewöhnlichen Ordner je eine Pomodoro-Seite, und alle vier laufenden Seiten lassen sich bedienen. Zwei werden beiseitegelegt, die übrigen stehen nebeneinander, die Wahl deckt jeden Stil auf, und das Ergebnis wird in einem neuen Ordner gespeichert, bevor das Gespräch weitergeht. Das Video lässt Wartezeiten aus und zeigt den Rest in normaler Geschwindigkeit. Lokale Pfade sind ausgeblendet.
 
 Nach der Wahl werden zwei Gründe (Layout, einfacher) angetippt; sie erreichen die nächste Anfrage im Hauptgespräch.
 
-[Vollständiges Video (13 Sekunden)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Bedingungen und Ergebnisse](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Vollständiges Video (28 Sekunden)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Bedingungen und Ergebnisse](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <details>
 <summary>English answers · 390 px</summary>

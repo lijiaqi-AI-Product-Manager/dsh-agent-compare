@@ -24,7 +24,7 @@
 
 **Novidades da versão 2.1.0:**
 - **Uma saudação ou uma pergunta recebe respostas.** Quem decide o tipo de resultado é o pedido, não a pasta: cumprimente ou pergunte dentro de um projeto que pode ser compilado e cada versão responde no próprio estilo para comparação lado a lado, sem construir uma página; um pedido de mudança no projeto continua sendo implementado.
-- **Vidro líquido mais claro e luminoso.** O azul ficou mais claro; a área de trabalho fica um nível abaixo do vidro, com luz suave vinda de cima. O vidro tem três espessuras (fino, grosso e quase sólido), com borda brilhante e um toque de ciano e lilás nas arestas; só a barra de ações flutuante desfoca o que está atrás.
+- **Vidro líquido mais claro e luminoso.** O azul ficou mais claro; a área de trabalho fica um nível abaixo do vidro, com luz suave vinda de cima. O vidro tem três espessuras (fino, grosso e quase sólido), com borda brilhante e um toque de ciano e lilás nas arestas; só a barra de ações flutuante e a barra de configurações desfocam o que está atrás.
 - **Botões e texto mais leves.** O azul sólido fica reservado para a ação principal, a opção escolhida e as letras das versões; os demais botões são de vidro azul-claro com texto azul em peso normal.
 - **Controles que deslizam.** O filtro "Needs attention only" do histórico é um interruptor deslizante; os controles segmentados ficam em uma ranhura, e escolher uma opção não desloca mais as vizinhas. Caixas de seleção e listas usam o mesmo estilo de vidro.
 - **Legível em todo lugar.** Contraste medido glifo a glifo em 19 estados da interface por tema: todo texto tem pelo menos 4.5:1. Versões lado a lado têm a mesma altura.
@@ -58,7 +58,7 @@ Capturas reais do DSH com candidatos controlados. A capa e o fluxo são ilustra�
 
 ![四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+![打招呼得到四种回答 / A greeting answered four ways; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ![版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png)
 
@@ -74,11 +74,11 @@ Capturas reais do DSH com candidatos controlados. A capa e o fluxo são ilustra�
 
 [![Exemplo com candidatos fixos: quatro páginas pomodoro ao vivo, duas deixadas de lado, C escolhida e os estilos revelados](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Gravação com candidatos fixos em um host DSH real, a partir do código candidato da 2.0.0, com interface em chinês. Quatro versões criam uma página pomodoro numa pasta comum, e as quatro páginas ao vivo podem ser usadas. Duas são deixadas de lado, o restante fica lado a lado, a escolha revela cada estilo e o resultado é salvo numa pasta nova antes de continuar a conversa. O vídeo corta a espera e mantém o restante em velocidade normal. Caminhos locais estão ocultos.
+Gravação com candidatos fixos em um host DSH real, a partir do código candidato da 2.1.0, com interface em chinês. Quatro versões criam uma página pomodoro numa pasta comum, e as quatro páginas ao vivo podem ser usadas. Duas são deixadas de lado, o restante fica lado a lado, a escolha revela cada estilo e o resultado é salvo numa pasta nova antes de continuar a conversa. O vídeo corta a espera e mantém o restante em velocidade normal. Caminhos locais estão ocultos.
 
 Depois da escolha, dois motivos (layout e mais simples) são marcados e chegam ao próximo pedido da conversa principal.
 
-[Vídeo completo (13 segundos)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Condições e resultados](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Vídeo completo (28 segundos)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Condições e resultados](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <details>
 <summary>English answers · 390 px</summary>
