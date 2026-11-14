@@ -11,7 +11,11 @@ export declare const BALANCED: Strategy;
  * Where the candidate works. `folder`: a private, empty directory (the user
  * started from a folder outside Git). `repository`: a copy of the user's
  * repository; `projectPath` names the project directory in it, and `answers`
- * says the project has nothing to run, so a reply alone is a valid result.
+ * says the project has nothing to run.
+ *
+ * In every scope the task decides the kind of result: a greeting or a
+ * question is answered in words and changes nothing, even inside a project
+ * that could be built and served.
  */
 export type PromptScope = {
     readonly kind: 'folder';

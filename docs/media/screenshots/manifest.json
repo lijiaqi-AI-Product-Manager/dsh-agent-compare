@@ -1,24 +1,24 @@
 {
   "schema": "agentcompare.screenshots/v1",
-  "capturedAt": "2026-11-10T11:47:00.379Z",
-  "packageVersion": "2.0.0",
-  "sourceCommit": "817f7e570d1eae3491a5f9477f7dd83f950d364d",
-  "packageArchiveSha256": "c5abfc6850a2d1592f4666a5d118c8467edbaefaa570537ac1f1fd9d392668b1",
-  "archiveNote": "Recorded from this 2.0.0 candidate installed in an isolated test profile. Later release commits update documentation and media; runtime files are compared before publication.",
+  "capturedAt": "2026-11-14T14:57:37.542Z",
+  "packageVersion": "2.1.0",
+  "sourceCommit": "2b5c9920378b8414dfa1449033808385c30f55c8",
+  "packageArchiveSha256": "804d302ce8e4d018664d5c5744b09eb4d78ec0ed1c1222e33fa44ffbcb363e8b",
+  "archiveNote": "Recorded from this commit's build, packed as a uniquely versioned development archive and installed in an isolated test profile; all 95 installed runtime files matched that captured build byte for byte. These captures demonstrate the interface at the recorded commit. Later static-preview authority and English phone-action layout fixes are verified separately and are not evidenced by these images.",
   "hostVersion": "0.2.2-rc.1",
-  "scenario": "Controlled candidates; four independently interactive pages, a blind pick and a save into a new folder. Save undo, English answers, phone interaction and main-conversation context were separately verified in the same recording. No external model request.",
+  "scenario": "Controlled candidates; four independently interactive pages in a blind comparison, two set aside, a pick with reasons and a save into a new folder. No external model request.",
   "privatePathsHidden": true,
   "captionsAdded": true,
   "files": [
     {
       "path": "docs/media/screenshots/11-live-comparison.png",
-      "bytes": 96117,
-      "sha256": "46c078573aa253eb62bec3fd32714bbeccfdce0546d41c584ab39c356dee70cd"
+      "bytes": 88608,
+      "sha256": "8a629093db8dad8f8af578001427ea750346bf97ce5bbebd12c343bfc919a9c7"
     },
     {
       "path": "docs/media/screenshots/12-reviewed-adoption.png",
-      "bytes": 97119,
-      "sha256": "4151e88e446079a6820199bca1bf95c08e8639da6b18d061da9fa432e138fc8c"
+      "bytes": 105013,
+      "sha256": "305bb434d80274f4aad68ef44641a641625b5c48f0dfe728701e75696c6ddcbe"
     }
   ]
 }

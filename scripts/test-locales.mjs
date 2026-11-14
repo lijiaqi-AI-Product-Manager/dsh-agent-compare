@@ -132,6 +132,15 @@ try {
   check(await page.locator('.ac-card-head').first().evaluate(head => { const label=head.querySelector('.ac-label').getBoundingClientRect(),status=head.querySelector('.ac-label + .ac-pill').getBoundingClientRect();return Math.abs(label.top+label.height/2-status.top-status.height/2)<1 }), 'larger platform font metrics must keep the candidate identity beside its status')
   check(await restored.evaluate(img => img.getBoundingClientRect().top + 120 < innerHeight), 'larger status text must preserve initial application visibility without truncating its facts')
   await page.screenshot({ path: path.join(output, 'results-first-font-metrics-en-phone.png') })
+  const widerActionFont = await page.addStyleTag({ content: '.ac-root[lang=en] .ac-bar .ac-btn{letter-spacing:.6px}' })
+  check(await restored.evaluate(img => img.getBoundingClientRect().top + 120 < innerHeight), 'wider action text must retain 120 initial application pixels alongside larger status text')
+  check(await page.getByRole('button', { name: 'Review and adopt A', exact: true }).evaluate(button => {
+    const style = getComputedStyle(button)
+    const edges = ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((sum, property) => sum + parseFloat(style[property]), 0)
+    return button.getBoundingClientRect().height <= 2 * parseFloat(style.lineHeight) + edges + 1
+  }), 'the complete primary action must fit two lines under wider font metrics')
+  await page.screenshot({ path: path.join(output, 'results-first-action-font-en-phone.png') })
+  await widerActionFont.evaluate(style => style.remove())
   await largerStatusFont.evaluate(style => style.remove())
   const adoptionRecord = page.locator('.ac-adoption-record')
   check(await adoptionRecord.locator('summary').first().innerText().then(text => text.includes('Undone') && text.includes('Adoption and recovery record')), 'English compact history must expose its actual undo state')

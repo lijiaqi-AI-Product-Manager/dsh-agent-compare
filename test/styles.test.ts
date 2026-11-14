@@ -47,10 +47,35 @@ describe('style catalog', () => {
 
   it('writes prompts for the number of candidates and for blind or open comparisons', () => {
     const minimal = strategyFor({ id: 'minimal' })
-    expect(candidatePrompt('t', minimal, 'own-root', undefined, { kind: 'repository' }, { candidates: 3, blind: true })).toMatch(/2 other agents implement the same task independently; the user will try all 3 running apps without knowing which is which/)
+    const three = candidatePrompt('t', minimal, 'own-root', undefined, { kind: 'repository' }, { candidates: 3, blind: true })
+    expect(three).toMatch(/one of 3 candidates handling the same task independently[\s\S]*compare all 3 results without knowing which is which/)
+    expect(three).toContain('2 other candidates implement it too, and the user will try all 3 running apps.')
     expect(candidatePrompt('t', minimal, 'own-root', undefined, { kind: 'folder' }, { candidates: 4, blind: false })).toMatch(/one of 4 candidates[\s\S]*look at all 4 results with the style each candidate was given shown beside it/)
     expect(candidatePrompt('t', minimal, 'own-root', undefined, { kind: 'folder' })).toContain('Style: MINIMAL. Keep the result as small and clear as possible.')
-    expect(candidatePrompt('t', minimal, 'own-root')).toContain('Another agent implements the same task independently; the user will try both running apps without knowing which is which')
+    const pair = candidatePrompt('t', minimal, 'own-root')
+    expect(pair).toMatch(/one of 2 candidates[\s\S]*compare both results without knowing which is which/)
+    expect(pair).toContain('Another candidate implements it too, and the user will try both running apps.')
+  })
+
+  it('lets the task, not the folder, decide between a reply and a change', () => {
+    // A greeting sent inside a project that can be built must not become a page.
+    for (const style of STYLES) {
+      const strategy = strategyFor({ id: style.id })
+      const prompt = candidatePrompt('你好', strategy, 'own-root', undefined, { kind: 'repository' }, { candidates: 4, blind: true })
+      expect(prompt).toContain('A greeting, a question')
+      expect(prompt).toContain('reply with the complete answer and change no files. Never turn such a task into a change to the project.')
+      // Both ways of working carry the style: one for a change, one for a reply.
+      expect(prompt).toContain(`When you change files: ${style.project}`)
+      expect(prompt).toContain(`When you only reply: ${style.fresh}`)
+      expect(style.fresh).toMatch(/For an answer/)
+      expect(prompt).toContain('When done, reply with your answer, or, if you changed files, a short summary')
+      expect(prompt.indexOf('First decide what the task needs')).toBeLessThan(prompt.indexOf('Rules:'))
+    }
+    // A custom style has one instruction; it is given once.
+    const custom = candidatePrompt('你好', strategyFor({ id: 'custom', note: '像老朋友' }), 'own-root')
+    expect(custom).not.toContain('When you only reply')
+    expect(custom.match(/Style: CUSTOM/g)).toHaveLength(1)
+    expect(candidatePrompt('你好', strategyFor({ id: 'vibrant' }), 'own-root', undefined, { kind: 'folder' })).toContain('Never turn such a request into a page or a program.')
   })
 })
 

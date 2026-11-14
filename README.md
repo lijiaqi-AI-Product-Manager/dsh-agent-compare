@@ -20,7 +20,14 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **2.0.0 · 正式版。** DSH 桌面端与 Web 端，中英双语。在主对话内比较 2–4 版回答、文件或网页；普通文件夹也能开始，复用已配置模型。
+> **2.1.0 · 正式版。** DSH 桌面端与 Web 端，中英双语。在主对话内比较 2–4 版回答、文件或网页；普通文件夹也能开始，复用已配置模型。
+
+**2.1.0 新增：**
+- **打招呼和提问，得到的是回答。** 要什么结果由请求决定，不由目录决定：在能构建的项目里发「你好」或提一个问题，各版按自己的风格直接回答、并排比较，不再把它做成页面；要它改项目时照常实现。
+- **更亮、更通透的液态玻璃。** 蓝色整体调浅；底色比玻璃深一级，顶部有柔光。玻璃分薄、厚、近实三档，边缘是亮边加一点青与淡紫的折射，只有悬浮在内容之上的操作栏和设置条才模糊背后的内容。
+- **更轻的按钮和文字。** 实心蓝只留给主操作、选中项和版本字母；其余按钮是浅蓝玻璃配蓝字，蓝字不再加粗。
+- **会滑动的控件。** 历史记录的「只看需处理」是滑动开关；分段切换嵌在凹槽里，切换时旁边的选项不再跳动；勾选框和下拉框统一成同一种玻璃样式。
+- **每个字都看得清。** 浅色和深色各 19 个界面状态逐字实测，所有文字对比度不低于 4.5:1；并排的版本等高对齐。
 
 **2.0.0 新增：**
 - **全新蓝色液态玻璃界面。** 极光与星尘背景、玻璃面板、会滑动的玻璃选择器、液体进度球；选中时光粒迸发，揭晓时光束扫过。深色模式、减弱动效与高对比模式都已适配。
@@ -64,7 +71,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 ![四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+![打招呼得到四种回答 / A greeting answered four ways; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ![版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png)
 
@@ -80,7 +87,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 [![固定候选流程示例：4 版番茄钟页面同时实时运行，排除两版后选择 C，揭晓风格并点选理由](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-在真实 DSH 宿主里录制的固定候选演示（2.0.0 发布候选源码，中文界面）：
+在真实 DSH 宿主里录制的固定候选演示（2.1.0 发布候选源码，中文界面）：
 - 在普通文件夹里让 4 版各写一个番茄钟页面，4 个实时页面都能直接操作；
 - 排除两版后，剩下的并排比较；
 - 选择后揭晓每版的风格，光粒迸发、光束扫过卡片；
@@ -89,7 +96,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 视频剪去了等待，保留的部分按原速播放，本地路径已隐藏。
 
-[完整视频（13 秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [演示条件与结果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[完整视频（28 秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [演示条件与结果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 [四步快速上手](docs/quickstart.md) · [运行中遇到问题](docs/runs-and-recovery.md)
 
@@ -109,7 +116,7 @@ AgentCompare 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 安装 npm 包到默认 Web profile（公开发布状态见顶部 npm 徽章）：
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@2.0.0
+dsh plugin --profile web add dsh-agent-compare@2.1.0
 ```
 
 如使用其他自行运行的 profile，请将 `web` 换成实际名称。
@@ -127,7 +134,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile <你的 profile> add ./dsh-agent-compare-2.0.0.tgz
+dsh plugin --profile <你的 profile> add ./dsh-agent-compare-2.1.0.tgz
 ```
 
 重启 DSH 后，在**主对话输入框左下角点 A|B**：

@@ -16,7 +16,17 @@ A|B 不再只限于 Git 仓库根目录下的 Vite 项目。打开任何目录�
 - 项目在仓库的子目录里（例如 monorepo 的 `apps/web`）时，安装、检查和预览都在这个子目录运行。
 - 不是 Vite 的项目，会以 `PORT` 和 `HOST=127.0.0.1` 运行它的 `dev` 或 `start` 脚本。服务没有在这个端口响应时，这一版按文件比较，不算失败。
 - 静态网页由插件自带的只读服务提供，只能读取副本里的文件，不列目录，也不会跟随指向副本外的链接。
+- 静态预览只接受本次分配的域名和端口，以及同端口的回环地址；其它域名、错误端口、缺失或重复的 Host 不会得到文件。转发请求头不能改变这个限制。项目自己提供的服务仍使用各自的 Host 策略。
 - `package.json` 无法使用时（例如有多个锁文件），这次不安装依赖，并在设置条里说明原因；比较照常进行。
+
+## 只需要回答的请求
+
+要什么样的结果由请求决定，不由目录决定。问候、提问、请它解释或给建议（例如「你好」「这个项目用了什么框架？」），在任何目录里都按回答比较，包括可以构建和预览的项目：
+
+- 各版按自己的风格回答，不改任何文件，也不安装依赖、不构建、不启动预览。
+- 回答并排显示，可以复制；选定的回答写入主对话记忆。回答没有文件可写，所以没有「审查并采用」。
+- 要它动手修改时，在请求里说明要做什么即可。同一次比较里，可以一版给出回答、另一版改了项目，卡片会分别标明。
+- 在可以构建的项目里，没有改文件的回复只有在这一版正常结束时才算回答；被时间上限截断或中途停止的仍算失败，因为它可能是没做完的修改。
 
 ## 不是 Git 仓库的目录
 
@@ -69,6 +79,14 @@ Project details:
 - **Subfolder projects.** A project in a repository subfolder (such as `apps/web`) installs, checks and previews there.
 - **Non-Vite servers.** Non-Vite projects run their `dev` or `start` script with `PORT` and `HOST=127.0.0.1`. A server that does not answer on that port is compared by its files, not failed.
 - **Static pages.** Static pages are served read-only from inside the copy, with no directory listings and no links outside it.
+
+**Static previews.** The built-in read-only server accepts only its assigned browser hostname and port, plus local loopback aliases on that port. Unrelated, missing or duplicate Host headers cannot retrieve files; forwarded-host headers do not change this rule. Project-provided servers retain their own Host policies.
+
+**Requests that only need an answer.** The request decides the kind of result, not the folder. A greeting, a question, or a request to explain or advise is compared as answers in every folder, including a project that can be built and previewed:
+- Each version replies in its own style and changes no files. Nothing is installed, built or served.
+- Answers are shown side by side and can be copied. The picked answer enters the main conversation's memory; an answer has no files, so there is nothing to review and adopt.
+- To have the project changed, say what to build or change. In one comparison, one version may answer while another changes the project; each card says which.
+- In a project that can be built, a reply without file changes counts as an answer only when that version finished normally. One cut off by the time limit or stopped midway still fails, because it may be an unfinished change.
 
 **Outside Git**, both versions work in a private empty folder, and nothing in your folder is read or written.
 - **Answers.** Answers are shown side by side before the pick, and the picked answer enters the main conversation's memory.

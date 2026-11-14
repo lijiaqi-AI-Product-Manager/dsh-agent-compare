@@ -35,6 +35,12 @@ const B = { label: 'B', stage: 'ready', execution: { enforcement: 'partial' }, p
 // A folder outside Git: one version answered in Markdown, the other wrote files with no page.
 const folderRun = { ...base, runId: '0f0f0f0f', task: '写一个统计单词数的小脚本', target: { kind: 'folder', folder: 'D:\\Notes' }, baseline: { dirty: true, repoRoot: 'C:\\Users\\me\\.dsh\\agent-compare\\ws\\0f0f0f0f' }, acceptance: { source: 'defaults', checks: ['browser'], steps: 0, frozenInstall: false, sha256: 'def' }, conversationContext: undefined }
 const folderAnswer = { label: 'A', stage: 'ready', result: 'answer', answer: '## 用一行命令统计\n\n```bash\nwc -w notes.txt\n```\n\n它会输出**单词总数**。也可以分别统计：\n\n| 选项 | 统计内容 |\n|:---|:---|\n| `-w` | 单词 |\n| `-l` | 行数 |\n\n- 中文没有空格分隔，结果按空白切分\n- 多个文件会额外给出合计', timings: done, verdict: { eligible: true, reasons: [], warnings: [] }, checks: [], hasScreenshot: false }
+const greetings = [
+  ['A', '你好！有什么可以帮你的吗？'],
+  ['B', '你好！今天想一起做点什么？\n\n可以是一个还没成形的想法、一段卡住的代码，或者只是聊聊这个项目接下来往哪走。'],
+  ['C', '你好。'],
+  ['D', '你好呀～ 👋 很高兴见到你！\n\n需要我帮你做点什么吗？写代码、改页面、出主意，都可以直接说～'],
+].map(([label, answer]) => ({ label, stage: 'ready', result: 'answer', answer, timings: { preparing: t(9, 8), generating: t(8, 3), sealing: t(3, 2) }, generation: { ended: 'completed' }, verdict: { eligible: true, reasons: [], warnings: [] }, checks: [], hasScreenshot: false, usage: { kind: 'reported', totalTokens: 1280 } }))
 const folderFiles = { label: 'B', stage: 'ready', result: 'files', resultFiles: ['README.md', 'count_words.py'], timings: done, verdict: { eligible: true, reasons: [], warnings: [] }, checks: [], hasScreenshot: false }
 const strat = { A: { strategy: { id: 'conservative', title: '稳妥 · Conservative' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '在现有列表上方加了搜索框、分类按钮和清空按钮，沿用原有样式；手机上筛选区换行。' }, B: { strategy: { id: 'bold', title: '大胆 · Bold' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '重做了列表顶部：分类改为可横向滚动的标签，搜索框吸顶。' }, C: { strategy: { id: 'minimal', title: '极简 · Minimal' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '只保留搜索框和一个清空链接，分类收进下拉框。' }, D: { strategy: { id: 'vibrant', title: '活力 · Vibrant' }, actualRoute: { provider: 'deepseek', model: 'deepseek-chat' }, summary: '用彩色分类标签和轻微的弹跳反馈，搜索框带动画占位。' } }
 // Three and four candidates: C and D are live pages too.
@@ -83,6 +89,11 @@ const states = {
   'three-revealed': [{ ...base, runId: '3c3c3c3c', state: 'revealed', checksFavoured: 'C', choice: { pick: 'C' }, revealedAt: now, candidates: [A, B, C].map(c => ({ ...c, ...strat[c.label] })) }],
   folder: [{ ...folderRun, state: 'judging', candidates: [folderAnswer, folderFiles] }],
   'folder-answer': [{ ...folderRun, state: 'revealed', choice: { pick: 'A' }, revealedAt: now, candidates: [{ ...folderAnswer, ...strat.A }, { ...folderFiles, ...strat.B }] }],
+  // A greeting sent inside a project that can be built: four replies, nothing built.
+  'project-answers': [{ ...base, runId: '9e9e9e9e', task: '你好', conversationContext: undefined, state: 'judging', candidates: greetings }],
+  'project-answers-revealed': [{ ...base, runId: '9f9f9f9f', task: '你好', conversationContext: undefined, state: 'revealed', choice: { pick: 'D', reasons: ['wording'] }, revealedAt: now, candidates: greetings.map(c => ({ ...c, ...strat[c.label], summary: undefined })) }],
+  // One version replied and the other changed the project.
+  'project-mixed': [{ ...base, runId: '9d9d9d9d', task: '这个列表为什么没有搜索？能加一个吗', state: 'judging', checksFavoured: 'B', candidates: [{ ...greetings[0], answer: '列表目前只渲染全部商品，没有过滤状态。\n\n要加搜索，需要三处改动：\n\n1. 一个受控输入框保存关键词\n2. 渲染前按名称过滤\n3. 关键词为空时显示全部\n\n需要我直接改的话，再发一次并说明要改即可。' }, { ...A, label: 'B', previewUrl: 'http://127.0.0.1:4318/b' }] }],
   'folder-start': [],
   'undo-recovery': [{ ...base, state: 'recovery', choice: { pick: 'A' }, adoption: { state: 'needs-recovery', mode: 'worktree', transferDirection: 'undo', retainedDirectory: 'D:/Projects/demo-shop/.agent-compare-transfer-1234567890abcdef1234567890abcdef', message: '撤销过程中宿主停止了。可以回退未完成的撤销，或保留当前文件。' }, candidates: [{ ...A, ...strat.A, previewUrl: undefined }, { ...B, ...strat.B, previewUrl: undefined }] }],
 }

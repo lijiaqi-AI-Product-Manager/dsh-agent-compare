@@ -7,8 +7,9 @@ import type { Strategy } from './types.ts';
  * (look), and what it puts first (focus). Every style still has to deliver
  * every requirement of the task; only the direction differs.
  *
- * `project` applies to a copy of the user's project; `fresh` to a request
- * that starts from an empty folder or may be answered in words.
+ * `project` applies to a change made in a copy of the user's project; `fresh`
+ * to a request that starts from an empty folder, and to any request that is
+ * answered in words, wherever it was asked.
  */
 export type StyleId = 'conservative' | 'bold' | 'minimal' | 'polished' | 'vibrant' | 'friendly' | 'rigorous' | 'lean' | 'balanced';
 export type StyleGroup = 'approach' | 'look' | 'focus' | 'neutral';

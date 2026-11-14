@@ -390,7 +390,7 @@ export class Comparer {
         label: c.label,
         cwd: dir,
         prompt: candidatePrompt(record.task, c.strategy, record.isolation, record.conversationContext?.text,
-          record.target ? { kind: 'folder' } : { kind: 'repository', ...(record.baseline.projectPath ? { projectPath: record.baseline.projectPath } : {}), answers: acceptsAnswers(record) },
+          record.target ? { kind: 'folder' } : { kind: 'repository', ...(record.baseline.projectPath ? { projectPath: record.baseline.projectPath } : {}), answers: nothingToRun(record) },
           { candidates: record.candidates.length, blind: record.blind !== false }),
         route: c.route,
         signal: AbortSignal.any([signal, budget]),
@@ -448,8 +448,10 @@ export class Comparer {
     if (!c.ownerToken) throw new StageFailure('sealing', '候选缺少副本归属凭据，拒绝封存')
     const copy = { repo, owner: { runId: record.runId, label: c.label, token: c.ownerToken }, yarnModern: record.acceptance.runtime.yarnModern }
     const change = await captureChange(dir, record.baseline.snapshotCommit, `agent-compare candidate ${record.runId}/${c.label}`, copy)
-    // Where the baseline has nothing to run, a complete reply is a result of its own.
-    const answer = change.touched.length === 0 && acceptsAnswers(record) && (c.summary ?? '').trim() !== ''
+    // A reply that changed nothing is a result of its own: the task was a
+    // greeting or a question. Inside a project that could be built, only a
+    // reply the agent finished counts; one cut short may be an unfinished change.
+    const answer = change.touched.length === 0 && (c.summary ?? '').trim() !== '' && (nothingToRun(record) || c.generation?.ended === 'completed')
     if (change.touched.length === 0 && !answer) {
       // The agent's own account is the only clue to why (e.g. sandbox denials); show its start.
       const why = (c.summary ?? '').replace(/```[\s\S]*?```/g, '').trim().slice(0, 600)
@@ -1673,11 +1675,10 @@ function projectDirectory(root: string, projectPath: string | undefined): string
 }
 
 /**
- * Whether a reply without written files counts as a result: the run started
- * from a folder, or its baseline has no shared commands to run (no web
- * project whose implementation would be expected).
+ * Whether the baseline has nothing to build or serve: the run started from a
+ * folder, or its project has no shared commands to run.
  */
-function acceptsAnswers(record: RunRecord): boolean {
+function nothingToRun(record: RunRecord): boolean {
   return record.target !== undefined || record.acceptance.checks.commands.length === 0
 }
 

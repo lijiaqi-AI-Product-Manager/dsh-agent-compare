@@ -30,7 +30,7 @@ const TYPES: Record<string, string> = {
   '.wasm': 'application/wasm', '.pdf': 'application/pdf',
 }
 
-interface Options { mode: 'static' | 'script'; port: number; cwd: string; entry?: string; shell: boolean; command: string[] }
+interface Options { mode: 'static' | 'script'; port: number; cwd: string; entry?: string; browserHost?: string; shell: boolean; command: string[] }
 
 function parse(argv: string[]): Options {
   const [mode, ...rest] = argv
@@ -46,10 +46,12 @@ function parse(argv: string[]): Options {
     if (key === '--port') options.port = Number(value)
     else if (key === '--cwd') options.cwd = value
     else if (key === '--entry') options.entry = value
+    else if (key === '--browser-host') options.browserHost = value.toLowerCase()
     else throw new Error(`unknown option ${key}`)
   }
   if (!Number.isSafeInteger(options.port) || options.port! < 1 || options.port! > 65535) throw new Error('invalid --port')
   if (!options.cwd || !path.isAbsolute(options.cwd)) throw new Error('--cwd must be an absolute directory')
+  if (options.browserHost !== undefined && !/^ac-[0-9a-f]{32}\.localhost$/.test(options.browserHost)) throw new Error('invalid --browser-host')
   if (mode === 'script' && options.command!.length === 0) throw new Error('script mode needs a command after --')
   return options as Options
 }
@@ -81,8 +83,17 @@ function resolveRequest(root: string, entry: string, pathname: string): string |
 function serveStatic(options: Options): void {
   const root = fs.realpathSync.native(options.cwd)
   const entry = options.entry && !path.isAbsolute(options.entry) ? options.entry : 'index.html'
+  const authority = (host: string): string => options.port === 80 ? host : `${host}:${options.port}`
+  const allowedHosts = new Set(['127.0.0.1', 'localhost', ...(options.browserHost ? [options.browserHost] : [])].map(authority))
   const server = http.createServer((request, response) => {
     const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }
+    // A loopback listener alone does not reject requests sent through another
+    // domain. Bind file access to this preview's authority, never forwarded data.
+    const hosts = request.rawHeaders.filter((value, index) => index % 2 === 0 && value.toLowerCase() === 'host')
+    if (hosts.length !== 1 || typeof request.headers.host !== 'string' || !allowedHosts.has(request.headers.host.toLowerCase())) {
+      response.writeHead(403, { ...headers, 'content-type': 'text/plain; charset=utf-8' }).end('Forbidden host')
+      return
+    }
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       response.writeHead(405, { ...headers, allow: 'GET, HEAD' }).end()
       return

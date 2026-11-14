@@ -47,8 +47,9 @@ export function verdictOf(c: Candidate, acceptance: Acceptance): Verdict {
   }
   const browser = c.checks?.find((k) => k.name === 'browser')
   const scripted = acceptance.checks.browser?.steps?.length || acceptance.checks.browser?.expectSelector || acceptance.checks.browser?.expectText
-  // An answer, or files with nothing to serve, has no page to load; only a scripted page acceptance expects one.
-  const pageExpected = c.result === undefined || !!scripted
+  // An answer changed nothing, so there is no page of its own to accept. Files
+  // with nothing to serve have no page to load either; only a scripted page acceptance expects one of them.
+  const pageExpected = c.result === undefined || (c.result === 'files' && !!scripted)
   if (acceptance.checks.browser !== undefined && pageExpected && (browser === undefined || browser.outcome === 'skipped')) {
     if (scripted) reasons.push('页面验收没有运行')
     else warnings.push(`页面加载检查没有运行${browser?.reason ? `（${browser.reason}）` : ''}`)
