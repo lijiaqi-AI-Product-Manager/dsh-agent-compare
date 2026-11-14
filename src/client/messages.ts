@@ -399,7 +399,7 @@ export const messages: Readonly<Record<string, string>> = {
   "已读取当前服务端提供的记录": "Loaded records from the current service",
   "服务端尚未更新。请重启 DSH 后使用全部对话、搜索与翻页；以下仍是旧服务端返回的记录。": "The running service is older. Restart DSH to use all-conversation scope, search and pagination. Records returned by the older service are shown below.",
   "有": " ",
-  "条记录无法安全载入。这些记录保持只读，原始文件已保留；可勾选“只看需处理”查看原因。": " records could not be loaded safely. They are read-only and their original files are retained. Select “Needs attention only” to inspect the cause.",
+  "条记录无法安全载入。这些记录保持只读，原始文件已保留；可打开“只看需处理”查看原因。": " records could not be loaded safely. They are read-only and their original files are retained. Turn on “Needs attention only” to inspect the cause.",
   "没有匹配的记录。换个关键词，或清空搜索查看已有比较。": "No matching records. Try another keyword or clear the search.",
   "没有需处理的记录。取消筛选可以查看其它比较。": "No records need attention. Remove the filter to view other comparisons.",
   "当前对话还没有比较。切换到“全部对话”可以查看以前的结果。": "This conversation has no comparisons. Select “All conversations” to view previous results.",

@@ -16,9 +16,11 @@ The first and last images are product illustrations. The six interface captures 
 
 ![四版页面直接操作 / Four independently interactive pages](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-## 3. 主对话内比较、选择与继续 / Compare, choose and continue in the conversation
+## 3. 打招呼得到四种回答 / A greeting answered four ways
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+在可以构建的 Vite 项目里发「你好」，四版按各自风格直接回答，不改文件、不构建。/ "你好" (hello) sent from a Vite project that can be built: four versions answer in their own styles, with no files changed and nothing built.
+
+![打招呼得到四种回答 / A greeting answered four ways](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ## 4. 版本、风格与上下文 / Versions, styles and context
 
@@ -47,4 +49,4 @@ The first and last images are product illustrations. The six interface captures 
 - [GitHub Stars](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers) and [npm downloads](https://www.npmjs.com/package/dsh-agent-compare) are independent live statistics. README badges query their respective sources; catalog cards may have their own refresh schedules. A missing value means unknown, not zero. Downloads count package requests, not unique users.
 - Publishing a repository update does not prove a downstream catalog has refreshed. The public image URLs and each displayed listing must be checked separately.
 
-Gallery runtime: 2.0.0, DSH 0.2.2-rc.1, Edge 156; 95 installed runtime files match source cb38412. Original live/save/English captures: 2026-11-10; additional conversation/settings/history captures: 2026-11-11 local date. Existing results were reused without new external-model calls. Local paths are hidden and capture captions are added.
+Gallery runtime: 2.1.0, DSH 0.2.2-rc.1, Edge 157; 95 installed runtime files match source 2b5c992. All six interface captures were taken on 2026-11-14 (local date) with controlled candidates and no external-model calls. Local paths are hidden and capture captions are added.

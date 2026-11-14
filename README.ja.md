@@ -20,7 +20,14 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **2.0.0 · 正式版。** DSH Desktop と Web、中国語・英語の画面に対応。どのフォルダーからでも、メイン会話内で回答・ファイル・Web ページを比較できます。設定済みモデルを再利用します。
+> **2.1.0 · 正式版。** DSH Desktop と Web、中国語・英語の画面に対応。どのフォルダーからでも、メイン会話内で回答・ファイル・Web ページを比較できます。設定済みモデルを再利用します。
+
+**2.1.0 の新機能：**
+- **あいさつや質問には回答が返ります。** 結果の種類はフォルダーではなく依頼の内容で決まります。ビルドできるプロジェクトの中で「こんにちは」や質問を送ると、各バージョンがそれぞれのスタイルで回答し、ページを作らずに並べて比較できます。プロジェクトの変更を頼んだ場合は、これまでどおり実装します。
+- **より明るく、透明感のあるリキッドグラス。** 青を全体に明るくしました。作業面はガラスより一段深く、上から柔らかな光が差します。ガラスは薄い・厚い・ほぼ不透明の三段階で、縁には明るいリムと淡いシアンとライラックの屈折が入ります。背後をぼかすのは、浮いている操作バーと設定バーだけです。
+- **軽くなったボタンと文字。** 塗りの青は主操作、選択中の項目、バージョンの文字だけに使います。ほかのボタンは淡い青のガラスに青い文字で、青い文字は太字ではなくなりました。
+- **スライドする操作部品。** 履歴の「Needs attention only」フィルターはスライド式のスイッチです。セグメント切り替えは溝に収まり、選択しても隣の項目が動きません。チェックボックスとセレクトは同じガラスの見た目に統一しました。
+- **すべての文字が読みやすく。** ライトとダークそれぞれ 19 の画面状態で文字ごとに実測し、すべての文字のコントラスト比は 4.5:1 以上です。並んだバージョンは同じ高さにそろいます。
 
 **2.0.0 の新機能：** 一度に **2〜4 バージョン**を比較できます。各バージョンに**スタイル**を指定できます（変更の幅：堅実・大胆／見た目：ミニマル・洗練・活発／優先：使いやすさ・厳密・軽快、または一行の自由記述）。**ブラインド**（選択後に公開）と**公開比較**（最初から表示）を選べます。3〜4 バージョンでは不要な版を**外して**残りを並べて比べられ、カード内で 1〜4 キーを押すとその版に集中できます。
 - **青いリキッドグラスの新しい UI。** オーロラと星屑の背景、ガラスのパネル、選択肢の間を滑るガラスのレンズ、液体の進捗表示。選んだ瞬間に光の粒がはじけ、公開時には光が走ります。ダークモード、視差効果を減らす設定、ハイコントラストに対応。
@@ -51,7 +58,7 @@ AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 ![四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+![打招呼得到四种回答 / A greeting answered four ways; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ![版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png)
 
@@ -67,11 +74,11 @@ AgentCompare は [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 [![4 つのポモドーロページを同時に実行し、2 つを外して C を選び、スタイルを公開する固定候補の例](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-実際の DSH ホストで録画した固定候補の実演です（2.0.0 リリース候補のソース、画面は中国語）。通常のフォルダーで 4 つのバージョンがそれぞれポモドーロのページを作り、4 つのライブページをそのまま操作できます。2 つを外して残りを並べ、選択後に各スタイルを公開し、新しいフォルダーに保存して会話を続けます。待機部分は省略し、それ以外は等速です。ローカルパスは非表示です。
+実際の DSH ホストで録画した固定候補の実演です（2.1.0 リリース候補のソース、画面は中国語）。通常のフォルダーで 4 つのバージョンがそれぞれポモドーロのページを作り、4 つのライブページをそのまま操作できます。2 つを外して残りを並べ、選択後に各スタイルを公開し、新しいフォルダーに保存して会話を続けます。待機部分は省略し、それ以外は等速です。ローカルパスは非表示です。
 
 選択後に理由（レイアウト、よりシンプル）を 2 つ選ぶと、主会話の次のリクエストに伝わります。
 
-[動画全編（13秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [条件と結果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[動画全編（28秒）](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [条件と結果](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <details>
 <summary>English answers · 390 px</summary>
@@ -93,7 +100,7 @@ Node 26.13.0 と npm 12.2.2 が開発基準です。公式の最新 DSH パッ�
 npm パッケージを既定の Web プロファイルに追加します。公開状態は上部の npm バッジで確認できます。
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@2.0.0
+dsh plugin --profile web add dsh-agent-compare@2.1.0
 ```
 
 別の自己管理プロファイルを使う場合は、`web` を実際の名前に置き換えてください。
@@ -110,7 +117,7 @@ npm pack
 `<your-profile>` を実際に使っているプロファイル名に置き換えます。
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.1.0.tgz
 ```
 
 DSH を再起動します。同じ記録を使う古いプラグインの実行は、更新前に終了してください。旧版と新版による同時変更はサポートしません。

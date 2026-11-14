@@ -1,10 +1,34 @@
 # Changelog
 
-## Unreleased
+## 2.1.0
 
+- **Upgrade notes.** Records, settings and routes are unchanged; everything written by 2.0.0 opens as before. One behaviour changes: inside a project that can be built, a version that replies without changing files is now a finished answer instead of a failure. The rest of this release changes how the interface looks and reads, and fixes the problems listed below.
+- **A greeting or a question gets answers, not pages.** The request decides the kind of result, not the folder it was sent from.
+  - Before, every request sent from a repository with a runnable project was treated as a change to that project. Sending "你好" there made each version build a greeting into the app, and a version that only replied was marked as failed.
+  - Now each version first decides what the request needs. A greeting, a question, or a request to explain, advise, compare or review is answered in that version's style and changes no files; nothing is installed, built or served for it. A request to build, change or fix something is implemented as before.
+  - Every style says how it answers as well as how it builds, so the same question reads differently in each version: plain and calm for Conservative, a fresh angle for Bold, the fewest words for Minimal, warm and lively for Vibrant.
+  - Answers are compared side by side with the existing answer cards. One version may answer while another changes the project; each card says which. An answer has no files, so it cannot be adopted; the picked answer still enters the main conversation's memory.
+  - In a project that can be built, a reply without file changes counts only when that version finished normally. A version cut off by the time limit, stopped midway, or silent still fails, as before.
+  - While a version is still working, its card no longer promises a page; it says the result may be a page, files or an answer.
+  - After the reveal, an answer no longer offers to show a code change, and cards that hold answers or written files size to their content instead of keeping the height reserved for a live page.
+- **Brighter liquid glass.** The blue is lighter and the glass reads as glass:
+  - the workspace sits one step deeper than the surfaces on it, with soft light sinking in from the top, so translucent panels have something to show through;
+  - glass comes in three thicknesses: thin panels, thicker cards that keep text easy to read, and nearly solid fields. The floating action bar is nearly solid too, so its text stays readable over a candidate page of any colour;
+  - edges carry the material: a bright rim on top, a breath of cyan and lilac where light bends, and a soft blue shadow instead of a grey one;
+  - only the action bar and the settings strip, which float over other content, blur what is behind them.
+- **Lighter controls.** Solid blue is kept for the main action, the chosen option and the version letters. Other buttons are pale blue glass with blue words, and blue text is set in regular weight instead of bold.
+- **Sliding controls.**
+  - The history filter **Needs attention only** is a switch: a bead that slides in a groove. It is announced as a switch and still works with Space.
+  - The lens of a segmented control sits in a visible groove. Choosing an option or a tab no longer shifts its neighbours.
+  - Message ticks and every select share one glass style and one chevron.
+- **Tidier comparison.** Versions beside each other share one height, and their evidence lines sit on the same row. The action bar floats above the versions as a capsule and catches the light under the pointer. Hairlines between sections are gone; spacing and surfaces separate them.
+- **Readable everywhere.** Text contrast was measured on the rendered interface, glyph by glyph, in 19 interface states of the light theme and of the dark theme, and on the action bar with black, white and red candidate pages scrolled beneath it; every text is at least 4.5:1. This fixes white text on the version letters and the logo, which measured as low as 3.1:1, the Star link in the action bar, small main buttons and the selected tab in the dark theme.
+- **Dark theme.** Glass turns deep blue and the drifting light patches are removed, because on a dark ground they read as smudges. The opacity of the star dust now follows the theme; its animation used to override it.
+- **Phone width.** The workspace sheet is rounded only at the top, so no backdrop shows at its bottom corners.
+- The progress sphere is clearer and holds a lighter liquid.
+- Reduced transparency makes every surface solid, and forced colours fall back to system checkboxes and selects.
+- The settings strip keeps its height while the conversation context preview loads, so its controls no longer jump.
 - Retry a preview on a new port when its startup exits with a raw address-in-use error. The existing three-attempt limit still applies; unrelated startup failures are reported immediately.
-
-- Refresh the interface with a calm medium-light blue palette, blue-grey typography and translucent glass. Restrained gradient highlights, softer halos and liquid reflections add depth without a near-white wash; background stars stay still. Controls, selected labels, progress and pick effects share the palette; keyboard focus remains distinct, and reduced motion and transparency are respected.
 
 ## 2.0.0
 

@@ -20,7 +20,14 @@
 
 <p align="center"><a href="#install">安装 / Install</a> · <a href="#demo">真实演示 / Recorded demo</a></p>
 
-> **2.0.0 · Version stable.** DSH Desktop et Web, avec interface en chinois et en anglais. Comparez réponses, fichiers ou pages web dans la conversation principale depuis tout dossier, avec vos modèles configurés.
+> **2.1.0 · Version stable.** DSH Desktop et Web, avec interface en chinois et en anglais. Comparez réponses, fichiers ou pages web dans la conversation principale depuis tout dossier, avec vos modèles configurés.
+
+**Nouveautés de la version 2.1.0 :**
+- **Un bonjour ou une question reçoit des réponses.** C'est la demande qui décide du type de résultat, pas le dossier : dites bonjour ou posez une question dans un projet qui peut être compilé, et chaque version répond dans son propre style pour une comparaison côte à côte, sans construire de page ; une demande de modification du projet est toujours implémentée.
+- **Un verre liquide plus clair et plus lumineux.** Le bleu est plus clair ; l'espace de travail se situe un niveau sous le verre, avec une lumière douce venue du haut. Le verre existe en trois épaisseurs (fin, épais et presque opaque), avec un liseré brillant et une touche de cyan et de lilas sur les arêtes ; seules la barre d'actions flottante et la barre de réglages floutent ce qui se trouve derrière elles.
+- **Des boutons et un texte plus légers.** Le bleu plein est réservé à l'action principale, à l'option choisie et aux lettres de version ; les autres boutons sont en verre bleu pâle avec un texte bleu en graisse normale.
+- **Des contrôles qui glissent.** Le filtre « Needs attention only » de l'historique est un interrupteur à glissière ; les contrôles segmentés reposent dans une rainure et choisir une option ne décale plus ses voisines. Cases à cocher et listes partagent le même style de verre.
+- **Lisible partout.** Contraste mesuré glyphe par glyphe dans 19 états de l'interface par thème : tout le texte atteint au moins 4.5:1. Les versions côte à côte ont la même hauteur.
 
 **Nouveautés de la version 2.0.0 :** comparez **2, 3 ou 4 versions** à la fois. Chaque version peut recevoir un **style** (ampleur : prudent, audacieux ; apparence : minimaliste, soigné, vivant ; priorité : accessible, rigoureux, léger ; ou une ligne personnalisée). Comparez **à l'aveugle** (styles révélés au choix) ou **à découvert** (styles affichés dès le début). Avec trois ou quatre versions, **mettez de côté** celles que vous écartez pour comparer les autres côte à côte ; dans la carte, les touches 1 à 4 mettent une version au premier plan.
 - **Nouvelle interface en verre liquide bleu.** Aurore et poussière d'étoiles derrière des panneaux de verre, une lentille de verre qui glisse entre les options et une progression liquide ; un éclat de lumière au choix et un balayage lumineux à la révélation. Mode sombre, mouvement réduit et contraste élevé pris en charge.
@@ -51,7 +58,7 @@ Captures réelles de DSH avec des candidats contrôlés. La couverture et le par
 
 ![四版页面直接操作 / Four independently interactive pages; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/02-live-comparison.png)
 
-![主对话内比较、选择与继续 / Compare, choose and continue in the conversation; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
+![打招呼得到四种回答 / A greeting answered four ways; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/03-main-conversation.png)
 
 ![版本、风格与上下文 / Versions, styles and context; controlled candidates in a real DSH host](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/readme/gallery-2.0/04-comparison-settings.png)
 
@@ -67,11 +74,11 @@ Captures réelles de DSH avec des candidats contrôlés. La couverture et le par
 
 [![Exemple à candidats fixes : quatre pages pomodoro en direct, deux mises de côté, C choisie et les styles révélés](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/docs/media/comparison-preview.gif)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4)
 
-Enregistrement à candidats fixes dans un hôte DSH réel, à partir du code candidat de la 2.0.0, avec l'interface chinoise. Quatre versions créent une page pomodoro dans un dossier ordinaire, et les quatre pages en direct sont utilisables. Deux sont mises de côté, les autres se comparent côte à côte, le choix révèle chaque style et le résultat est enregistré dans un nouveau dossier avant de reprendre la conversation. La vidéo coupe les attentes et garde le reste à vitesse normale. Les chemins locaux sont masqués.
+Enregistrement à candidats fixes dans un hôte DSH réel, à partir du code candidat de la 2.1.0, avec l'interface chinoise. Quatre versions créent une page pomodoro dans un dossier ordinaire, et les quatre pages en direct sont utilisables. Deux sont mises de côté, les autres se comparent côte à côte, le choix révèle chaque style et le résultat est enregistré dans un nouveau dossier avant de reprendre la conversation. La vidéo coupe les attentes et garde le reste à vitesse normale. Les chemins locaux sont masqués.
 
 Après le choix, deux raisons (mise en page, plus simple) sont cochées ; elles parviennent à la requête suivante de la conversation principale.
 
-[Vidéo complète (13 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
+[Vidéo complète (28 secondes)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/media/comparison-workflow.mp4) · [Conditions et résultats](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/blob/main/docs/demo.md)
 
 <details>
 <summary>English answers · 390 px</summary>
@@ -93,7 +100,7 @@ La référence de développement est Node 26.13.0 et npm 12.2.2. Les vérificati
 Installez le paquet npm dans le profil Web par défaut. Le badge npm indique son état de publication :
 
 ```bash
-dsh plugin --profile web add dsh-agent-compare@2.0.0
+dsh plugin --profile web add dsh-agent-compare@2.1.0
 ```
 
 Pour un autre profil autogéré, remplacez `web` par son nom réel.
@@ -110,7 +117,7 @@ npm pack
 Remplacez `<your-profile>` par le nom réel de votre profil :
 
 ```bash
-dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.0.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-agent-compare-2.1.0.tgz
 ```
 
 Redémarrez DSH. Avant une mise à jour, terminez les comparaisons actives et fermez les anciennes instances qui partagent leurs fichiers. Les modifications simultanées par plusieurs versions de l'extension ne sont pas prises en charge.

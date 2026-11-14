@@ -73,13 +73,15 @@ describe('candidate prompts by workspace', () => {
     expect(candidatePrompt('x', bold, 'own-root', undefined, { kind: 'folder' })).toContain('Strategy: BOLD')
   })
 
-  it('names the project subfolder and allows answers only where nothing runs', () => {
+  it('names the project subfolder and allows a plain answer in every repository', () => {
     const sub = candidatePrompt('改按钮', conservative, 'own-root', undefined, { kind: 'repository', projectPath: 'apps/web' })
     expect(sub).toContain('`apps/web/`')
-    expect(sub).not.toContain('only asks for an answer')
+    expect(sub).toContain('reply with the complete answer and change no files')
+    expect(sub).toContain('the user will try both running apps')
+    // Where nothing can be built or served, no running app is promised.
     const answers = candidatePrompt('解释一下', conservative, 'own-root', undefined, { kind: 'repository', answers: true })
-    expect(answers).toContain('only asks for an answer')
-    // The default is the long-standing repository prompt.
-    expect(candidatePrompt('改按钮', conservative, 'own-root')).toContain('You are implementing one candidate for a side-by-side comparison')
+    expect(answers).toContain('reply with the complete answer and change no files')
+    expect(answers).not.toContain('running apps')
+    expect(candidatePrompt('改按钮', conservative, 'own-root')).not.toContain('You are implementing one candidate')
   })
 })
