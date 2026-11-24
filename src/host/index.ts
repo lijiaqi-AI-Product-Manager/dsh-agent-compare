@@ -10,8 +10,8 @@
  * - Model-facing tools: `agent_compare_start`, `agent_compare_status`.
  * - Client API: POST /agent-compare/api/<method>, fenced like every first-party route.
  *
- * Interfaces are checked against the shipped 0.2.1-rc.5 sources; anything this
- * file cannot obtain is reported as unknown rather than guessed.
+ * Interfaces are checked against the shipped 0.2.1-rc.5 and 0.2.2-rc.3 sources;
+ * anything this file cannot obtain is reported as unknown rather than guessed.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
@@ -94,9 +94,33 @@ interface PresetService { composedPreset?(ctx: unknown): unknown; composeFrom?(c
 interface ToolExec { readonly callId?: string; readonly agent?: AgentLike; readonly signal: AbortSignal }
 interface ContentBlock { readonly type: string; readonly text?: string }
 interface Activation { readonly childId: string; readonly result: Promise<{ output: readonly ContentBlock[]; stopReason: string; diagnostic?: string }>; dispose(): Promise<void> }
+/** The admitted Peer the Web server hands to a route handler (DSH >= 0.2.2). */
+interface WebPeer {
+  readonly signal?: { readonly aborted?: boolean }
+}
+/** `connection.admit()` answers with the admitted Peer or the HTTP rejection status. */
+interface WebAdmission {
+  readonly peer?: WebPeer | undefined
+  readonly rejection?: number | undefined
+}
+/** The `connection` service across DSH 0.2.1 (`requestRejection`) and 0.2.2 (`admit`). */
+interface WebConnection {
+  admit?(request: IncomingMessage): WebAdmission | Promise<WebAdmission>
+  requestRejection?(request: IncomingMessage): unknown
+}
 interface WebCtx {
-  webServer: { register(route: { kind: 'prefix' | 'exact'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => Promise<void> | void }): () => void }
-  connection: { requestRejection(req: IncomingMessage): unknown }
+  webServer: { register(route: {
+    kind: 'prefix' | 'exact'
+    path: string
+    /**
+     * DSH 0.2.2 admits a registered route before the handler runs and passes the
+     * Peer as the handler's third argument. Older releases leave admission to
+     * the route's own `connection.requestRejection` check.
+     */
+    auth?: 'required' | 'anonymous' | 'deny'
+    handler: (req: IncomingMessage, res: ServerResponse, peer?: WebPeer) => Promise<void> | void
+  }): () => void }
+  connection: WebConnection
   effect(fn: () => () => void | Promise<void>, label?: string): void
 }
 interface HostCtx {
@@ -829,8 +853,12 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
   ctx.inject(['webServer', 'connection'], (web) => web.effect(() => web.webServer.register({
     kind: 'prefix',
     path: ROUTE,
-    handler: async (req, res) => {
-      if (web.connection.requestRejection(req) !== undefined) return json(res, 403, { ok: false, error: 'forbidden' })
+    auth: 'required',
+    handler: async (req, res, peer) => {
+      const rejection = await routeRejection(req, peer, web.connection)
+      if (rejection !== undefined) {
+        return json(res, rejection, { ok: false, error: rejection === 401 ? 'unauthorized' : rejection === 503 ? 'authentication unavailable' : 'forbidden' })
+      }
       if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method not allowed' })
       const method = new URL(req.url ?? '/', 'http://dsh.internal').pathname.slice(ROUTE.length + 1)
       const handler = Object.hasOwn(api, method) ? api[method] : undefined
@@ -872,6 +900,45 @@ export function insideDirectory(parent: string, child: string | undefined): bool
   const fold = (value: string): string => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value)
   const relative = path.relative(fold(parent), fold(child))
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+/**
+ * Decide whether this route may answer one request.
+ *
+ * DSH 0.2.2 moved route admission into the Web server: a registered route is
+ * admitted before its handler runs and the handler receives the admitted Peer
+ * as a third argument. The `connection.requestRejection` helper that routes
+ * used before that release is gone (only `connection.admit` remains), so an
+ * unconditional call to it throws and the Web server's last-resort guard answers
+ * `400` with an empty body. Fall back to `admit` when no Peer is attached, keep
+ * the older helper working for pre-0.2.2 hosts, and fail closed with 503 when
+ * the deployment cannot prove the caller's identity.
+ */
+export async function routeRejection(req: IncomingMessage, peer: WebPeer | undefined, connection: WebConnection | undefined): Promise<number | undefined> {
+  // DSH >= 0.2.2 already admitted this request; the Peer proves the identity.
+  if (peer !== undefined) return undefined
+  if (connection === undefined) return 503
+  const admit = connection.admit
+  if (typeof admit === 'function') {
+    try {
+      const admission = await admit.call(connection, req)
+      if (admission !== undefined && admission !== null && admission.peer !== undefined) return undefined
+      return admission?.rejection ?? 401
+    } catch {
+      return 503
+    }
+  }
+  const requestRejection = connection.requestRejection
+  if (typeof requestRejection === 'function') {
+    try {
+      const rejection = await requestRejection.call(connection, req)
+      if (rejection === undefined) return undefined
+      return typeof rejection === 'number' ? rejection : 403
+    } catch {
+      return 503
+    }
+  }
+  return 503
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {

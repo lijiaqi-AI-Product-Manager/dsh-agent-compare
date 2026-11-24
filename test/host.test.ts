@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import path from 'node:path'
-import { IsolatedSessionRunner, finalText, insideDirectory, progressOf, stopReasonOf, usageFromEvents } from '../src/host/index.ts'
+import type { IncomingMessage } from 'node:http'
+import { IsolatedSessionRunner, finalText, insideDirectory, progressOf, routeRejection, stopReasonOf, usageFromEvents } from '../src/host/index.ts'
 
 describe('example repository detection', () => {
   it('accepts the directory and its descendants only', () => {
@@ -145,5 +146,40 @@ describe('session log readers', () => {
       { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'a' }] } } },
       { type: 'assistant/message', data: { message: { content: [] } } },
     ])).toBe('a')
+  })
+})
+
+describe('route admission across DSH releases', () => {
+  const request = { headers: { host: '127.0.0.1:3080' } } as unknown as IncomingMessage
+  const peer = { signal: { aborted: false } }
+
+  it('trusts the Peer the Web server admitted before the handler (DSH >= 0.2.2)', async () => {
+    // The old code called requestRejection unconditionally; a host that only
+    // exposes admit() made the handler throw and the Web server answer 400.
+    const connection = { requestRejection: () => 401 }
+    await expect(routeRejection(request, peer, connection)).resolves.toBeUndefined()
+  })
+
+  it('asks connection.admit when no Peer was attached', async () => {
+    const seen: unknown[] = []
+    const connection = { admit: (req: unknown) => { seen.push(req); return { peer } } }
+    await expect(routeRejection(request, undefined, connection)).resolves.toBeUndefined()
+    expect(seen).toEqual([request])
+  })
+
+  it('keeps the admitted status from a rejected admission', async () => {
+    await expect(routeRejection(request, undefined, { admit: () => ({ rejection: 403 }) })).resolves.toBe(403)
+    await expect(routeRejection(request, undefined, { admit: () => ({ rejection: 401 }) })).resolves.toBe(401)
+  })
+
+  it('keeps the pre-0.2.2 requestRejection contract', async () => {
+    await expect(routeRejection(request, undefined, { requestRejection: () => 401 })).resolves.toBe(401)
+    await expect(routeRejection(request, undefined, { requestRejection: () => undefined })).resolves.toBeUndefined()
+  })
+
+  it('fails closed when the deployment cannot admit a request', async () => {
+    await expect(routeRejection(request, undefined, undefined)).resolves.toBe(503)
+    await expect(routeRejection(request, undefined, {})).resolves.toBe(503)
+    await expect(routeRejection(request, undefined, { admit: () => { throw new Error('boom') } })).resolves.toBe(503)
   })
 })
