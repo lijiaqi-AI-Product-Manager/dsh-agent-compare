@@ -1,6 +1,7 @@
 {
   "schema": "agentcompare.gallery/v1",
-  "packageVersion": "3.3.0",
+  "packageVersion": "3.3.1",
+  "capturePackageVersion": "3.3.0",
   "updatedAt": "2026-11-20T16:04:57Z",
   "runtimeSource": "b10e273ac3e393c1b7c8b0e6eb05e6e169f0cacf",
   "hostVersion": "0.2.2-rc.3",
