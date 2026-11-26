@@ -362,8 +362,12 @@ class SubagentRunner implements AgentRunner {
   }
 }
 
-function brief(r: RunRecord): Record<string, unknown> {
+export function brief(r: RunRecord): Record<string, unknown> {
   const v = publicView(r)
+  const choice = v.choice?.pick
+  const adoption = v.adoption === undefined
+    ? undefined
+    : { state: v.adoption.state, mode: v.adoption.mode, ...(v.adoption.message === undefined ? {} : { message: v.adoption.message }) }
   return {
     runId: v.runId,
     state: v.state,
@@ -371,20 +375,25 @@ function brief(r: RunRecord): Record<string, unknown> {
     isolation: v.isolation,
     baselineDirty: v.baseline.dirty,
     acceptance: v.acceptance.checks,
-    checksFavoured: v.checksFavoured,
-    choice: v.choice?.pick,
-    adoption: v.adoption === undefined ? undefined : { state: v.adoption.state, mode: v.adoption.mode, message: v.adoption.message },
-    candidates: v.candidates.map((c) => ({
-      label: c.label,
-      stage: c.stage,
-      previewUrl: c.previewUrl,
-      checks: c.checks?.map((k) => `${k.name}:${k.outcome}`),
-      eligible: c.verdict?.eligible,
-      blockers: c.verdict?.reasons,
-      ...(c.patchStats ? { files: c.patchStats.files } : {}),
-      error: c.error?.message.split('\n')[0],
-      ...(c.strategy === undefined ? {} : { strategy: c.strategy.title }),
-    })),
+    ...(v.checksFavoured === undefined ? {} : { checksFavoured: v.checksFavoured }),
+    ...(choice === undefined ? {} : { choice }),
+    ...(adoption === undefined ? {} : { adoption }),
+    candidates: v.candidates.map((c) => {
+      const previewUrl = c.previewUrl
+      const checks = c.checks?.map((k) => `${k.name}:${k.outcome}`)
+      const error = c.error?.message.split('\n')[0]
+      return {
+        label: c.label,
+        stage: c.stage,
+        ...(previewUrl === undefined ? {} : { previewUrl }),
+        ...(checks === undefined ? {} : { checks }),
+        ...(c.verdict?.eligible === undefined ? {} : { eligible: c.verdict.eligible }),
+        ...(c.verdict?.reasons === undefined ? {} : { blockers: c.verdict.reasons }),
+        ...(c.patchStats ? { files: c.patchStats.files } : {}),
+        ...(error === undefined ? {} : { error }),
+        ...(c.strategy === undefined ? {} : { strategy: c.strategy.title }),
+      }
+    }),
   }
 }
 

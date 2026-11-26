@@ -14,7 +14,7 @@
  * file cannot obtain is reported as unknown rather than guessed.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type Usage } from '../core/index.ts';
+import { type AgentRoute, type AgentRunner, type AgentRunRequest, type AgentRunResult, type RunRecord, type Usage } from '../core/index.ts';
 export declare const name = "agent-compare";
 export declare const inject: string[];
 export interface Config {
@@ -150,6 +150,7 @@ export declare class IsolatedSessionRunner implements AgentRunner {
     constructor(agents: AgentsService, userMessage?: () => Promise<(m: unknown) => unknown>);
     run(req: AgentRunRequest): Promise<AgentRunResult>;
 }
+export declare function brief(r: RunRecord): Record<string, unknown>;
 export declare function apply(ctx: HostCtx, config?: Config): Promise<void>;
 /** Whether `child` is `parent` or below it, compared the way the platform compares paths. */
 export declare function insideDirectory(parent: string, child: string | undefined): boolean;
