@@ -1260,17 +1260,30 @@ function History({ sessionId, data, open, busy, failed, scope, query, onScope, o
 }
 function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
   const mode = useAbMode(sessionId)
+  const visibleSession = useRef<string | undefined>(undefined)
+  useLayoutEffect(() => {
+    visibleSession.current = sessionId
+    return () => { visibleSession.current = undefined }
+  }, [sessionId])
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const example = async (): Promise<void> => {
     setBusy(true); setError(undefined)
-    try { const result = await executeComparison(sessionId, '', true); if (result.kind === 'success') setOpen(undefined); else setError(result.text ?? t("示例未能开始")) }
-    catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    try {
+      const result = await executeComparison(sessionId, '', true)
+      if (visibleSession.current !== sessionId) return
+      if (result.kind === 'success') setOpen(undefined)
+      else setError(result.text ?? t("示例未能开始"))
+    } catch (e) {
+      if (visibleSession.current === sessionId) setError((e as Error).message)
+    } finally {
+      if (visibleSession.current === sessionId) setBusy(false)
+    }
   }
   const openComposer = async (): Promise<void> => {
     if (!mode.loaded) {
       await loadMode(sessionId)
+      if (visibleSession.current !== sessionId) return
       if (!mode.loaded) {
         setError(mode.error ?? t("比较设置尚未读取，请稍后重试"))
         return

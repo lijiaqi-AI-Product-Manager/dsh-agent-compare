@@ -1398,6 +1398,39 @@ try {
   await guideStart.click()
   await page.waitForFunction(() => !document.querySelector('.ac-guide') && document.activeElement?.id === 'draft')
   check(await page.locator('#draft').inputValue() === draftText && await page.evaluate(() => window.__input().claim?.name === 'ab' && window.__commands.length === 0), 'retry must return focus to the preserved draft in comparison mode without sending it')
+  // Leave a settings retry in flight, then navigate to history before it settles.
+  let retrySettings = false, startRetry, finishRetry
+  const retryStarted = new Promise(resolve => { startRetry = resolve })
+  const retryGate = new Promise(resolve => { finishRetry = resolve })
+  const preferencesRoute = '**/harness/preferences'
+  await page.route(preferencesRoute, async route => {
+    if (route.request().postDataJSON()?.value !== undefined) return route.continue()
+    if (!retrySettings) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Settings temporarily unavailable' }) })
+    startRetry()
+    await retryGate
+    return route.continue()
+  })
+  try {
+    await open('guide')
+    await page.waitForFunction(() => document.querySelector('.ac-guide > button')?.disabled === false)
+    retrySettings = true
+    await guideStart.click()
+    await retryStarted
+    await page.keyboard.press('Escape')
+    await page.locator('.ac-guide').waitFor({ state: 'detached' })
+    await page.locator('[data-ac-history]:visible').first().click()
+    await page.locator('dialog[open]').waitFor()
+    const writes = (await requests('preferences')).filter(r => r.body.value !== undefined).length
+    const response = page.waitForResponse(r => r.url().endsWith('/harness/preferences') && r.ok())
+    finishRetry()
+    await response
+    await page.waitForFunction(() => document.querySelector('.ac-mode-btn')?.disabled === false)
+    check(await page.locator('dialog[open]').isVisible() && !await page.locator('.ac-guide').count(), 'a completed settings retry must preserve the history the user opened')
+    check(!await page.evaluate(() => window.__input().claim) && (await requests('preferences')).filter(r => r.body.value !== undefined).length === writes, 'leaving the guide must cancel the pending mode switch without writing preferences')
+  } finally {
+    finishRetry()
+    await page.unroute(preferencesRoute)
+  }
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
   console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, embeddedCookies, directCookieIsolation: true, expectedBrowserDenials, react: await page.evaluate(() => React.version), node: process.version }))
 } catch (error) {
