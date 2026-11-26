@@ -2,13 +2,13 @@
   "schema": "agentcompare.market-ranks/v1",
   "dshMarket": {
     "source": "https://dshmarket.com/categories/workflow/",
-    "asOf": "2026-11-20",
+    "asOf": "2026-11-25",
     "position": 1
   },
   "dshSo": {
     "source": "https://www.dsh.so/artifact/dsh-agent-compare/",
-    "asOf": "2026-11-20",
-    "weeklyDownloadsPosition": 3,
-    "weeklyStarGrowthPosition": 38
+    "asOf": "2026-11-25",
+    "weeklyDownloadsPosition": 5,
+    "weeklyStarGrowthPosition": 19
   }
 }

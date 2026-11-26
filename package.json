@@ -1,6 +1,6 @@
 {
   "name": "dsh-agent-compare",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "让同一想法，长出更多实现方案！在 DSH 主对话里比较回答、文件与网页，选风格，盲选或公开对比，再审查采用。Compare 2–4 answers, files or live pages in DeepSeek Harness (DSH) Desktop and Web, then review and adopt.",
   "type": "module",
   "packageManager": "npm@12.2.2",

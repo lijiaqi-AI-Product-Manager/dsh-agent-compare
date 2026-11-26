@@ -7,12 +7,12 @@
 
 # AgentCompare · 鲸挑细选
 
-[![GitHub-Sterne · 497](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/github-stars.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers)
+[![GitHub-Sterne · 500](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/github-stars.svg)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/stargazers)
 [![npm-Downloadanfragen insgesamt · 335.762](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/npm-total-highlight.svg)](https://www.npmjs.com/package/dsh-agent-compare)
 [![DSH Market · Workflow-Downloads Nr. 1](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/dsh-market-workflow-download.svg)](https://dshmarket.com/categories/workflow/)
 
-[![dsh.so · Wochen-Downloads Nr. 3](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/dshso-weekly-download-rank.svg)](https://www.dsh.so/artifact/dsh-agent-compare/)
-[![dsh.so · Neue Sterne pro Woche Nr. 38](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/dshso-weekly-stars.svg)](https://www.dsh.so/artifact/dsh-agent-compare/)
+[![dsh.so · Wochen-Downloads Nr. 5](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/dshso-weekly-download-rank.svg)](https://www.dsh.so/artifact/dsh-agent-compare/)
+[![dsh.so · Neue Sterne pro Woche Nr. 19](https://raw.githubusercontent.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/main/assets/statistics/dshso-weekly-stars.svg)](https://www.dsh.so/artifact/dsh-agent-compare/)
 
 [![npm version](https://img.shields.io/npm/v/dsh-agent-compare?label=npm&color=3657f5&style=flat&labelColor=0b1b4f&logo=npm&logoColor=white)](https://www.npmjs.com/package/dsh-agent-compare)
 [![CI](https://img.shields.io/github/actions/workflow/status/lijiaqi-AI-Product-Manager/dsh-agent-compare/ci.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat&labelColor=0b1b4f)](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/workflows/ci.yml)
@@ -100,7 +100,7 @@ npm pack
 Der Befehl installiert das Archiv im Web-Profil `web`.
 
 ```bash
-dsh plugin --profile web add ./dsh-agent-compare-3.3.0.tgz
+dsh plugin --profile web add ./dsh-agent-compare-3.3.1.tgz
 ```
 
 </details>
@@ -266,6 +266,8 @@ Die [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions
 <a id="whats-new"></a>
 
 ## Neuerungen nach Version
+
+**3.3.1** · Der Status lässt sich jetzt auch abrufen, wenn Ergebnisse noch ausstehen. Ist das Eingabefeld beschäftigt, bleibt der Entwurf erhalten und die Anleitung bietet einen neuen Versuch an.
 
 **3.3.0** · Stilvorschauen, Statussymbole, eine zeilenweise Änderungsansicht und ein nach Datum gruppierter Verlauf.
 

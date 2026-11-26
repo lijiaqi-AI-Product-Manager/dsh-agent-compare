@@ -1268,6 +1268,23 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
     catch (e) { setError((e as Error).message) }
     finally { setBusy(false) }
   }
+  const openComposer = async (): Promise<void> => {
+    if (!mode.loaded) {
+      await loadMode(sessionId)
+      if (!mode.loaded) {
+        setError(mode.error ?? t("比较设置尚未读取，请稍后重试"))
+        return
+      }
+    }
+    const unavailable = clientSupportMessage(sessionId)
+    if (unavailable || !enterMode(sessionId)) {
+      setError(unavailable ?? t("输入框正在提交或已有其他命令模式，请等它结束后再切换。"))
+      return
+    }
+    mode.collapsed = false
+    saveMode(sessionId, { ...mode.preferences, enabled: true })
+    returnToComposer(sessionId)
+  }
   return <div className="ac-guide">
     <div><span className="ac-eyebrow">{t("从比较到交付")}</span><h2 className="ac-h1">{t("体验真实结果，做出开发决策。")}</h2><p className="ac-lead">{t("适合存在多种可行方案的界面、布局与交互任务。已有明确答案的小修复通常用一个 Agent 更直接。")}</p></div>
     <ol className="ac-guide-steps">
@@ -1282,7 +1299,7 @@ function Guide({ sessionId }: { sessionId: string }): React.ReactElement {
     <div className="ac-case"><div><b>{t("试跑真实的示例商店")}</b><span>{t("新建独立仓库，不修改当前项目。基础示例实现搜索与清空；完整示例再加入组合筛选和手机适配。使用当前比较与时长设置，各版分别消耗用量；任务、结果和选择保留在主对话。")}</span><label className="ac-budget">{t("示例范围 ")}<select aria-label={t("内置示例范围")} disabled={busy || !mode.loaded} value={mode.preferences.exampleKind ?? 'quick'} onChange={e => saveMode(sessionId, { ...mode.preferences, exampleKind: e.target.value as 'quick' | 'full' })}><option value="quick">{t("基础 · 搜索与清空")}</option><option value="full">{t("完整 · 组合筛选与手机适配")}</option></select></label></div><button className="ac-btn primary" disabled={busy || !mode.loaded} onClick={() => { void example() }}>{busy ? t("正在创建…") : t("试跑内置示例")}</button></div>
     {error && <div className="ac-feedback" role="alert"><Diagnostic text={error} /></div>}
     {(mode.preferences.exampleKind ?? 'quick') === 'quick' && <ExampleTimingEvidence />}
-    <button className="ac-btn" onClick={() => { mode.collapsed = false; if (enterMode(sessionId)) saveMode(sessionId, { ...modeFor(sessionId).preferences, enabled: true }); returnToComposer(sessionId) }}>{t("回到输入框，开启 A|B")}</button><div className="ac-note">{t("支持范围：仓库根目录中的本地 Vite 前端。页面检查通过只代表配置的步骤通过，仍需实际体验需求和边界情况。")}</div>
+    <button type="button" className="ac-btn" disabled={busy || mode.loading} onClick={() => { void openComposer() }}>{t("回到输入框，开启 A|B")}</button><div className="ac-note">{t("可以在普通文件夹中比较回答和文件。网页预览取决于项目类型，请在预览中试用你关心的交互。")}</div>
   </div>
 }
 /** History, guidance, and expanded inspection share the same persisted records. */
