@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.3.1
+
+- Programmatic callers can read comparison status while results are pending, after a choice and after adoption. Optional fields appear when their values are available.
+- The guide waits for saved settings before switching to comparison mode. If the composer is busy, the guide explains how to retry and preserves the draft. Leaving the guide during a pending request preserves the new view and input mode.
+- The guide describes answer, file and web comparisons. All eight installation guides use the 3.3.1 archive.
+
 ## 3.3.0
 
 - Choose version styles from visual swatches or the native keyboard-accessible selector. The comparison keeps letter and color labels across light and dark themes.

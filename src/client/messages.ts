@@ -459,7 +459,7 @@ export const messages: Readonly<Record<string, string>> = {
   "示例范围": "Example scope",
   "正在创建…": "Creating…",
   "回到输入框，开启 A|B": "Return to composer and enable A|B",
-  "支持范围：仓库根目录中的本地 Vite 前端。页面检查通过只代表配置的步骤通过，仍需实际体验需求和边界情况。": "Scope: a local Vite front end at the Git repository root. Page checks cover only configured steps; try the requested behavior and edge cases yourself.",
+  "可以在普通文件夹中比较回答和文件。网页预览取决于项目类型，请在预览中试用你关心的交互。": "Compare answers and files in an ordinary folder. Web preview availability depends on the project type. Try the interactions that matter to you in the preview.",
   "[aria-label=\"打开 AgentCompare 比较记录\"]": "[aria-label=\"Open AgentCompare comparison records\"]",
   "跑过再选": "Run it. Then choose.",
   "比较工作区": "Comparison workspace",

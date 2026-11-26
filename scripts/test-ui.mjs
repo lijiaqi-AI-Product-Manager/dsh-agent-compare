@@ -1376,6 +1376,63 @@ try {
     check(await timeLimit.evaluate(el => el === document.activeElement), 'keyboard focus reaches the additional settings')
     check(await visibleInput() && await page.locator('#draft').inputValue() === '保留这份草稿', 'expanded settings keep the draft and Send accessible')
   }
+  await open('guide', '&error=preferences-pending')
+  const guideStart = page.getByRole('button', { name: '回到输入框，开启 A|B', exact: true })
+  await page.waitForFunction(() => typeof window.__releasePreferences === 'function')
+  check(await guideStart.isDisabled(), 'the guide must wait for existing settings before it can save comparison mode')
+  await page.evaluate(() => window.__releasePreferences())
+  await page.waitForFunction(() => !document.querySelector('.ac-guide > button').disabled)
+  const draftText = 'Keep this draft when switching to comparison'
+  await page.evaluate(text => {
+    const field = document.getElementById('draft')
+    field.value = text
+    field.dispatchEvent(new Event('input'))
+    window.__input().phase = 'submitting'
+  }, draftText)
+  const writesBefore = (await requests('preferences')).filter(r => r.body.value !== undefined).length
+  await guideStart.click()
+  await page.locator('.ac-guide [role="alert"]').waitFor()
+  check(await guideStart.isVisible() && await page.locator('#draft').inputValue() === draftText, 'when entry is unavailable, keep the guide and draft available for retry')
+  check((await requests('preferences')).filter(r => r.body.value !== undefined).length === writesBefore, 'a rejected transition must not change saved settings')
+  await page.evaluate(() => { window.__input().phase = window.__input().claim ? 'claimed' : 'plain' })
+  await guideStart.click()
+  await page.waitForFunction(() => !document.querySelector('.ac-guide') && document.activeElement?.id === 'draft')
+  check(await page.locator('#draft').inputValue() === draftText && await page.evaluate(() => window.__input().claim?.name === 'ab' && window.__commands.length === 0), 'retry must return focus to the preserved draft in comparison mode without sending it')
+  // Leave a settings retry in flight, then navigate to history before it settles.
+  const savedOff = page.waitForResponse(r => r.url().endsWith('/harness/preferences') && r.request().postDataJSON()?.value?.enabled === false && r.ok())
+  await page.getByRole('button', { name: 'A|B 对比模式', exact: true }).click()
+  await savedOff
+  let retrySettings = false, finishRetry
+  const retryGate = new Promise(resolve => { finishRetry = resolve })
+  const preferencesRoute = '**/harness/preferences'
+  await page.route(preferencesRoute, async route => {
+    if (route.request().postDataJSON()?.value !== undefined) return route.continue()
+    if (!retrySettings) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Settings temporarily unavailable' }) })
+    await retryGate
+    return route.continue()
+  })
+  try {
+    await open('guide')
+    await page.waitForFunction(() => document.querySelector('.ac-guide > button')?.disabled === false)
+    retrySettings = true
+    const retryStarted = page.waitForRequest(r => r.url().endsWith('/harness/preferences') && r.postDataJSON()?.value === undefined)
+    await guideStart.click()
+    await retryStarted
+    await page.keyboard.press('Escape')
+    await page.locator('.ac-guide').waitFor({ state: 'detached' })
+    await page.locator('[data-ac-history]:visible').first().click()
+    await page.locator('dialog[open]').waitFor()
+    const writes = (await requests('preferences')).filter(r => r.body.value !== undefined).length
+    const response = page.waitForResponse(r => r.url().endsWith('/harness/preferences') && r.ok())
+    finishRetry()
+    await response
+    await page.waitForFunction(() => document.querySelector('.ac-mode-btn')?.disabled === false)
+    check(await page.locator('dialog[open]').isVisible() && !await page.locator('.ac-guide').count(), 'a completed settings retry must preserve the history the user opened')
+    check(!await page.evaluate(() => window.__input().claim) && (await requests('preferences')).filter(r => r.body.value !== undefined).length === writes, 'leaving the guide must cancel the pending mode switch without writing preferences')
+  } finally {
+    finishRetry()
+    await page.unroute(preferencesRoute)
+  }
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
   console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, embeddedCookies, directCookieIsolation: true, expectedBrowserDenials, react: await page.evaluate(() => React.version), node: process.version }))
 } catch (error) {
