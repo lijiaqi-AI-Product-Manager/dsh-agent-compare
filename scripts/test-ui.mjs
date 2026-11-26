@@ -1399,14 +1399,15 @@ try {
   await page.waitForFunction(() => !document.querySelector('.ac-guide') && document.activeElement?.id === 'draft')
   check(await page.locator('#draft').inputValue() === draftText && await page.evaluate(() => window.__input().claim?.name === 'ab' && window.__commands.length === 0), 'retry must return focus to the preserved draft in comparison mode without sending it')
   // Leave a settings retry in flight, then navigate to history before it settles.
-  let retrySettings = false, startRetry, finishRetry
-  const retryStarted = new Promise(resolve => { startRetry = resolve })
+  const savedOff = page.waitForResponse(r => r.url().endsWith('/harness/preferences') && r.request().postDataJSON()?.value?.enabled === false && r.ok())
+  await page.getByRole('button', { name: 'A|B 对比模式', exact: true }).click()
+  await savedOff
+  let retrySettings = false, finishRetry
   const retryGate = new Promise(resolve => { finishRetry = resolve })
   const preferencesRoute = '**/harness/preferences'
   await page.route(preferencesRoute, async route => {
     if (route.request().postDataJSON()?.value !== undefined) return route.continue()
     if (!retrySettings) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Settings temporarily unavailable' }) })
-    startRetry()
     await retryGate
     return route.continue()
   })
@@ -1414,6 +1415,7 @@ try {
     await open('guide')
     await page.waitForFunction(() => document.querySelector('.ac-guide > button')?.disabled === false)
     retrySettings = true
+    const retryStarted = page.waitForRequest(r => r.url().endsWith('/harness/preferences') && r.postDataJSON()?.value === undefined)
     await guideStart.click()
     await retryStarted
     await page.keyboard.press('Escape')
