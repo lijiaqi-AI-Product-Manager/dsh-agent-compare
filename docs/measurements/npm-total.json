@@ -3,9 +3,9 @@
   "package": "dsh-agent-compare",
   "firstPublishedAt": "2026-11-03T10:41:11.580Z",
   "firstDay": "2026-11-03",
-  "asOf": "2026-11-25",
-  "total": 346313,
-  "checkedAt": "2026-11-26T19:55:24.416Z",
+  "asOf": "2026-11-26",
+  "total": 361251,
+  "checkedAt": "2026-11-27T19:44:05.878Z",
   "timeZone": "UTC",
   "unit": "download requests",
   "includes": "All published versions; repeated and automated requests may be included",
@@ -13,7 +13,7 @@
     "registry": "https://registry.npmjs.org/dsh-agent-compare",
     "lastAvailableDay": "https://api.npmjs.org/downloads/point/last-day/dsh-agent-compare",
     "ranges": [
-      "https://api.npmjs.org/downloads/range/2026-11-03:2026-11-25/dsh-agent-compare"
+      "https://api.npmjs.org/downloads/range/2026-11-03:2026-11-26/dsh-agent-compare"
     ]
   },
   "daily": [
@@ -108,6 +108,10 @@
     {
       "day": "2026-11-25",
       "downloads": 10551
+    },
+    {
+      "day": "2026-11-26",
+      "downloads": 14938
     }
   ]
 }
