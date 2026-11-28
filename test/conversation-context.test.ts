@@ -78,7 +78,12 @@ describe('main-conversation context for candidates', () => {
     const entry = listedEntries([user(text)])[0]!
     const selected = { mode: 'selected' as const, turns: 1, ids: [entry.id], digests: [entry.digest] }
     expect(entry.text).toBe(text)
-    expect(buildConversationContext([user(text)], selected)?.text).toBe('[User]\n' + text)
+    const excerpt = buildConversationContext([user(text)], selected)!
+    expect(excerpt.text).toBe('[User]\n' + text)
+    for (const kind of ['repository', 'folder'] as const) {
+      const prompt = candidatePrompt('Review the code', DEFAULT_STRATEGIES[0], 'own-root', excerpt.text, { kind })
+      expect(prompt).toContain('<main-conversation>\n' + excerpt.text + '\n</main-conversation>')
+    }
     expect(() => buildConversationContext([user(text.trimStart())], selected)).toThrow(/重新选择/)
     expect(listedEntries([user('  \n\t')])).toEqual([])
   })
