@@ -157,6 +157,7 @@ try {
   check(normal.preferences.generationMinutes === 60 && normal.preferences.mode === 'same-model' && normal.example === false, 'composer controls must reach the actual command submission')
   check(normal.task.endsWith('--minutes stays literal'), 'flag-shaped task text must stay verbatim')
   check(normal.preferences.contextMode === 'selected' && JSON.stringify(normal.contextIds) === '[3,11]', 'ticked main-conversation messages must reach the submission by their log positions')
+  check(JSON.stringify(normal.contextDigests) === JSON.stringify([3, 11].map(id => id.toString(16).padStart(64, '0'))), 'a comparison must bind each selected position to the message the user actually picked')
   check((await requests('start')).length === 0 && (await requests('models')).length === 0, 'default submission must use the conversation executor without model discovery')
   check(await page.locator('.ac-inline').count() === 1, 'the command result must render a persistent inline card')
   check(await page.evaluate(() => window.__commandAcks.length === 1 && window.__commandAcks[0].sessionId === 's1' && window.__commandAcks[0].name === 'ab'), 'admitted commands must publish the host conversation acknowledgment')
@@ -676,7 +677,7 @@ try {
 
   // A newer interface on an older backend says so plainly; a matching backend says nothing.
   check(await page.locator('.ac-stale-backend').count() === 0, 'a matching backend must not raise the restart notice')
-  for (const [error, expected] of [['stale-backend', '3.0.0'], ['old-backend', '3.1.0 之前的版本']]) {
+  for (const [error, expected] of [['stale-backend', '3.0.0'], ['old-backend', '3.1.0 之前的版本'], ['previous-backend', '3.3.1']]) {
     await open('running', `&error=${error}`)
     await page.locator('.ac-sheet .ac-stale-backend').waitFor({ timeout: 6000 })
     check((await page.locator('.ac-sheet .ac-stale-backend').innerText()).includes(expected), `an older backend (${error}) must ask for a DSH restart and name what runs`)
@@ -1142,19 +1143,23 @@ try {
   for (const outcome of ['copied', 'refused', 'threw']) {
     await page.evaluate(outcome => {
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new DOMException('Denied', 'NotAllowedError') } } })
+      window.__copyAttempted = false
       window.__originalExecCommand ??= document.execCommand
       document.execCommand = command => {
         if (command !== 'copy') throw new Error('Unexpected clipboard command')
+        window.__copyAttempted = true
+        const field = document.activeElement
+        window.__copied = field instanceof HTMLTextAreaElement && field.closest('dialog[open]')
+          ? field.value.slice(field.selectionStart, field.selectionEnd) : ''
         if (outcome === 'threw') throw new Error('Clipboard unavailable')
-        window.__copied = document.querySelector('body > textarea[readonly]')?.value
-        return outcome === 'copied'
+        return outcome === 'copied' && window.__copied.length > 0
       }
     }, outcome)
     const copy = answer.locator('.ac-copy').first()
     await copy.focus(); await page.keyboard.press('Enter')
-    await page.waitForFunction(() => !document.querySelector('body > textarea[readonly]'))
+    await page.waitForFunction(() => window.__copyAttempted && !document.querySelector('textarea[readonly]'))
     check(await copy.evaluate(el => document.activeElement === el), `fallback copy must preserve keyboard focus when ${outcome}`)
-    check(await page.locator('body > textarea[readonly]').count() === 0, `fallback copy must remove its temporary field when ${outcome}`)
+    check(await page.locator('textarea[readonly]').count() === 0, `fallback copy must remove its temporary field when ${outcome}`)
     if (outcome === 'copied') check((await page.evaluate(() => window.__copied)).startsWith('## 用一行命令统计'), 'fallback copy must preserve the original answer too')
   }
   await page.evaluate(() => { document.execCommand = window.__originalExecCommand })
@@ -1165,6 +1170,13 @@ try {
   await written.getByRole('button', { name: 'count_words.py', exact: true }).click()
   await page.waitForFunction(() => document.querySelector('.ac-file-text')?.textContent?.includes('count_words.py'))
   check((await requests('candidateFile')).some(r => r.body.label === 'B' && r.body.path === 'count_words.py'), 'opening a written file must read that file of that version')
+  await page.evaluate(() => window.__sessionPlans.push({ method: 'candidateFile', hold: true, value: { path: 'README.md', size: 12, binary: false, text: 'Delayed README' } }))
+  await written.getByRole('button', { name: 'README.md', exact: true }).click()
+  await page.waitForFunction(() => typeof window.__resumePlannedResponse === 'function')
+  await written.getByRole('button', { name: 'count_words.py', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('.ac-file-text')?.textContent.includes('count_words.py'))
+  await page.evaluate(async () => { window.__resumePlannedResponse(); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))) })
+  check((await written.locator('.ac-file-text').innerText()).includes('count_words.py'), 'a late file read must keep the contents of the currently selected file')
   check(!/\+\d+ −\d+/.test(await page.locator('[role="dialog"]').innerText()), 'blind review must still hide change sizes')
   await page.screenshot({ path: path.join(output, 'folder-results.png') })
   await page.getByRole('button', { name: '选 B', exact: true }).click()
@@ -1433,6 +1445,58 @@ try {
     finishRetry()
     await page.unroute(preferencesRoute)
   }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await open('compose')
+  const chooseContext = page.getByRole('button', { name: '手动选择', exact: true })
+  await chooseContext.click()
+  await page.getByRole('button', { name: '选最近 4 条', exact: true }).waitFor()
+  await page.evaluate(() => { window.__holdContextPreview = true })
+  await page.getByRole('button', { name: '选最近 4 条', exact: true }).click()
+  await page.waitForFunction(() => typeof window.__resumeContextPreview === 'function')
+  await page.getByRole('button', { name: '不带', exact: true }).click()
+  await page.evaluate(async () => { window.__resumeContextPreview(); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))) })
+  check(await page.locator('.ac-context-summary details').count() === 0, 'turning context off must discard a late preview and its disclosure')
+  await chooseContext.click()
+  await page.getByRole('button', { name: '选最近 4 条', exact: true }).click()
+  await page.getByRole('button', { name: '收起消息列表', exact: true }).click()
+  await page.evaluate(() => window.__replaceContextEntry(11, { text: '切换为新的交付需求', digest: 'b'.repeat(64) }))
+  await page.getByRole('button', { name: /选择消息（已选/ }).click()
+  const replacement = page.getByRole('checkbox', { name: /切换为新的交付需求/ })
+  check(!await replacement.isChecked(), 'a different message restored at the same position must require a new selection')
+  await replacement.check()
+  await page.waitForFunction(() => {
+    const update = window.__requests.filter(r => r.method === 'contextPreview').at(-1)?.body
+    return update?.digests?.[update.ids.indexOf(11)] === 'b'.repeat(64)
+  })
+  const renewed = (await requests('contextPreview')).at(-1).body
+  check(renewed.ids.length === 4 && new Set(renewed.ids).size === 4, 'selecting a replacement must preserve its three peers without duplicating its position')
+
+  await open('folder')
+  await page.getByRole('button', { name: '← 比较记录', exact: true }).click()
+  const folderSearch = page.getByRole('searchbox', { name: '搜索比较记录', exact: true })
+  await folderSearch.fill('Notes')
+  await folderSearch.press('Enter')
+  const folderRow = page.locator('.ac-hrow').filter({ hasText: '写一个统计单词数的小脚本' })
+  await folderRow.waitFor()
+  check((await folderRow.innerText()).includes('Notes') && await folderRow.locator('.ac-meta[title]').getAttribute('title') === 'D:\\Notes', 'a folder result must display its original name and expose its full path in the title')
+  await folderSearch.fill('ws\\0f0f0f0f')
+  await folderSearch.press('Enter')
+  await page.getByText('没有匹配的记录。换个关键词，或清空搜索查看已有比较。', { exact: true }).waitFor()
+  check(await page.locator('.ac-hrow').count() === 0, 'a private comparison directory must not appear as a project search result')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open('compose', '&error=long-project-path')
+  const directory = page.locator('details.ac-settings-project')
+  const directoryName = directory.locator('summary')
+  await directoryName.waitFor()
+  check((await directoryName.innerText()).includes('Spring catalog') && (await directory.boundingBox()).height < 32, 'a long project path must fit a single summary line above the mobile composer')
+  await directoryName.focus()
+  await page.keyboard.press('Enter')
+  check((await directory.locator('div bdi').innerText()).includes('/Customer workspace/') && await directory.getByRole('button', { name: '复制完整路径' }).isVisible(), 'keyboard disclosure must expose the complete original path and a copy action')
+  await directoryName.focus()
+  await page.keyboard.press('Enter')
+  check(!await directory.getByRole('button', { name: '复制完整路径' }).isVisible() && await directoryName.evaluate(e => e === document.activeElement), 'closing the full directory should restore a compact row and retain keyboard focus')
+
   check(errors.length === 0, `unexpected browser errors: ${errors.join('; ')}`)
   console.log(JSON.stringify({ assertions, screenshots: output, browser: browser.version(), engine, channel, embeddedCookies, directCookieIsolation: true, expectedBrowserDenials, react: await page.evaluate(() => React.version), node: process.version }))
 } catch (error) {

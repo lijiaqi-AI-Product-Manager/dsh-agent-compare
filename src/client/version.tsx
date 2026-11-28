@@ -1,9 +1,8 @@
 /**
  * The interface and the backend of this plugin update separately: DSH reloads
  * a plugin's interface at once, but keeps running the backend it loaded when
- * it started. Until DSH restarts, a new interface talks to an old backend that
- * records no steps, sends no replies beside files and finishes slowly. This
- * notices that and says how to fix it.
+ * it started. Report that mismatch and let the user save their draft before
+ * restarting DSH.
  */
 import { Banner } from './review.js'
 import React, { useEffect, useState } from 'react'
@@ -18,13 +17,16 @@ type Call = <T>(method: string, body: Record<string, unknown>, signal?: AbortSig
 export type Backend = { version: string } | { older: true } | undefined
 
 let asked: Promise<Backend> | undefined
-/** Asked once per page: the backend cannot change without DSH restarting, which reloads the page. */
+/** Share a confirmed version across the page. A later view can retry a temporary failure. */
 export function backendVersion(call: Call): Promise<Backend> {
-  asked ??= call<{ pluginVersion?: unknown }>('version', {}).then(
+  if (asked) return asked
+  const pending = call<{ pluginVersion?: unknown }>('version', {}).then(
     value => typeof value?.pluginVersion === 'string' ? { version: value.pluginVersion } : undefined,
     (error: Error) => /unknown method/i.test(error.message) ? { older: true } as const : undefined,
   )
-  return asked
+  asked = pending
+  void pending.then(backend => { if (backend === undefined && asked === pending) asked = undefined })
+  return pending
 }
 
 /** The backend DSH is running, when it is not the one this interface belongs to. */
@@ -49,6 +51,6 @@ export function StaleBackendNotice({ call }: { call: Call }): React.ReactElement
   const running = 'version' in stale ? stale.version : t('3.1.0 之前的版本')
   return <Banner className="ac-feedback ac-stale-backend" tone="warn" role="alert">
     <b>{t('请完全退出并重新打开 DSH')}</b>
-    <span>{t('AgentCompare 的界面已是 {0}，但 DSH 仍在运行启动时加载的 {1} 后台。重启前看不到各版的过程和回复，完成也会慢约 40 秒。', { 0: CLIENT_VERSION ?? '', 1: running })}</span>
+    <span>{t('当前界面版本为 {0}，DSH 加载的后台版本为 {1}。保存输入框里的草稿，重启后再开始新的比较。', { 0: CLIENT_VERSION ?? '', 1: running })}</span>
   </Banner>
 }

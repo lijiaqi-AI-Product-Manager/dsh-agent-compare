@@ -27,8 +27,8 @@ import { traceOf } from './trace.ts'
 import { commandResultText, parseAbInput } from './conversation.ts'
 import { profileProject, type ProjectProfile } from '../core/project.ts'
 import { checkEnableGit, enableGit, resolveWorkspace } from '../core/workspace.ts'
-import { comparisonPlan, contextRequestOf, defaultPreferences, parsePreferences, parseUiSubmission, PreferencesStore, type ComparisonPlan } from './preferences.ts'
-import { buildConversationContext, CONTEXT_CHARS, listedEntries, MESSAGE_CHARS, type ConversationContext } from './conversation-context.ts'
+import { comparisonPlan, contextRequestOf, defaultPreferences, parseContextSelection, parsePreferences, parseUiSubmission, PreferencesStore, type ComparisonPlan } from './preferences.ts'
+import { buildConversationContext, ChangedContextSelectionError, CONTEXT_CHARS, listedEntries, MESSAGE_CHARS, type ConversationContext } from './conversation-context.ts'
 import { StepMemory, withComparisonNotes, type StepDecision, type StepPayload } from './step-memory.ts'
 import { historyPage, HistoryQueryError } from './history.ts'
 import { observedRoute, selectedRoute } from './routes.ts'
@@ -59,7 +59,7 @@ export interface Config {
   home?: string
 }
 
-const VERSION = '3.3.1'
+const VERSION = '3.4.1'
 const ROUTE = '/agent-compare/api'
 
 // Minimal structural views of the host services this plugin touches.
@@ -551,7 +551,7 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
           if (input.models && input.models.some((m) => !m.provider || !m.model)) throw new Error('请为每个模型写出完整的服务与模型，例如 deepseek/deepseek-chat')
           plan = comparisonPlan(saved, currentRoute(agent), { ...(input.models ? { models: input.models } : {}), ...(input.versions ? { versions: input.versions } : {}) })
           // The built-in example is a separate repository; this conversation's history does not describe it.
-          if (!input.example) conversationContext = buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ui?.contextIds), await pendingNotes(agent.session))
+          if (!input.example) conversationContext = buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ui?.contextIds, ui?.contextDigests), await pendingNotes(agent.session))
         } catch (error) { return { kind: 'error', text: (error as Error).message } }
         if (!input.example && input.task === '') return { kind: 'error', text: '请在输入框中写下要比较的需求，或点击「试跑示例」。' }
         try {
@@ -647,9 +647,15 @@ export async function apply(ctx: HostCtx, config: Config = {}): Promise<void> {
       let saved: typeof stored
       try { saved = parsePreferences({ ...stored, ...(b.mode === undefined ? {} : { contextMode: b.mode }), ...(b.turns === undefined ? {} : { contextTurns: b.turns }) }) }
       catch (error) { throw new HttpError(400, (error as Error).message) }
-      const ids = Array.isArray(b.ids) && b.ids.length <= 200 && b.ids.every(id => Number.isSafeInteger(id) && (id as number) >= 0) ? b.ids as number[] : undefined
-      if (b.ids !== undefined && ids === undefined) throw new HttpError(400, '所选主对话消息无效')
-      return buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, ids), await pendingNotes(agent.session)) ?? null
+      let selection: ReturnType<typeof parseContextSelection>
+      try { selection = parseContextSelection(b.ids, b.digests) }
+      catch (error) { throw new HttpError(400, (error as Error).message) }
+      const notes = await pendingNotes(agent.session)
+      try { return buildConversationContext(agent.session.snapshotEvents(0), contextRequestOf(saved, selection.contextIds, selection.contextDigests), notes) ?? null }
+      catch (error) {
+        if (error instanceof ChangedContextSelectionError) throw new HttpError(409, error.message)
+        throw error
+      }
     },
     async latest(b) {
       if (typeof b.sessionId !== 'string' || !b.sessionId.trim() || b.sessionId.length > 500) throw new HttpError(400, '会话编号无效')

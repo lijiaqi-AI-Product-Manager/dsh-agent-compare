@@ -99,7 +99,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile web add ./dsh-agent-compare-3.3.1.tgz
+dsh plugin --profile web add ./dsh-agent-compare-3.4.1.tgz
 ```
 
 </details>
@@ -437,6 +437,8 @@ See [CONTRIBUTING.md](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-co
 <a id="whats-new"></a>
 
 ## What's new
+
+**3.4.1** · Find a comparison using its original folder name or full project path. Long paths take one line above the composer and expand for copying. If a selected message changes or disappears, choose it again before sending. Long excerpts keep both ends. Switching files keeps the selected file in view, and answers and code blocks can be copied directly from the comparison dialog.
 
 **3.3.1** · Programmatic status reads now work when candidate results are still pending. If the composer is busy, the guide keeps your draft in place and lets you retry.
 

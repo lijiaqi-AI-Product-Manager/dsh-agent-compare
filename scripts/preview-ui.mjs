@@ -164,7 +164,8 @@ const contextEntries = [
   {id:8,role:'note',text:'[AgentCompare run 11111111] Candidate A is now in the target repository\\'s working tree, uncommitted.',chars:96},
   {id:11,role:'user',text:'搜索框要在手机上也好用，清空按钮放在右侧。',chars:21},
   {id:12,role:'assistant',text:'明白，手机上搜索框占满一行，清空按钮放在输入框右侧。',chars:25},
-];
+].map(entry => ({ ...entry, digest: entry.id.toString(16).padStart(64,'0') }));
+window.__replaceContextEntry = (id, next) => Object.assign(contextEntries.find(entry => entry.id === id), next);
 function contextPreview(body) {
   const mode = body.mode ?? 'recent';
   if (mode === 'none') return null;
@@ -199,7 +200,13 @@ function listHistory(body) {
   const scope = body.scope ?? (body.sessionId ? 'session' : 'all');
   const query = (body.search ?? '').trim();
   const folded = value => value.normalize('NFKC').toLowerCase();
-  let rows = [...runs,...history,...legacy].filter(record => (scope === 'all' || record.sessionId === body.sessionId) && folded([record.task,record.runId,record.baseline?.repoRoot ?? ''].join(' ')).includes(folded(query))).sort((a,b) => b.createdAt-a.createdAt || b.runId.localeCompare(a.runId));
+  let rows = [...runs,...history,...legacy].filter(record => {
+    if (scope !== 'all' && record.sessionId !== body.sessionId) return false;
+    const root = (record.target ? record.target.folder : record.baseline?.repoRoot) ?? '';
+    const directory = root.split(String.fromCharCode(92)).join('/');
+    const project = !record.target && record.baseline?.projectPath ? [directory.replace(/\\/$/, ''), record.baseline.projectPath].join('/') : directory;
+    return [record.task,record.runId].some(value => folded(value).includes(folded(query))) || folded(project).includes(folded(query).split(String.fromCharCode(92)).join('/'));
+  }).sort((a,b) => b.createdAt-a.createdAt || b.runId.localeCompare(a.runId));
   const unavailable=rows.filter(record=>record.unavailable).length;
   if(body.onlyUnavailable)rows=rows.filter(record=>record.unavailable);
   const offset = Math.min(body.offset ?? 0,Math.floor(Math.max(0,rows.length-1)/30)*30), selected = rows.slice(offset,offset+30);
@@ -213,10 +220,11 @@ window.fetch = async (url, init) => {
   if (sessionPlan >= 0) {
     const plan = window.__sessionPlans.splice(sessionPlan, 1)[0];
     const snapshot = JSON.stringify(plan.error ? {ok:false,error:plan.error} : {ok:true,value:plan.value ?? (m[1] === 'list' ? listHistory(body) : m[1] === 'latest' ? listHistory(body).runs[0] ?? null : null)});
+    if (plan.hold) await new Promise(resolve=>{window.__resumePlannedResponse=()=>{delete window.__resumePlannedResponse;resolve()}});
     if (plan.delayMs) await new Promise(resolve=>setTimeout(resolve,plan.delayMs));
     return new Response(snapshot,{status:plan.error?503:200,headers:{'content-type':'application/json'}});
   }
-  if (m[1] === 'version') return new Response(JSON.stringify(${JSON.stringify(error)}==='old-backend'?{ok:false,error:'unknown method version'}:{ok:true,value:{pluginVersion:${JSON.stringify(error)}==='stale-backend'?'3.0.0':${JSON.stringify(packageVersion)}}}),{status:${JSON.stringify(error)}==='old-backend'?404:200,headers:{'content-type':'application/json'}});
+  if (m[1] === 'version') return new Response(JSON.stringify(${JSON.stringify(error)}==='old-backend'?{ok:false,error:'unknown method version'}:{ok:true,value:{pluginVersion:${JSON.stringify(error)}==='stale-backend'?'3.0.0':${JSON.stringify(error)}==='previous-backend'?'3.3.1':${JSON.stringify(packageVersion)}}}),{status:${JSON.stringify(error)}==='old-backend'?404:200,headers:{'content-type':'application/json'}});
   if (m[1] === ${JSON.stringify(error)}) return new Response(JSON.stringify({ok:false,error:'请求失败，请重试'}),{status:503});
   if (m[1] === 'setup' && ${JSON.stringify(error === 'setup-slow')}) await new Promise(resolve=>setTimeout(resolve,5000));
   if (m[1] === 'shot') {
@@ -243,7 +251,7 @@ window.fetch = async (url, init) => {
     : m[1] === 'candidateFile' ? {path:body.path,size:42,binary:false,text:'# '+body.path+'\\nprint(len(open("notes.txt").read().split()))\\n',truncated:false}
     : m[1] === 'enableGit' ? (body.check ? {ok:true,folder:'D:/Notes',files:12,bytes:34567} : (window.__gitEnabled=true, {path:'D:/Notes',supported:true,workspace:'repository',profile:'static'}))
     : m[1] === 'setup' && ${JSON.stringify(state.startsWith('folder'))} ? {projectProcess:{platform:'win32',windowsCompatControl:true},current:{provider:'deepseek',model:'deepseek-chat'},project:window.__gitEnabled?{path:'D:/Notes',supported:true,workspace:'repository',profile:'static'}:{path:'D:/Notes',supported:true,workspace:'folder',canEnableGit:true},dshVersion:'0.2.2-rc.1',capabilities:{ok:true,missing:[],warnings:[]},generationMinutes:30}
-    : m[1] === 'setup' ? {projectProcess:{platform:'win32',windowsCompatControl:true},current:{provider:'deepseek',model:'deepseek-chat'},project:{path:'D:/Projects/demo-shop',supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)},warning:${JSON.stringify(error === 'manager-warning' ? 'Yarn PnP 与 TypeScript 7 组合仍有限制，失败检查不会被跳过。' : undefined)}},dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
+    : m[1] === 'setup' ? {projectProcess:{platform:'win32',windowsCompatControl:true},current:{provider:'deepseek',model:'deepseek-chat'},project:{path:${JSON.stringify(error === 'long-project-path' ? 'D:/Design teams/Customer workspace/Mobile storefront/Seasonal publications/Product illustrations/Archived reviews/Autumn collection/Reusable components/Mobile search prototype/Spring catalog' : 'D:/Projects/demo-shop')},supported:${JSON.stringify(error !== 'unsupported')},reason:${JSON.stringify(error === 'unsupported' ? '当前项目不是 Vite 项目。' : undefined)},warning:${JSON.stringify(error === 'manager-warning' ? 'Yarn PnP 与 TypeScript 7 组合仍有限制，失败检查不会被跳过。' : undefined)}},dshVersion:'0.2.2-rc.1',capabilities:{ok:${JSON.stringify(error !== 'host-capabilities')},missing:${JSON.stringify(error === 'host-capabilities' ? ['sandbox.confine'] : [])},warnings:[]},generationMinutes:30}
     : m[1] === 'models' ? {current:{provider:'deepseek',model:'deepseek-chat'},models}
     : m[1] === 'preflight' ? {ok:true,reasons:[],rehearsal:true,...(${JSON.stringify(error)}==='old-apply-host'?{}:{protectedWorktreeApply:true})}
     : m[1] === 'copyCleanupPlan' ? {version:1,runId:body.runId,rev:runs.find(r=>r.runId===body.runId)?.rev??0,state:'revealed',allowed:true,reasons:[],bytes:15728640,token:'a'.repeat(64),otherSession:${JSON.stringify(error==='other-session-cleanup')},resources:[{label:'A',path:'D:/Comparisons/0a1b2c3d/A',bytes:7340032,files:100,links:0,stopsPreview:true},{label:'B',path:'D:/Comparisons/0a1b2c3d/B',bytes:8388608,files:120,links:2,stopsPreview:true}]}

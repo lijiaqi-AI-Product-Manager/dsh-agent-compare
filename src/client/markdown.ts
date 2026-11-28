@@ -43,8 +43,13 @@ export function parseMarkdown(source: string): Block[] {
   return blocks(source.replace(/\r\n?/g, '\n').split('\n'), 0)
 }
 
+function isTableHeader(line: string, separator: string | undefined): boolean {
+  return line.includes('|') && separator !== undefined && TABLE_SEPARATOR.test(separator)
+    && cells(line).length === cells(separator).length
+}
+
 function startsBlock(line: string, next: string | undefined): boolean {
-  return FENCE.test(line) || HEADING.test(line) || RULE.test(line) || QUOTE.test(line) || ITEM.test(line) || (line.includes('|') && next !== undefined && TABLE_SEPARATOR.test(next) && next.includes('-'))
+  return FENCE.test(line) || HEADING.test(line) || RULE.test(line) || QUOTE.test(line) || ITEM.test(line) || isTableHeader(line, next)
 }
 
 function blocks(lines: string[], depth: number): Block[] {
@@ -90,7 +95,7 @@ function blocks(lines: string[], depth: number): Block[] {
     }
 
     const next = lines[i + 1]
-    if (line.includes('|') && next !== undefined && TABLE_SEPARATOR.test(next) && next.includes('-')) {
+    if (next !== undefined && isTableHeader(line, next)) {
       const head = cells(line)
       const align = cells(next).map((cell): Align => {
         const left = cell.startsWith(':'), right = cell.endsWith(':')
@@ -98,7 +103,7 @@ function blocks(lines: string[], depth: number): Block[] {
       })
       const rows: Inline[][][] = []
       i += 2
-      while (i < lines.length && !blank(lines[i]!) && lines[i]!.includes('|')) {
+      while (i < lines.length && !blank(lines[i]!) && !startsBlock(lines[i]!, lines[i + 1])) {
         const row = cells(lines[i]!)
         rows.push(head.map((_, column) => inline(row[column] ?? '', depth)))
         i++
@@ -206,6 +211,7 @@ function safeHref(raw: string): string | undefined {
 export function inline(source: string, depth = 0): Inline[] {
   if (depth > MAX_DEPTH) return source ? [{ kind: 'text', text: source }] : []
   const out: Inline[] = []
+  let codeClosers: Map<number, number> | undefined
   let text = ''
   const flush = (): void => { if (text) { out.push({ kind: 'text', text }); text = '' } }
   let i = 0
@@ -216,11 +222,12 @@ export function inline(source: string, depth = 0): Inline[] {
     if (char === '`') {
       let run = 1
       while (source[i + run] === '`') run++
-      const close = source.indexOf('`'.repeat(run), i + run)
-      if (close !== -1 && source[close + run] !== '`') {
+      codeClosers ??= matchingCodeDelimiters(source)
+      const close = codeClosers.get(i)
+      if (close !== undefined) {
         flush()
         const code = source.slice(i + run, close).replace(/\n/g, ' ')
-        out.push({ kind: 'code', text: code.length > 2 && code.startsWith(' ') && code.endsWith(' ') ? code.slice(1, -1) : code })
+        out.push({ kind: 'code', text: code.startsWith(' ') && code.endsWith(' ') && /[^ ]/.test(code) ? code.slice(1, -1) : code })
         i = close + run
         continue
       }
@@ -265,6 +272,18 @@ export function inline(source: string, depth = 0): Inline[] {
   }
   flush()
   return out
+}
+
+/** A code span ends at the next complete backtick run of exactly the same length. */
+function matchingCodeDelimiters(source: string): Map<number, number> {
+  const previous = new Map<number, number>(), next = new Map<number, number>()
+  for (const match of source.matchAll(/`+/g)) {
+    const width = match[0].length
+    const start = previous.get(width)
+    if (start !== undefined) next.set(start, match.index)
+    previous.set(width, match.index)
+  }
+  return next
 }
 
 /** An opening delimiter is followed by text, not by a space. */

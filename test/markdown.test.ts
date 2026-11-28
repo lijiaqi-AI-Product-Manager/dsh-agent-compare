@@ -73,6 +73,21 @@ describe('answer markdown', () => {
     expect(html).toEqual([{ kind: 'paragraph', children: [{ kind: 'text', text: '<script>alert(1)</script>' }, { kind: 'break' }, { kind: 'text', text: '<img src=x onerror=alert(1)>' }] }])
   })
 
+  it('matches complete backtick runs and preserves whitespace-only inline code', () => {
+    expect(inline('`A `` B`')).toEqual([{ kind: 'code', text: 'A `` B' }])
+    expect(inline('``a ` b ``` c``')).toEqual([{ kind: 'code', text: 'a ` b ``` c' }])
+    expect(inline('`   `')).toEqual([{ kind: 'code', text: '   ' }])
+    expect(inline('` x `')).toEqual([{ kind: 'code', text: 'x' }])
+  })
+
+  it('distinguishes real tables from unequal headers and stops at the next Markdown block', () => {
+    expect(parseMarkdown('A | B\n---\n说明').map(b => b.kind)).toEqual(['paragraph', 'rule', 'paragraph'])
+    const [grid, heading] = parseMarkdown('| A | B |\n|:--|--:|\n单格\n# C | D')
+    expect(grid).toMatchObject({ kind: 'table', align: ['left', 'right'], rows: [[[{ kind: 'text', text: '单格' }], []]] })
+    expect(heading).toMatchObject({ kind: 'heading', children: [{ kind: 'text', text: 'C | D' }] })
+    expect(parseMarkdown('A|B\n--|--\n1|2\n> quote | text').map(b => b.kind)).toEqual(['table', 'quote'])
+  })
+
   it('stays bounded on deeply nested or very long input', () => {
     const nested = Array.from({ length: 40 }, (_, depth) => `${'  '.repeat(depth)}- level ${depth}`).join('\n')
     expect(() => parseMarkdown(nested)).not.toThrow()

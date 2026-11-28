@@ -36,13 +36,23 @@ export interface ConversationContextRequest {
   readonly mode: ConversationContextMode
   readonly turns: number
   readonly ids?: readonly number[]
+  readonly digests?: readonly string[]
 }
 
-export function contextRequestOf(preferences: AbPreferences, ids?: readonly number[]): ConversationContextRequest {
+export function contextRequestOf(preferences: AbPreferences, ids?: readonly number[], digests?: readonly string[]): ConversationContextRequest {
   const saved = preferences.contextMode ?? 'recent'
   // A typed command or the model's tool call has no ticked entries: a manual selection falls back to the recent exchanges.
   const mode = saved === 'selected' && ids === undefined ? 'recent' : saved
-  return { mode, turns: preferences.contextTurns ?? DEFAULT_CONTEXT_TURNS, ...(mode === 'selected' && ids ? { ids } : {}) }
+  return { mode, turns: preferences.contextTurns ?? DEFAULT_CONTEXT_TURNS, ...(mode === 'selected' && ids ? { ids, ...(digests ? { digests } : {}) } : {}) }
+}
+
+export function parseContextSelection(ids: unknown, digests: unknown): { contextIds?: number[]; contextDigests?: string[] } {
+  if (ids === undefined && digests === undefined) return {}
+  if (!Array.isArray(ids) || ids.length > 200 || !ids.every(id => Number.isSafeInteger(id) && id >= 0)) throw new Error('所选主对话消息无效')
+  const contextIds = [...new Set<number>(ids)]
+  if (digests === undefined) return { contextIds }
+  if (contextIds.length !== ids.length || !Array.isArray(digests) || digests.length !== ids.length || !digests.every(d => typeof d === 'string' && /^[a-f0-9]{64}$/.test(d))) throw new Error('所选主对话消息无效')
+  return { contextIds, contextDigests: digests }
 }
 
 export function defaultPreferences(minutes = 30): AbPreferences {
@@ -160,11 +170,10 @@ export class PreferencesStore {
 }
 
 /** UI submissions carry frozen settings without asking users to write flags. */
-export function parseUiSubmission(raw: string): { task: string; example: boolean; preferences: AbPreferences; contextIds?: number[] } | undefined {
+export function parseUiSubmission(raw: string): { task: string; example: boolean; preferences: AbPreferences; contextIds?: number[]; contextDigests?: string[] } | undefined {
   const text = raw.trim()
   if (!text.startsWith('@ui ')) return undefined
   const value = JSON.parse(text.slice(4)) as Record<string, unknown>
   if (value.version !== 1 || typeof value.task !== 'string' || typeof value.example !== 'boolean') throw new Error('比较任务格式无效')
-  if (value.contextIds !== undefined && (!Array.isArray(value.contextIds) || value.contextIds.length > 200 || value.contextIds.some(id => !Number.isSafeInteger(id) || (id as number) < 0))) throw new Error('所选主对话消息无效')
-  return { task: value.task, example: value.example, preferences: parsePreferences(value.preferences), ...(value.contextIds === undefined ? {} : { contextIds: [...new Set(value.contextIds as number[])] }) }
+  return { task: value.task, example: value.example, preferences: parsePreferences(value.preferences), ...parseContextSelection(value.contextIds, value.contextDigests) }
 }

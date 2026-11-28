@@ -30,8 +30,13 @@ export interface ConversationContextRequest {
     readonly mode: ConversationContextMode;
     readonly turns: number;
     readonly ids?: readonly number[];
+    readonly digests?: readonly string[];
 }
-export declare function contextRequestOf(preferences: AbPreferences, ids?: readonly number[]): ConversationContextRequest;
+export declare function contextRequestOf(preferences: AbPreferences, ids?: readonly number[], digests?: readonly string[]): ConversationContextRequest;
+export declare function parseContextSelection(ids: unknown, digests: unknown): {
+    contextIds?: number[];
+    contextDigests?: string[];
+};
 export declare function defaultPreferences(minutes?: number): AbPreferences;
 export declare function parsePreferences(value: unknown): AbPreferences;
 /** What a start asks for, from saved settings and any explicit override. */
@@ -68,4 +73,5 @@ export declare function parseUiSubmission(raw: string): {
     example: boolean;
     preferences: AbPreferences;
     contextIds?: number[];
+    contextDigests?: string[];
 } | undefined;

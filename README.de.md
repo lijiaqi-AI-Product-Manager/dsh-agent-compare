@@ -100,7 +100,7 @@ npm pack
 Der Befehl installiert das Archiv im Web-Profil `web`.
 
 ```bash
-dsh plugin --profile web add ./dsh-agent-compare-3.3.1.tgz
+dsh plugin --profile web add ./dsh-agent-compare-3.4.1.tgz
 ```
 
 </details>
@@ -266,6 +266,8 @@ Die [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions
 <a id="whats-new"></a>
 
 ## Neuerungen nach Version
+
+**3.4.1** · Sie finden Vergleiche über den ursprünglichen Ordnernamen oder den vollständigen Projektpfad. Lange Pfade lassen sich zum Kopieren aufklappen. Wurde eine ausgewählte Nachricht geändert oder entfernt, können Sie Ihre Auswahl vor dem Senden anpassen. Bei langen Nachrichten bleiben Anfang und Ende erhalten. Beim Dateiwechsel sehen Sie den Inhalt der ausgewählten Datei. Antworten und Codeblöcke lassen sich direkt im Vergleichsfenster kopieren.
 
 **3.3.1** · Der Status lässt sich jetzt auch abrufen, wenn Ergebnisse noch ausstehen. Ist das Eingabefeld beschäftigt, bleibt der Entwurf erhalten und die Anleitung bietet einen neuen Versuch an.
 

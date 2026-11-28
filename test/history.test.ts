@@ -59,6 +59,22 @@ describe('retained history navigation', () => {
     expect(await readFile(store.file('ffffffff'), 'utf8')).toBe(raw)
   })
 
+  it('finds the original folder or nested project and keeps private comparison paths out of search', async () => {
+    const store = new RunStore(await tmp('ac-history-folders'))
+    const base = record(1)
+    await store.save({ ...base, target: { kind: 'folder', folder: '/notes/旅行清单' }, baseline: { ...base.baseline, repoRoot: '/private-copy/example' } })
+    await store.save({ ...record(2), target: { kind: 'folder' }, baseline: { ...base.baseline, repoRoot: '/private-copy/no-folder' } })
+    await store.save({ ...record(3), baseline: { ...base.baseline, projectPath: 'packages/widget' } })
+    const search = async (text: string) => (await historyPage(store, { search: text, scope: 'all' })).runs.map(r => r.runId)
+    expect(await search('旅行清单')).toEqual(['00000001'])
+    expect(await search('/projects/demo-shop/packages/widget')).toEqual(['00000003'])
+    expect(await search('demo-shop\\packages\\widget')).toEqual(['00000003'])
+    expect(await search('\\notes\\旅行清单')).toEqual(['00000001'])
+    expect(await search('private-copy')).toEqual([])
+    expect(await search('packages/widget')).toEqual(['00000003'])
+    expect(await search('00000002')).toEqual(['00000002'])
+  })
+
   it('rejects malformed scope, session, search and page arguments before storage access', async () => {
     const store = new RunStore(await tmp('ac-history-invalid'))
     for (const query of [{ scope: 'other' }, { scope: 'session' }, { sessionId: [] }, { search: 'x'.repeat(201) }, { search: {} }, { offset: -1 }, { offset: 0.5 }, { offset: Infinity }, { onlyUnavailable: 'yes' }]) {
