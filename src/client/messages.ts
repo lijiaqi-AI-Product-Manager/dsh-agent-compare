@@ -534,7 +534,7 @@ export const messages: Readonly<Record<string, string>> = {
   "还没有勾选消息；各版只看到需求。": "No messages selected yet; every version sees only the requirement.",
   "主对话里还没有可带入的内容。": "The main conversation has nothing to include yet.",
   "各版都会看到同样的 {0} 条主对话内容，约 {1} 字{2}": "Every version sees the same {0} main-conversation entries, about {1} characters{2}",
-  "（已按上限截取最新部分）": " (the newest part, within the limit)",
+  "（已按长度上限缩短）": " (shortened to fit)",
   "查看将带入的内容": "See what is included",
   "选择要带入的主对话消息": "Choose main-conversation messages to include",
   "重新读取": "Read again",

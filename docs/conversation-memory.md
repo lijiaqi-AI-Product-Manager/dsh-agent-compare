@@ -27,7 +27,7 @@ A|B 设置条里的「主对话上下文」决定各版候选能看到主对话�
 - 「最近对话」会带上随这些消息一起写入的比较结果。还没写入主对话的最新比较结果也会带上，所以连续发起的两次比较可以接着上一次的结果。
 - 各版收到的内容完全相同，并且注明这只是背景、以需求为准；工具调用、推理过程和其他插件注入的内容都不会带入。
 - 比较结果里的项目路径不会带给各版，以免它们去改原项目。
-- 单条消息最多 2,000 字，合计最多 12,000 字；超过时保留最新的部分，并标注“已截取”。
+- 单条消息超过长度上限时，保留开头和结尾，中间用 `[…]` 标记。总量达到上限时优先保留较新的完整片段。单条和总量分别以 2,000 和 12,000 个 UTF-16 单元计，可在发送前展开核对缩进、换行和实际内容。
 - 带入的原文随比较记录一起保存，卡片底部可以展开核对。
 - 内置示例使用独立的示例仓库，不带入主对话内容。
 - 直接输入 `/ab`，或者模型通过工具发起比较时，沿用这条对话保存的选项。这时没有勾选的消息，所以“手动选择”会改用最近对话。
@@ -51,6 +51,6 @@ The settings show exactly how many entries and characters each candidate will re
 
 **Recent** also includes the comparison results delivered with those messages, plus any result the conversation has not received yet, so back-to-back comparisons build on each other.
 
-All candidates receive the same excerpt, marked as background with the requirement taking precedence. Tools, reasoning and other injected context are excluded. Project paths in comparison results are left out, so the versions do not reach for the original project. Each message is limited to 2,000 characters and the excerpt to 12,000; the newest part is kept and marked as shortened.
+All candidates receive the same excerpt, marked as background with the requirement taking precedence. Tools, reasoning and other injected context are excluded. Project paths in comparison results are left out, so the versions do not reach for the original project. Long messages keep their opening and closing text with `[…]` in between. When the combined excerpt reaches its limit, newer entries take priority. The limits are 2,000 UTF-16 code units per message and 12,000 overall. Expand the preview to check the exact text, including indentation and line breaks.
 
 The excerpt is stored with the comparison and can be reviewed on its card. Built-in examples include no conversation content. A typed `/ab` command, or a comparison the model starts through its tool, uses the saved setting, with **Choose** falling back to the recent exchanges.

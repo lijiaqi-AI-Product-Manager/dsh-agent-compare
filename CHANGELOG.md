@@ -3,7 +3,7 @@
 ## 3.4.1
 
 - Search ordinary-folder comparisons by their original folder name or paste a nested project's complete path using either path separator. History and cross-conversation confirmation show the user's folder, including when no folder was selected. Long project paths fit one line in the composer and can be expanded or copied.
-- Bind each manually selected message to its content and role. If a selected entry changes, reselect the replacement in one click before sending. Long conversation excerpts retain opening instructions and closing corrections without splitting emoji. Turning context off immediately removes its preview.
+- Bind each manually selected message to its content and role. If a selected entry changes, reselect the replacement in one click before sending. Code excerpts keep their indentation and line breaks. Long messages retain opening instructions and closing corrections without cutting UTF-16 character pairs. Turning context off immediately removes its preview.
 - Read comparison milestones from the restored conversation log even when an earlier log had the same identifier and length.
 - Keep file previews and their copy buttons bound to the currently selected file. Copy answers and code inside a modal on hosts that require a selection. Read inline code and table boundaries as written in the answer.
 - The restart notice shows the interface and running backend versions. A temporary version lookup failure can be retried when a view reopens.

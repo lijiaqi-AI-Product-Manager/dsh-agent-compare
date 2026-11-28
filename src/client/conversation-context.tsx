@@ -72,7 +72,7 @@ export function ConversationContextControl({ sessionId, mode, turns, selected, d
     : previewError ? t(previewError)
     : preview === undefined ? t("正在读取主对话…")
     : preview === null ? (mode === 'selected' ? t("还没有勾选消息；各版只看到需求。") : t("主对话里还没有可带入的内容。"))
-    : t("各版都会看到同样的 {0} 条主对话内容，约 {1} 字{2}", { 0: preview.messages, 1: preview.chars.toLocaleString(), 2: preview.truncated ? t("（已按上限截取最新部分）") : '' })
+    : t("各版都会看到同样的 {0} 条主对话内容，约 {1} 字{2}", { 0: preview.messages, 1: preview.chars.toLocaleString(), 2: preview.truncated ? t("（已按长度上限缩短）") : '' })
   return <div className="ac-context">
     <div className="ac-settings-row">
       <span className="ac-context-label">{t("主对话上下文")}</span>

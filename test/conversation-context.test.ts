@@ -73,6 +73,16 @@ describe('main-conversation context for candidates', () => {
     expect(() => parseContextSelection(undefined, selection.digests)).toThrow(/无效/)
   })
 
+  it('preserves meaningful indentation and detects edits to it when sending a selection', () => {
+    const text = '    answer = 42\n    print(answer)\n'
+    const entry = listedEntries([user(text)])[0]!
+    const selected = { mode: 'selected' as const, turns: 1, ids: [entry.id], digests: [entry.digest] }
+    expect(entry.text).toBe(text)
+    expect(buildConversationContext([user(text)], selected)?.text).toBe('[User]\n' + text)
+    expect(() => buildConversationContext([user(text.trimStart())], selected)).toThrow(/重新选择/)
+    expect(listedEntries([user('  \n\t')])).toEqual([])
+  })
+
   it('retains both ends of a long message without cutting emoji at an excerpt boundary', () => {
     const original = '首条需求' + '🌊'.repeat(MESSAGE_CHARS) + '最后请保留撤销'
     const result = buildConversationContext([user(original)], { mode: 'recent', turns: 1 })!

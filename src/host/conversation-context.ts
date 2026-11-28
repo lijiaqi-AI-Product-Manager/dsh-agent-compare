@@ -30,9 +30,11 @@ export const MESSAGE_CHARS = 2_000
 export const CONTEXT_CHARS = 12_000
 const LISTED_ENTRIES = 40
 
-const textOf = (content: unknown): string => Array.isArray(content)
-  ? content.flatMap(block => block && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []).join('\n').trim()
-  : ''
+function textOf(content: unknown): string {
+  if (!Array.isArray(content)) return ''
+  const text = content.flatMap(block => block && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []).join('\n')
+  return text.trim() ? text : ''
+}
 
 /** The visible conversation, oldest first. */
 export function conversationEntries(events: readonly ContextSourceEvent[]): ContextEntry[] {
