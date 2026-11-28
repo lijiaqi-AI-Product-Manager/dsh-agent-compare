@@ -18,8 +18,8 @@ import { LanguageControl, Diagnostic } from './language.js'
 import { runIdFromToolResult } from './tool-result.js'
 import { clientCapabilities } from './capabilities.js'
 import { WindowsProcessControl, WindowsProcessEvidence } from './windows-compat.js'
-import { ConversationContextControl, type ContextMode } from './conversation-context.js'
-import { CopyButton, FilesView, ProjectNotes, ResultView } from './results.js'
+import { ConversationContextControl, selectedDigests, type ContextMode, type SelectedMessage } from './conversation-context.js'
+import { CopyButton, FilesView, ProjectDirectory, ProjectNotes, ResultView } from './results.js'
 import { BlindControl, MAX_VERSIONS, MIN_VERSIONS, revealedStyleName, Segmented, StyleSwatch, StyleCombos, StyleHabit, StylePicker, StyleSlots, stylesFor, VersionsControl, type StyleChoice } from './style-picker.js'
 import { LABELS, MAX_PICK_NOTE, PICK_REASONS, type Label, type PickReason, type StyleStat } from './model.js'
 import { Ambient, attachFx, burst, RunRing } from './fx.js'
@@ -99,13 +99,13 @@ function withVersions(p: AbPreferences, versions: number): AbPreferences {
   const models = Array.from({ length: Math.max(MIN_VERSIONS, versions, p.models.length) }, (_, i) => p.models[i] ?? {}).slice(0, MAX_VERSIONS)
   return { ...p, versions, styles: stylesFor(versions, p.styles), models }
 }
-/** `contextIds`: main-conversation entries ticked for the next submission; kept per conversation in memory only. */
-interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; autoCollapsedRunId?: string; contextIds: number[]; error?: string; pending: Promise<void>; listeners: Set<() => void> }
+/** Selected messages stay in this conversation's composer memory until submission. */
+interface AbMode { preferences: AbPreferences; version: number; loaded: boolean; loading: boolean; collapsed: boolean; saving: number; runId?: string; refreshVersion?: number; dismissedRunId?: string; autoCollapsedRunId?: string; contextSelection: SelectedMessage[]; error?: string; pending: Promise<void>; listeners: Set<() => void> }
 const modes = new Map<string, AbMode>()
 const registeredShells = new WeakSet<InputShell>()
 function modeFor(sessionId: string): AbMode {
   let mode = modes.get(sessionId)
-  if (!mode) { mode = { preferences: { enabled: false, mode: 'same-model', generationMinutes: 30, models: [{}, {}] }, version: 0, loaded: false, loading: false, collapsed: startWithSettingsFolded(), saving: 0, contextIds: [], pending: Promise.resolve(), listeners: new Set() }; modes.set(sessionId, mode) }
+  if (!mode) { mode = { preferences: { enabled: false, mode: 'same-model', generationMinutes: 30, models: [{}, {}] }, version: 0, loaded: false, loading: false, collapsed: startWithSettingsFolded(), saving: 0, contextSelection: [], pending: Promise.resolve(), listeners: new Set() }; modes.set(sessionId, mode) }
   return mode
 }
 function publishMode(mode: AbMode): void { mode.version++; for (const update of mode.listeners) update() }
@@ -153,7 +153,7 @@ async function executeComparison(sessionId: string, task: string, example = fals
   if (!example && setup.project?.supported === false) return { kind: 'error', text: t("当前项目不受支持：") + (setup.project.reason ?? t("这个项目暂时无法比较。")) + t(" 草稿保留，也可以试跑内置示例。") }
   const remote = clientCtx?.remote?.commands
   if (!remote) throw new Error(t("会话命令执行器不可用，请重新打开对话"))
-  const contextIds = !example && (preferences.contextMode ?? 'recent') === 'selected' ? { contextIds: mode.contextIds } : {}
+  const contextIds = !example && (preferences.contextMode ?? 'recent') === 'selected' ? { contextIds: mode.contextSelection.map(entry => entry.id), contextDigests: selectedDigests(mode.contextSelection) } : {}
   const result = await remote.execute(sessionId, `/ab @ui ${JSON.stringify({ version: 1, task, example, preferences, ...contextIds })}`, [])
   if (!result.ok) throw new Error(result.error?.message ?? t("比较未能进入会话"))
   if (!result.value) throw new Error(t("比较命令未注册，请检查插件是否已加载"))
@@ -497,13 +497,13 @@ function ComposerSettings({ sessionId, session, onExpand }: { sessionId: string;
       {loading ? <span className="ac-meta" role="status">{t("正在读取模型…")}</span> : modelError ? <span className="ac-meta" role="alert">{modelError} <button className="ac-text-btn" onClick={() => { void loadModels() }}>{t("重试模型列表")}</button></span> : models.length < versions ? <span className="ac-meta">{t("当前可读取的模型不足 {0} 个，可减少版本数，或使用同一模型的不同风格。", { 0: versions })}</span> : null}</div>}
     <div className="ac-meta ac-settings-facts">
       {p.mode === 'same-model' && <span>{t("当前模型：")}{routeText(setup?.current) || (setup ? t("请先在输入框右下角选择模型") : t("正在读取…"))}</span>}
-      {setup?.project?.path ? <span className="ac-settings-project" title={setup.project.path}>{t("项目：")}{setup.project.path}</span> : null}
+      {setup?.project?.path ? <ProjectDirectory path={setup.project.path} /> : null}
       {versions > 2 && <span className="ac-usage-hint">{t("生成 {0} 个候选。实际用量取决于任务和模型。", { 0: versions })}</span>}
       <StyleHabit load={() => call<{ comparisons: number; styles: StyleStat[] }>('styleStats', { sessionId })} />
     </div>
-    <ConversationContextControl sessionId={sessionId} mode={p.contextMode ?? 'recent'} turns={p.contextTurns ?? 3} selected={mode.contextIds} disabled={busy || !mode.loaded} call={call}
+    <ConversationContextControl key={sessionId} sessionId={sessionId} mode={p.contextMode ?? 'recent'} turns={p.contextTurns ?? 3} selected={mode.contextSelection} disabled={busy || !mode.loaded} call={call}
       onMode={contextMode => saveMode(sessionId, { ...p, contextMode })} onTurns={contextTurns => saveMode(sessionId, { ...p, contextTurns })}
-      onSelected={ids => { mode.contextIds = ids; publishMode(mode) }} />
+      onSelected={entries => { mode.contextSelection = entries; publishMode(mode) }} />
     <button type="button" className="ac-text-btn ac-more-settings" title={t("风格、时长和内置示例")} aria-controls={advancedId} aria-expanded={advanced} onClick={() => setAdvanced(value => !value)}>{advanced ? t("收起更多设置") : t("更多设置")}<span aria-hidden="true">{advanced ? '▴' : '▾'}</span></button>
     <div id={advancedId} className="ac-advanced-settings" data-open={advanced} data-project-blocked={setup?.project?.supported === false}>
       <div className="ac-settings-row">
@@ -1111,7 +1111,7 @@ function RunView({ runId, sessionId, initial, compact, onDone, onExpand, onColla
   const body = (
     <>
       {(err || readErr) && <div className="ac-error" role="alert" style={{ marginTop: 12 }}><Diagnostic text={err ?? readErr} /></div>}
-      {confirmation && <div ref={confirmationBox} tabIndex={-1} className="ac-review" role="region" aria-label={t("跨对话操作确认")} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConfirmation(undefined) } }}><div><b>{t("这次比较来自另一个对话")}</b><p>{t("请确认要操作的项目：")}{run.baseline.repoRoot ?? t("记录中未提供项目路径")}</p><p>{t("运行编号：")}<code>{runId}</code>{t(" · 将执行：")}{confirmationLabel ?? ({ choose: t("选择并揭晓"), reviewAdoption: t("审查采用"), adopt: t("采用候选"), revert: t("撤销采用"), recover: t("恢复文件"), cancel: t("停止比较"), cancelAdoption: t("停止采用预演"), salvage: t("验收已有改动"), retryVerification: t("重新验收"), reopenPreview: t("重新打开预览") } as Record<string, string>)[confirmation.method] ?? t("更新这次比较")}</p><p>{t("确认仅适用于这一次操作，仍会重新核验项目、候选与归属。")}</p></div><div className="ac-row"><button className="ac-btn" onClick={() => setConfirmation(undefined)}>{t("取消操作")}</button><button className="ac-btn primary" disabled={cancelBusy || (confirmation.method === 'cancelAdoption' ? run.control?.allowed === false : operationBlocked)} onClick={() => { const next = confirmation; setConfirmation(undefined); act(next.method, { ...next.extra, confirmOtherSession: true }) }}>{t("确认本次操作")}</button></div></div>}
+      {confirmation && <div ref={confirmationBox} tabIndex={-1} className="ac-review" role="region" aria-label={t("跨对话操作确认")} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConfirmation(undefined) } }}><div><b>{t("这次比较来自另一个对话")}</b><p>{t("请确认要操作的项目：")}{comparisonLocation(run) ?? (run.target ? t("未选择文件夹") : t("记录中未提供项目路径"))}</p><p>{t("运行编号：")}<code>{runId}</code>{t(" · 将执行：")}{confirmationLabel ?? ({ choose: t("选择并揭晓"), reviewAdoption: t("审查采用"), adopt: t("采用候选"), revert: t("撤销采用"), recover: t("恢复文件"), cancel: t("停止比较"), cancelAdoption: t("停止采用预演"), salvage: t("验收已有改动"), retryVerification: t("重新验收"), reopenPreview: t("重新打开预览") } as Record<string, string>)[confirmation.method] ?? t("更新这次比较")}</p><p>{t("确认仅适用于这一次操作，仍会重新核验项目、候选与归属。")}</p></div><div className="ac-row"><button className="ac-btn" onClick={() => setConfirmation(undefined)}>{t("取消操作")}</button><button className="ac-btn primary" disabled={cancelBusy || (confirmation.method === 'cancelAdoption' ? run.control?.allowed === false : operationBlocked)} onClick={() => { const next = confirmation; setConfirmation(undefined); act(next.method, { ...next.extra, confirmOtherSession: true }) }}>{t("确认本次操作")}</button></div></div>}
       <div ref={adoptionDock} className="ac-action-dock">{run.state === 'running' && !compact && <RunRing />}<ActionBar run={run} {...(sessionId ? { sessionId } : {})} busy={busy || copyBusy || !!confirmation} pending={confirmation ? 'confirmation' : cancelBusy ? 'cancelAdoption' : pending} act={act} excluded={judging ? excluded : new Set()} {...(onDone ? { onDone } : {})} {...(continueConversation ? { onContinue: continueConversation } : {})} /></div>
       {!!run.leftovers?.length && <section className="ac-banner warn" role="status" aria-label={t("资源清理状态")}><div><b>{run.state === 'adopted' ? t("采用已完成，仍有资源等待清理") : t("仍有资源等待清理")}</b><p>{t("可以重试清理。清理只处理本次比较拥有的资源。")}</p><ul>{run.leftovers.map((detail, index) => <li key={index}>{detail}</li>)}</ul><button className="ac-btn" disabled={blocked} onClick={() => act('cleanup')}>{t("重试清理")}</button></div></section>}
       {preflight && <section className="ac-review" aria-label={t("采用前审查")} role="region"><div><b>{preflight.ok ? t("目标核验通过，请确认采用") : t("当前无法采用")}</b><p className="ac-project-path">{t("目标：")}{run.baseline.repoRoot ?? t("本次比较的项目")}</p><p>{preflight.ok ? preflight.rehearsal ? t("项目有新改动，将先合并到临时副本中重新验收。") : t("将写入选中版本；不自动提交，保留暂存状态。") : preflight.reasons.join('；')}</p>{preflight.ok && <ReviewPaths candidate={run.candidates.find(c=>c.label===run.choice?.pick)}/>}
@@ -1207,6 +1207,10 @@ function AbModeButton({ sessionId }: { sessionId: string }): React.ReactElement 
   }
   return <><Styles /><button className={`ac-mode-btn${enabled ? ' on' : ''}`} onClick={toggle} disabled={!mode.loaded || mode.loading || !!capabilityError} aria-pressed={enabled} title={capabilityError ?? (enabled ? t("A|B 对比模式已开启，点此退出") : t("开启 A|B 对比模式，在主对话里同时运行 2–4 版"))} aria-label={t("A|B 对比模式")}><span aria-hidden="true" className="ac-mode-letters"><b>A</b>|<b>B</b></span></button></>
 }
+function comparisonLocation(run: Run): string | undefined {
+  return run.target?.kind === 'folder' ? run.target.folder : run.baseline.repoRoot
+}
+
 function History({ sessionId, data, open, busy, failed, scope, query, onScope, onSearch, onPage, onlyUnavailable, problemSupported, onUnavailable }: {
   sessionId:string; data?: ListResult; open: (r: Run) => void; busy: boolean; failed?: string
   scope: 'all' | 'session'; query: string; onScope: (scope: 'all' | 'session') => void; onSearch: (query: string) => void; onPage: (offset: number) => void
@@ -1238,6 +1242,10 @@ function History({ sessionId, data, open, busy, failed, scope, query, onScope, o
       {!busy && !failed && rows.length === 0 && <div className="ac-empty">{!query && !onlyUnavailable && scope==='all' && <span className="ac-sleeping"><WhaleFace stage="cancelled"/></span>}{query ? t("没有匹配的记录。换个关键词，或清空搜索查看已有比较。") : onlyUnavailable ? t("没有需处理的记录。取消筛选可以查看其它比较。") : scope === 'session' ? t("当前对话还没有比较。切换到“全部对话”可以查看以前的结果。") : t("还没有比较记录。点输入框左下角的 A|B，在主对话里开始第一次真实比较。")}{!query && !onlyUnavailable && <button type="button" className="ac-btn" onClick={()=>returnToComposer(sessionId)}>{t("去输入框试一次")}</button>}</div>}
       {rows.map((r,i) => {
         const date=dateLabel(r.createdAt)
+        const root = 'legacy' in r ? undefined : comparisonLocation(r)
+        const subfolder = !('legacy' in r) && !r.target && r.baseline.projectPath
+        const separator = root?.includes('\\') ? '\\' : '/'
+        const location = root && subfolder ? root.replace(/[\\/]$/, '') + separator + subfolder.split('/').join(separator) : root
         return <React.Fragment key={r.runId}>
           {(!i || dateLabel(rows[i-1]!.createdAt)!==date) && <h3 className="ac-history-day">{date}</h3>}
           {'legacy' in r ? (
@@ -1250,7 +1258,7 @@ function History({ sessionId, data, open, busy, failed, scope, query, onScope, o
         <button key={r.runId} className="ac-hrow" onClick={() => open(r)}>
           <span className="ac-history-dots" data-none={r.choice?.pick==='none'} aria-hidden="true">{r.candidates?.map(c=><i key={c.label} data-label={c.label} data-picked={r.choice?.pick===c.label}/>)}</span>
           <span className={`ac-pill ${r.state === 'adopted' ? 'ok' : ACTIVE.has(r.state) ? 'brand' : ''}`}>{t(STATE_TEXT[r.state]) ?? r.state}</span>
-          <span className="ac-hrow-copy"><span className="t" title={r.task}>{r.task}</span><span className="ac-meta" title={r.baseline.repoRoot}>{r.baseline.repoRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? t("项目未知")} · {r.runId}{r.choice?.reasons?.length ? <span className="ac-hrow-why">{t(" · 因为")}{PICK_REASONS.filter(reason => r.choice!.reasons!.includes(reason.id)).slice(0, 3).map(reason => t(reason.name)).join(t("、"))}</span> : null}</span></span>
+          <span className="ac-hrow-copy"><span className="t" title={r.task}>{r.task}</span><span className="ac-meta" title={location}>{location?.split(/[\\/]/).filter(Boolean).at(-1) ?? (r.target ? t("未选择文件夹") : t("项目未知"))} · {r.runId}{r.choice?.reasons?.length ? <span className="ac-hrow-why">{t(" · 因为")}{PICK_REASONS.filter(reason => r.choice!.reasons!.includes(reason.id)).slice(0, 3).map(reason => t(reason.name)).join(t("、"))}</span> : null}</span></span>
           <span className="ac-meta">{r.choice?.pick && r.choice.pick !== 'none' ? t("选了 {0} · ", { 0: r.choice.pick }) : ''}{when(r.createdAt)}</span>
         </button>
       )}</React.Fragment>})}

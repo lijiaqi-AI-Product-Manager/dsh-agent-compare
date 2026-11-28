@@ -99,6 +99,20 @@ function logSession(id = 's1') {
 describe('conversation memory in the conversation\'s own steps', () => {
   const create = async () => (message: unknown) => message
 
+  it('reads a restored log with the same id and event count independently', async () => {
+    const first = logSession(), restored = logSession()
+    const memory = new StepMemory({ records: async () => [run({})], createMessage: create })
+    first.commit(await memory.messages(first))
+    expect(await memory.messages(first)).toHaveLength(0)
+    restored.commit([{ content: [{ type: 'text', text: 'Different restored event' }], source: { kind: 'user' } }])
+    expect(restored.seq).toBe(first.seq)
+    const pending = await memory.messages(restored)
+    expect(pending).toHaveLength(1)
+    restored.commit(pending)
+    expect(await memory.messages(restored)).toHaveLength(0)
+    expect(await memory.messages(first)).toHaveLength(0)
+  })
+
   it('adds each current fact once, in the step that follows it, preserving target identity', async () => {
     const session = logSession()
     let records = [run({})]

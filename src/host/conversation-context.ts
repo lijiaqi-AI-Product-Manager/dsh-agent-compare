@@ -30,9 +30,11 @@ export const MESSAGE_CHARS = 2_000
 export const CONTEXT_CHARS = 12_000
 const LISTED_ENTRIES = 40
 
-const textOf = (content: unknown): string => Array.isArray(content)
-  ? content.flatMap(block => block && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []).join('\n').trim()
-  : ''
+function textOf(content: unknown): string {
+  if (!Array.isArray(content)) return ''
+  const text = content.flatMap(block => block && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []).join('\n')
+  return text.trim() ? text : ''
+}
 
 /** The visible conversation, oldest first. */
 export function conversationEntries(events: readonly ContextSourceEvent[]): ContextEntry[] {
@@ -51,9 +53,26 @@ export function conversationEntries(events: readonly ContextSourceEvent[]): Cont
   return entries
 }
 
-/** Recent entries for the picker, newest last, with previews bounded for transport. */
-export function listedEntries(events: readonly ContextSourceEvent[]): Array<ContextEntry & { chars: number }> {
-  return conversationEntries(events).slice(-LISTED_ENTRIES).map(entry => ({ ...entry, chars: entry.text.length, text: entry.text.length > 400 ? `${entry.text.slice(0, 400)}…` : entry.text }))
+/** Move a UTF-16 boundary to the start of a character when it cuts a pair. */
+function characterBoundary(text: string, offset: number): number {
+  const unit = text.charCodeAt(offset)
+  return unit >= 0xdc00 && unit <= 0xdfff ? offset - 1 : offset
+}
+
+export class ChangedContextSelectionError extends Error {
+  constructor() { super('所选的主对话消息已变更或不在当前对话中，请重新选择。') }
+}
+
+function entryDigest(entry: ContextEntry): string {
+  return createHash('sha256').update(entry.role).update('\0').update(entry.text).digest('hex')
+}
+
+/** The digest identifies the complete message even when just its opening fits in the picker. */
+export function listedEntries(events: readonly ContextSourceEvent[]): Array<ContextEntry & { chars: number; digest: string }> {
+  return conversationEntries(events).slice(-LISTED_ENTRIES).map(entry => ({
+    ...entry, chars: entry.text.length, digest: entryDigest(entry),
+    text: entry.text.length > 400 ? `${entry.text.slice(0, characterBoundary(entry.text, 400))}…` : entry.text,
+  }))
 }
 
 const LABEL: Record<ContextRole, string> = { user: 'User', assistant: 'Assistant', summary: 'Conversation summary', note: 'AgentCompare result' }
@@ -80,9 +99,11 @@ export function buildConversationContext(events: readonly ContextSourceEvent[], 
   const entries = conversationEntries(events)
   let chosen: ContextEntry[]
   if (request.mode === 'selected') {
-    const ids = new Set(request.ids ?? [])
+    const ids = new Map(request.ids?.map((id, index) => [id, request.digests?.[index]]))
     chosen = entries.filter(entry => ids.has(entry.id))
-    if (ids.size > 0 && chosen.length === 0) throw new Error('所选的主对话消息已不在当前对话中，请重新选择。')
+    if (chosen.length !== ids.size || (request.digests && chosen.some(entry => ids.get(entry.id) !== entryDigest(entry)))) {
+      throw new ChangedContextSelectionError()
+    }
   } else {
     const users = entries.filter(entry => entry.role === 'user')
     // Fewer exchanges than requested: start from the first one.
@@ -102,7 +123,16 @@ export function buildConversationContext(events: readonly ContextSourceEvent[], 
   let total = 0
   for (const entry of [...chosen].reverse()) {
     let text = candidateText(entry)
-    if (text.length > MESSAGE_CHARS) { text = `${text.slice(0, MESSAGE_CHARS)}\n[… ${text.length - MESSAGE_CHARS} characters omitted …]`; truncated = true }
+    if (text.length > MESSAGE_CHARS) {
+      // Preserve the opening request and the latest correction in a long message.
+      const marker = '\n[…]\n'
+      const width = Math.floor((MESSAGE_CHARS - marker.length) / 2)
+      const startOfTail = characterBoundary(text, text.length - width)
+      const tail = text.slice(startOfTail)
+      const head = text.slice(0, characterBoundary(text, MESSAGE_CHARS - marker.length - tail.length))
+      text = head + marker + tail
+      truncated = true
+    }
     const block = `[${LABEL[entry.role]}]\n${text}`
     if (total + block.length > CONTEXT_CHARS) { truncated = true; break }
     blocks.unshift(block); total += block.length + 2

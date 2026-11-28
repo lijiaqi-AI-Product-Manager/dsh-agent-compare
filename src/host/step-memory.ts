@@ -24,7 +24,7 @@ interface Scan { seq: number; readonly keys: Set<string> }
 const NOTES_PER_STEP = 5
 
 export class StepMemory {
-  private readonly scans = new Map<string, Scan>()
+  private readonly scans = new WeakMap<MemorySession, Scan>()
 
   constructor(private readonly deps: {
     /** Records owned by the conversation. */
@@ -69,8 +69,9 @@ export class StepMemory {
 
   /** Read only the log entries appended since the previous scan of this session. */
   private scan(session: MemorySession): Set<string> {
-    let state = this.scans.get(session.id)
-    if (!state || session.seq < state.seq) { state = { seq: 0, keys: new Set() }; this.scans.set(session.id, state) }
+    // Reopening a log can give a new session object the same id and length.
+    let state = this.scans.get(session)
+    if (!state || session.seq < state.seq) { state = { seq: 0, keys: new Set() }; this.scans.set(session, state) }
     if (session.seq !== state.seq) {
       // Overlap the last scanned position: re-reading it is harmless for a set,
       // and no entry is skipped whether the host's `seq` counts entries or names the last one.

@@ -20,15 +20,19 @@ interface FileContent { path: string; size: number; binary: boolean; deleted?: t
 const bytes = (size: number): string => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`
 
 /** Put `text` on the clipboard: the clipboard API where it is allowed, a selected text area otherwise. */
-async function copyText(text: string): Promise<void> {
+async function copyText(text: string, trigger: HTMLButtonElement): Promise<void> {
   try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return } } catch { /* fall back below */ }
+  if (!trigger.isConnected) throw new Error('copy')
   const area = document.createElement('textarea')
   area.value = text
   area.setAttribute('readonly', '')
   area.style.position = 'fixed'; area.style.opacity = '0'; area.style.pointerEvents = 'none'
-  document.body.appendChild(area)
   const previous = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+  // A modal makes the rest of the document inert, including a textarea on the body.
+  const container = trigger.closest('dialog[open]') ?? document.body
+  container.appendChild(area)
   try {
+    area.focus({ preventScroll: true })
     area.select()
     if (!document.execCommand('copy')) throw new Error('copy')
   } finally {
@@ -45,7 +49,7 @@ export function CopyButton({ text, label, className = 'ac-text-btn', title }: { 
     const timer = setTimeout(() => setState('idle'), 1800)
     return () => clearTimeout(timer)
   }, [state])
-  return <button type="button" className={`${className} ac-copy${state === 'copied' ? ' done' : ''}`} {...(title ? { title } : {})} onClick={() => { copyText(text).then(() => setState('copied'), () => setState('failed')) }}>
+  return <button type="button" className={`${className} ac-copy${state === 'copied' ? ' done' : ''}`} {...(title ? { title } : {})} onClick={event => { copyText(text, event.currentTarget).then(() => setState('copied'), () => setState('failed')) }}>
     <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       {state === 'copied' ? <path d="m2.5 8 3.2 3.3 7.5-7.2"/> : <><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5h-1v-8h8v1"/></>}
     </svg><span aria-live="polite">{state === 'copied' ? t("已复制") : state === 'failed' ? t("复制失败，请手动选择") : label}</span>
@@ -109,18 +113,21 @@ const isPage = (file: string | undefined): boolean => /\.html?$/i.test(file ?? '
 export function FilesView({ run, c, call, source = false }: { run: Run; c: Cand; call: Call; source?: boolean }): React.ReactElement {
   const files = source ? c.touchedFiles ?? [] : c.resultFiles ?? c.touchedFiles ?? []
   // A page opens first, shown as a page: an HTML file read as code is no way to judge it.
-  const [open, setOpen] = useState<string | undefined>(files.find(file => /(^|[\\/])index\.html?$/i.test(file)) ?? files.find(isPage) ?? files[0])
+  const [selected, setOpen] = useState<string>()
+  const open = selected && files.includes(selected) ? selected : files.find(file => /(^|[\\/])index\.html?$/i.test(file)) ?? files.find(isPage) ?? files[0]
   const [asCode, setAsCode] = useState(source)
-  const [content, setContent] = useState<FileContent>()
-  const [error, setError] = useState<string>()
+  const key = JSON.stringify([run.runId, c.label, open])
+  const [read, setRead] = useState<{ key: string; content?: FileContent; error?: string }>()
+  const content = read?.key === key ? read.content : undefined
+  const error = read?.key === key ? read.error : undefined
   useEffect(() => {
     if (open === undefined) return
     const controller = new AbortController()
-    setContent(undefined); setError(undefined)
     call<FileContent>('candidateFile', { runId: run.runId, label: c.label, path: open }, controller.signal)
-      .then(value => setContent(value), (failure: Error) => { if (!controller.signal.aborted) setError(failure.message) })
+      .then(value => { if (!controller.signal.aborted) setRead({ key, content: value }) },
+        (failure: Error) => { if (!controller.signal.aborted) setRead({ key, error: failure.message }) })
     return () => controller.abort()
-  }, [run.runId, c.label, open])
+  }, [run.runId, c.label, open, key, call])
   return <div className="ac-result" role="region" aria-label={t("候选 {0} 写出的文件", { 0: c.label })}>
     <div className="ac-result-head"><b>{t("写出的文件")}</b><span className="ac-meta">{files.some(isPage) ? t("{0} 个文件 · 页面在这里直接显示", { 0: files.length }) : t("{0} 个文件 · 没有可以直接打开的页面", { 0: files.length })}</span>{content?.text !== undefined && !content.truncated && <CopyButton text={content.text} label={t("复制文件内容")} title={t("复制当前打开的文件")} />}</div>
     {c.previewNote && <p className="ac-meta"><Diagnostic text={c.previewNote} /></p>}
@@ -156,6 +163,16 @@ export function FilesView({ run, c, call, source = false }: { run: Run; c: Cand;
       </div>
     </div>
   </div>
+}
+
+/** Keep a deeply nested path out of the way until the complete address is needed. */
+export function ProjectDirectory({ path }: { path: string }): React.ReactElement {
+  if (path.length <= 56) return <span className="ac-settings-project" title={path}>{t("项目：")}<bdi>{path}</bdi></span>
+  const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
+  return <details className="ac-settings-project ac-project-disclosure">
+    <summary title={path}>{t("项目：")}<bdi>{name}</bdi></summary>
+    <div><bdi>{path}</bdi><CopyButton text={path} label={t("复制完整路径")} /></div>
+  </details>
 }
 
 /** How this conversation's directory is compared, as short informational lines. */

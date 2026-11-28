@@ -22,9 +22,13 @@ export declare const MESSAGE_CHARS = 2000;
 export declare const CONTEXT_CHARS = 12000;
 /** The visible conversation, oldest first. */
 export declare function conversationEntries(events: readonly ContextSourceEvent[]): ContextEntry[];
-/** Recent entries for the picker, newest last, with previews bounded for transport. */
+export declare class ChangedContextSelectionError extends Error {
+    constructor();
+}
+/** The digest identifies the complete message even when just its opening fits in the picker. */
 export declare function listedEntries(events: readonly ContextSourceEvent[]): Array<ContextEntry & {
     chars: number;
+    digest: string;
 }>;
 /**
  * Build the text for one submission. `recent` takes the last `turns` user

@@ -438,6 +438,7 @@ export const messages: Readonly<Record<string, string>> = {
   "· 只读": " · Read-only",
   "时间未知": "Time unknown",
   "项目未知": "Project unknown",
+  "未选择文件夹": "No folder selected",
   "选了 {0} ·": "Chose {0} · ",
   "记录翻页": "Record pagination",
   "条": " records",
@@ -533,7 +534,7 @@ export const messages: Readonly<Record<string, string>> = {
   "还没有勾选消息；各版只看到需求。": "No messages selected yet; every version sees only the requirement.",
   "主对话里还没有可带入的内容。": "The main conversation has nothing to include yet.",
   "各版都会看到同样的 {0} 条主对话内容，约 {1} 字{2}": "Every version sees the same {0} main-conversation entries, about {1} characters{2}",
-  "（已按上限截取最新部分）": " (the newest part, within the limit)",
+  "（已按长度上限缩短）": " (shortened to fit)",
   "查看将带入的内容": "See what is included",
   "选择要带入的主对话消息": "Choose main-conversation messages to include",
   "重新读取": "Read again",
@@ -551,6 +552,7 @@ export const messages: Readonly<Record<string, string>> = {
   "结果已写入主对话记忆": "Result is in the main conversation's memory",
   "结果已排队，将随主对话分批写入记忆": "Result queued for the next available batch in this conversation",
   "所选的主对话消息已不在当前对话中，请重新选择。": "The selected messages are no longer in this conversation. Choose again.",
+  "所选的主对话消息已变更或不在当前对话中，请重新选择。": "A selected message changed or is no longer in this conversation. Select your messages again.",
   "所选主对话消息无效": "The selected main-conversation messages are invalid",
   "已经选了这一版": "This version is already picked",
   "揭晓后只能改选另一版已完成的结果": "After the reveal you can only switch to the other finished version",
@@ -649,6 +651,7 @@ export const messages: Readonly<Record<string, string>> = {
   "第 {0} 个模型": "Model {0}",
   "当前可读取的模型不足 {0} 个，可减少版本数，或使用同一模型的不同风格。": "Fewer than {0} models are available. Use fewer versions, or one model with different styles.",
   "项目：": "Project: ",
+  "复制完整路径": "Copy full path",
   "生成 {0} 个候选。实际用量取决于任务和模型。": "Generate {0} candidates. Usage depends on the task and model.",
   "{0} 个版本并行进行中 · 已用 ": "{0} versions running in parallel · elapsed ",
   "，选出你更满意的那一版": ", then pick the one you prefer",
@@ -818,5 +821,5 @@ export const messages: Readonly<Record<string, string>> = {
   "大鲸鱼也是要面子的": "A big whale has its pride",
   "3.1.0 之前的版本": "a version before 3.1.0",
   "请完全退出并重新打开 DSH": "Quit DSH completely and open it again",
-  "AgentCompare 的界面已是 {0}，但 DSH 仍在运行启动时加载的 {1} 后台。重启前看不到各版的过程和回复，完成也会慢约 40 秒。": "AgentCompare's interface is {0}, but DSH is still running the {1} backend it loaded at start. Until DSH restarts, versions show no steps or replies, and finishing takes about 40 seconds longer."
+  "当前界面版本为 {0}，DSH 加载的后台版本为 {1}。保存输入框里的草稿，重启后再开始新的比较。": "The interface is on version {0} and the running backend is on {1}. Save your draft and restart DSH before starting a new comparison."
 }

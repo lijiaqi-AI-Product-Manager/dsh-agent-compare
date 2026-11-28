@@ -100,7 +100,7 @@ npm pack
 ```
 
 ```bash
-dsh plugin --profile web add ./dsh-agent-compare-3.3.1.tgz
+dsh plugin --profile web add ./dsh-agent-compare-3.4.1.tgz
 ```
 
 </details>
@@ -472,6 +472,8 @@ node scripts/preview-ui.mjs
 <a id="whats-new"></a>
 
 ## 版本更新
+
+**3.4.1** · 可以用原文件夹名或完整项目路径找回比较。输入框上方的长路径收起为一行，点开即可查看和复制。如果手选的消息被改写或移除，发送前会提示重选。长消息同时保留开头和结尾。切换候选文件时只显示当前选中的内容，回答和代码块支持在比较弹窗内复制。
 
 **3.3.1** · 程序化查询比较状态时可读取尚未生成结果的候选。输入框忙碌时，使用教程会保留草稿并提示重试。
 

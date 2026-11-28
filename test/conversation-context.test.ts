@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildConversationContext, CONTEXT_CHARS, conversationEntries, listedEntries, MESSAGE_CHARS } from '../src/host/conversation-context.ts'
 import { candidatePrompt, DEFAULT_STRATEGIES } from '../src/core/strategies.ts'
-import { contextRequestOf, defaultPreferences, parsePreferences, parseUiSubmission } from '../src/host/preferences.ts'
+import { contextRequestOf, defaultPreferences, parseContextSelection, parsePreferences, parseUiSubmission } from '../src/host/preferences.ts'
 
 const user = (text: string, kind = 'user') => ({ type: 'user/message', data: { source: { kind }, content: [{ type: 'text', text }] } })
 const assistant = (text: string) => ({ type: 'assistant/message', data: { message: { content: [{ type: 'text', text }] } } })
@@ -51,6 +51,51 @@ describe('main-conversation context for candidates', () => {
     expect(buildConversationContext([], { mode: 'recent', turns: 3 }, ['[AgentCompare run 1b2c3d4e] done'])).toMatchObject({ messages: 1 })
     // Ticked entries are exactly what the user chose.
     expect(buildConversationContext(delivered, { mode: 'selected', turns: 3, ids: [0] }, ['pending'])!.text).toBe('[User]\n上一轮')
+  })
+
+  it('requires every manually selected message still to be available', () => {
+    expect(() => buildConversationContext(log, { mode: 'selected', turns: 3, ids: [0, 3] })).toThrow(/重新选择/)
+    expect(buildConversationContext(log, { mode: 'selected', turns: 3, ids: [0, 0] })?.messages).toBe(1)
+  })
+
+  it('binds the full text and role of each selection while allowing new messages to arrive', () => {
+    const prefix = '同一段文字'.repeat(100)
+    const original = [user(prefix + '蓝色'), assistant('收到')]
+    const entries = listedEntries(original).reverse()
+    const selection = { mode: 'selected', turns: 3, ids: entries.map(e => e.id), digests: entries.map(e => e.digest) } as const
+    expect(buildConversationContext([...original, user('later')], selection)?.messages).toBe(2)
+    expect(() => buildConversationContext([user(prefix + '绿色'), original[1]!], selection)).toThrow(/重新选择/)
+    expect(() => buildConversationContext([assistant(prefix + '蓝色'), original[1]!], selection)).toThrow(/重新选择/)
+    expect(parseContextSelection(selection.ids, selection.digests)).toEqual({ contextIds: [1, 0], contextDigests: selection.digests })
+    expect(() => parseContextSelection([1, 1], selection.digests)).toThrow(/无效/)
+    expect(() => parseContextSelection([1], [])).toThrow(/无效/)
+    expect(() => parseContextSelection([1], ['invalid'])).toThrow(/无效/)
+    expect(() => parseContextSelection(undefined, selection.digests)).toThrow(/无效/)
+  })
+
+  it('preserves meaningful indentation and detects edits to it when sending a selection', () => {
+    const text = '    answer = 42\n    print(answer)\n'
+    const entry = listedEntries([user(text)])[0]!
+    const selected = { mode: 'selected' as const, turns: 1, ids: [entry.id], digests: [entry.digest] }
+    expect(entry.text).toBe(text)
+    const excerpt = buildConversationContext([user(text)], selected)!
+    expect(excerpt.text).toBe('[User]\n' + text)
+    for (const kind of ['repository', 'folder'] as const) {
+      const prompt = candidatePrompt('Review the code', DEFAULT_STRATEGIES[0], 'own-root', excerpt.text, { kind })
+      expect(prompt).toContain('<main-conversation>\n' + excerpt.text + '\n</main-conversation>')
+    }
+    expect(() => buildConversationContext([user(text.trimStart())], selected)).toThrow(/重新选择/)
+    expect(listedEntries([user('  \n\t')])).toEqual([])
+  })
+
+  it('retains both ends of a long message without cutting emoji at an excerpt boundary', () => {
+    const original = '首条需求' + '🌊'.repeat(MESSAGE_CHARS) + '最后请保留撤销'
+    const result = buildConversationContext([user(original)], { mode: 'recent', turns: 1 })!
+    expect(result.text).toMatch(/^\[User\]\n首条需求.*\n\[…\]\n.*最后请保留撤销$/u)
+    expect(result.text.slice('[User]\n'.length).length).toBeLessThanOrEqual(MESSAGE_CHARS)
+    expect(Buffer.from(result.text, 'utf8').toString('utf8')).toBe(result.text)
+    expect(listedEntries([user('字'.repeat(399) + '🌊结尾')])[0]?.text).toBe('字'.repeat(399) + '…')
+    expect(listedEntries([user('字'.repeat(398) + '🌊结尾')])[0]?.text).toBe('字'.repeat(398) + '🌊…')
   })
 
   it('keeps the excerpt inside its block', () => {

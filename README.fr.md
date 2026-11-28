@@ -100,7 +100,7 @@ npm pack
 Cette commande installe l’archive dans le profil Web `web`.
 
 ```bash
-dsh plugin --profile web add ./dsh-agent-compare-3.3.1.tgz
+dsh plugin --profile web add ./dsh-agent-compare-3.4.1.tgz
 ```
 
 </details>
@@ -266,6 +266,8 @@ La [CI](https://github.com/lijiaqi-AI-Product-Manager/dsh-agent-compare/actions/
 <a id="whats-new"></a>
 
 ## Nouveautés par version
+
+**3.4.1** · Retrouvez une comparaison par son dossier d’origine ou par le chemin complet du projet. Les chemins longs tiennent sur une ligne et se déplient pour être copiés. Si un message sélectionné change ou disparaît, vous pouvez refaire votre sélection avant l’envoi. Les extraits longs conservent le début et la fin. Le contenu affiché suit le fichier sélectionné. Vous pouvez copier les réponses et les blocs de code depuis la fenêtre de comparaison.
 
 **3.3.1** · La consultation du statut fonctionne même si des résultats sont en attente. Si la zone de saisie est occupée, le guide conserve le brouillon et permet de réessayer.
 
